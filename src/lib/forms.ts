@@ -5,6 +5,7 @@ import type { components } from "@/api/schema";
 export const REQUEST_TIMEOUT_MS = 20_000;
 export const SERVER_ERROR = "Something went wrong on our side. Please try again in a moment.";
 export const REJECTED_ERROR = "This request could not be submitted. Please try again.";
+export const TIMEOUT_ERROR = "The server took too long to answer. Please try again.";
 export const NETWORK_ERROR = "We could not reach the server. Check your connection and try again.";
 
 export function rateLimitMessage(retryAfter: string | null): string {
