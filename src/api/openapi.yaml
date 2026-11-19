@@ -65,8 +65,147 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/reference/cities:
+    get:
+      operationId: list_cities
+      description: 'Unpaginated: the list is small and bounded.'
+      summary: Cities available for selection
+      tags:
+      - reference
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CityList'
+          description: Active cities by name
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/registrations/individuals:
+    post:
+      operationId: register_individual
+      description: The answer is the same whether or not the email is already registered;
+        an existing address receives an 'already registered' notice by email instead.
+      summary: Register an Individual account
+      tags:
+      - registrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IndividualRegistrationRequest'
+        required: true
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationAccepted'
+          description: Check your email to continue
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 components:
   schemas:
+    City:
+      type: object
+      description: 'Allowlist. Names are plain strings: city values are managed in
+        the database.'
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+      - id
+      - name
+    CityList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/City'
+      required:
+      - items
     Health:
       type: object
       properties:
@@ -91,6 +230,47 @@ components:
       - unavailable
       type: string
       description: '* `unavailable` - unavailable'
+    IndividualRegistrationRequest:
+      type: object
+      description: |-
+        Strict allowlist of the four fields. Rules come from `identity.validation`; every failing
+        field is reported at once, and an unknown field (such as `role`) is refused.
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          description: 2 to 80 letters, spaces, hyphens, apostrophes, full stops.
+        email:
+          type: string
+          minLength: 1
+          description: At most 254 characters.
+        password:
+          type: string
+          minLength: 1
+          description: 8 to 1024 characters, not a common password, not the email
+            address.
+        phone:
+          type: string
+          minLength: 1
+          description: Pakistani mobile (03xx xxxxxxx) or international number (+,
+            8 to 15 digits).
+      required:
+      - email
+      - full_name
+      - password
+      - phone
+    RegistrationAccepted:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/RegistrationAcceptedStatusEnum'
+      required:
+      - status
+    RegistrationAcceptedStatusEnum:
+      enum:
+      - check_your_email
+      type: string
+      description: '* `check_your_email` - check_your_email'
     ErrorCode:
       type: string
       enum:
