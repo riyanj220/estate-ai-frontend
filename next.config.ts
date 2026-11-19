@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "no-store" },
         ],
       },
+      // Signed-in areas depend on the session cookie: never cache them.
+      { source: "/dashboard/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
+      { source: "/admin/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
+      { source: "/sign-in", headers: [{ key: "Cache-Control", value: "no-store" }] },
     ];
   },
 };
