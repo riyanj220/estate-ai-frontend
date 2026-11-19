@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { STATE_LABELS, displayName } from "@/lib/account";
 import { requireAccount } from "@/lib/current-account";
 
@@ -16,6 +17,11 @@ export default async function DashboardPage() {
       </p>
       <p className="muted" data-testid="dashboard-state">
         Account state: {STATE_LABELS[account.state]}
+      </p>
+      <p>
+        <Link href="/account/password" className="text-link">
+          Change password
+        </Link>
       </p>
     </>
   );

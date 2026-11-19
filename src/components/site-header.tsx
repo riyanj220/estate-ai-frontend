@@ -53,6 +53,9 @@ export function SiteHeader() {
                   {note}
                 </span>
               )}
+              <Link href="/account/password" className="text-link">
+                Change password
+              </Link>
               <button type="button" className="secondary-button" onClick={onSignOut} disabled={signingOut}>
                 Sign out
               </button>

@@ -230,6 +230,11 @@ export function SignInForm({ target }: { target: string }) {
         </button>
       </form>
       <p className="muted" style={{ marginTop: "var(--space)" }}>
+        <Link href="/forgot-password" className="text-link">
+          Forgot your password?
+        </Link>
+      </p>
+      <p className="muted">
         New here?{" "}
         <Link href="/register" className="text-link">
           Create an account
