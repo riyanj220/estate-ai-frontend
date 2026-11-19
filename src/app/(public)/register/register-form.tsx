@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getApi } from "@/lib/api";
 import {
@@ -164,6 +165,12 @@ export function RegisterForm() {
           <p>
             If we can use <strong>{submittedEmail}</strong>, we have sent a message with the next steps. It can take a few
             minutes; look in your spam folder if you do not see it.
+          </p>
+          <p>
+            Already verified your email address?{" "}
+            <Link href="/sign-in" className="text-link">
+              Sign in
+            </Link>
           </p>
           <button type="button" className="secondary-button" onClick={useDifferentEmail}>
             Use a different email address

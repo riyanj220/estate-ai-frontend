@@ -10,6 +10,11 @@ export default function HomePage() {
           Create an account
         </Link>
       </p>
+      <p>
+        <Link href="/sign-in" className="text-link">
+          Sign in
+        </Link>
+      </p>
     </>
   );
 }

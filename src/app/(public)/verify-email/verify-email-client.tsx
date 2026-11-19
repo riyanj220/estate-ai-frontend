@@ -15,7 +15,7 @@ const FAILURES: Record<"link_expired" | "link_used" | "link_invalid" | "missing"
   },
   link_used: {
     title: "This link was already used or replaced",
-    text: "If you already verified your email address, you can sign in once sign-in is available. Otherwise request a new link below; only the newest link works.",
+    text: "If you already verified your email address, you can sign in. Otherwise request a new link below; only the newest link works.",
   },
   link_invalid: {
     title: "This link is not valid",
@@ -91,8 +91,8 @@ export function VerifyEmailClient() {
         <p role="status" className="muted">
           Thank you. Your email address is confirmed and your account is ready.
         </p>
-        <Link href="/" className="text-link">
-          Go to the home page
+        <Link href="/sign-in" className="text-link">
+          Sign in
         </Link>
       </section>
     );
