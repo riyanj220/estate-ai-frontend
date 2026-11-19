@@ -58,9 +58,23 @@ CI regenerates the client from the committed spec and fails on any diff on every
 check that the spec copy equals the backend `main` `openapi.yaml` runs only on pushes to `main`, so a
 frontend PR can precede its backend merge.
 
+## Registration page (`/register`)
+
+Individual registration (Story 1.15). The form (`src/app/(public)/register/register-form.tsx`, a client
+component) posts `full_name`, `email`, `password` and `phone` to `POST /api/v1/registrations/individuals`
+through the generated client on the same origin (`/api` proxy). It holds no business rules and the form is
+`noValidate`, so even empty or malformed input goes to the server: validation messages come from the backend `400` error envelope and are shown under the fields and in a focused summary;
+`429` shows the wait time from `Retry-After`; `202` shows "Check your email". Entered values live in component
+state only (password and phone are cleared on success). Styling uses the Atlas CSS variables in
+`src/app/globals.css`.
+
+To try it against the real backend: start Django (`BACKEND_URL`, default `http://127.0.0.1:8000`), run
+`npm run dev` and open `http://localhost:3000/register`. The Playwright tests use the stub backend instead
+(`tests/e2e/stub-backend.mjs`, registration modes set through `/__registration-mode`).
+
 ## Layout
 
-- `src/app/(public)` public pages (includes `/health`), `src/app/(app)` signed-in pages,
+- `src/app/(public)` public pages (includes `/health` and `/register`), `src/app/(app)` signed-in pages,
   `src/app/admin` admin area. Placeholders only; no visibility, privacy or quota logic lives here.
 
 `/dashboard` and `/admin` are temporary placeholders: there is no authentication yet, so they are not
