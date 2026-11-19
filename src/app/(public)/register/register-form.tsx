@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getApi, readErrorBody } from "@/lib/api";
+import { getApi } from "@/lib/api";
+import {
+  NETWORK_ERROR,
+  REJECTED_ERROR,
+  SERVER_ERROR,
+  rateLimitMessage,
+  readErrorBody,
+  withTimeout,
+} from "@/lib/forms";
 
 type FieldName = "full_name" | "email" | "password" | "phone";
 type Fields = Record<string, string[]>;
@@ -14,20 +22,9 @@ const FIELD_LABELS: Record<FieldName, string> = {
   password: "Password",
   phone: "Phone number",
 };
-const REQUEST_TIMEOUT_MS = 20_000;
-const SERVER_ERROR = "Something went wrong on our side. Please try again in a moment.";
-const REJECTED_ERROR = "This request could not be submitted. Please try again.";
-const NETWORK_ERROR = "We could not reach the server. Check your connection and try again.";
 
 function isFieldName(key: string): key is FieldName {
   return (FIELD_ORDER as string[]).includes(key);
-}
-
-function rateLimitMessage(retryAfter: string | null): string {
-  const seconds = Number(retryAfter);
-  if (!retryAfter || !Number.isFinite(seconds) || seconds <= 0) return "Too many attempts. Try again later.";
-  const minutes = Math.max(1, Math.ceil(seconds / 60));
-  return `Too many attempts. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
 }
 
 export function RegisterForm() {
@@ -103,14 +100,14 @@ export function RegisterForm() {
     setAnnouncement("Creating your account.");
 
     const email = values.email.trim();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const api = await getApi();
-      const { error, response } = await api.POST("/api/v1/registrations/individuals", {
-        body: { full_name: values.full_name, email, password: values.password, phone: values.phone },
-        signal: controller.signal,
-      });
+      const { error, response } = await withTimeout((signal) =>
+        api.POST("/api/v1/registrations/individuals", {
+          body: { full_name: values.full_name, email, password: values.password, phone: values.phone },
+          signal,
+        }),
+      );
 
       if (response.ok) {
         setSubmittedEmail(email);
@@ -146,7 +143,6 @@ export function RegisterForm() {
       setStatus("idle");
       showNotice(NETWORK_ERROR);
     } finally {
-      clearTimeout(timer);
       submitting.current = false;
     }
   }
