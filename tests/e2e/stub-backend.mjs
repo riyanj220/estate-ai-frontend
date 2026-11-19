@@ -29,6 +29,17 @@ let lastSignInToken = null;
 let lastSignOutToken = null;
 let csrfOnceSpent = false;
 let csrfMode = "ok";
+// Password reset and change stand-ins (Story 1.18).
+let forgotMode = "accepted";
+let forgotCount = 0;
+let lastForgot = null;
+let resetMode = "ok";
+let resetCount = 0;
+let lastReset = null;
+let changeMode = "ok";
+let changeCount = 0;
+let lastChange = null;
+let lastChangeToken = null;
 const pending = []; // responses held open by the hang mode
 
 createServer((req, res) => {
@@ -233,6 +244,109 @@ createServer((req, res) => {
     });
     return;
   }
+  if (url.pathname === "/__forgot-mode") {
+    return choose("forgotMode", ["accepted", "field", "codes", "rate_limited", "error", "broken", "hang"], (v) => (forgotMode = v));
+  }
+  if (url.pathname === "/__last-forgot") return json(200, { count: forgotCount, body: lastForgot });
+  if (url.pathname === "/__reset-mode") {
+    return choose("resetMode", ["ok", "expired", "used", "invalid", "weak", "weak_once", "weak_messages", "weak_unknown", "token_field", "no_fields", "unknown_code", "rate_limited", "forbidden", "error", "broken", "hang"], (v) => (resetMode = v));
+  }
+  if (url.pathname === "/__last-reset") return json(200, { count: resetCount, body: lastReset });
+  if (url.pathname === "/__change-mode") {
+    return choose("changeMode", ["ok", "wrong_current", "same", "weak", "server_messages", "session_gone", "unknown_code", "rate_limited", "csrf_once", "csrf_always", "error", "broken", "hang"], (v) => {
+      changeMode = v;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__last-change") return json(200, { count: changeCount, body: lastChange, token: lastChangeToken });
+  const readBody = (handle) => {
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    req.on("end", () => {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = null;
+      }
+      handle(parsed);
+    });
+  };
+  const throttled = () => {
+    res.writeHead(429, { "content-type": "application/json", "retry-after": "120" });
+    return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+  };
+  const serverFailure = (mode) => {
+    if (mode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (mode === "broken") return req.socket.destroy();
+    pending.push(res); // hang
+  };
+  if (url.pathname === "/api/v1/password-reset-requests" && req.method === "POST") {
+    return readBody((parsed) => {
+      forgotCount += 1;
+      lastForgot = parsed;
+      if (forgotMode === "accepted") return json(202, { status: "check_your_email" });
+      if (forgotMode === "field") return json(400, envelope("validation_error", "Some fields are invalid.", { email: ["Enter a valid email address."] }));
+      if (forgotMode === "codes") return json(400, envelope("validation_error", "Raw server text.", { email: ["invalid"] }));
+      if (forgotMode === "rate_limited") return throttled();
+      return serverFailure(forgotMode);
+    });
+  }
+  if (url.pathname === "/api/v1/password-resets/confirm" && req.method === "POST") {
+    return readBody((parsed) => {
+      resetCount += 1;
+      lastReset = parsed;
+      res.setHeader("cache-control", "no-store");
+      const weak = (message) => json(400, envelope("validation_error", "The request contains invalid values.", { password: [message] }));
+      if (resetMode === "ok") return json(200, { status: "password_reset" });
+      if (resetMode === "expired") return json(410, envelope("link_expired", "This link has expired. Request a new one."));
+      if (resetMode === "used") return json(409, envelope("link_used", "This link has already been used or replaced by a newer one."));
+      if (resetMode === "invalid") return json(400, envelope("link_invalid", "This link is not valid. Request a new one."));
+      if (resetMode === "weak") return weak("password_too_short");
+      if (resetMode === "weak_once") return resetCount === 1 ? weak("password_too_common") : json(200, { status: "password_reset" });
+      if (resetMode === "weak_messages") return weak("Pick something harder to guess.");
+      if (resetMode === "weak_unknown") return weak("mystery_code");
+      if (resetMode === "token_field") return json(400, envelope("validation_error", "Raw server text.", { token: ["invalid"] }));
+      if (resetMode === "no_fields") return json(400, envelope("validation_error", "Raw server text."));
+      if (resetMode === "unknown_code") return json(410, envelope("something_else", "Raw server text that must not show."));
+      if (resetMode === "rate_limited") return throttled();
+      if (resetMode === "forbidden") return json(403, envelope("forbidden", "Forbidden."));
+      return serverFailure(resetMode);
+    });
+  }
+  if (url.pathname === "/api/v1/me/password" && req.method === "POST") {
+    return readBody((parsed) => {
+      unsafeCount += 1;
+      changeCount += 1;
+      lastChange = parsed;
+      const sentToken = req.headers["x-csrftoken"] ?? null;
+      lastChangeToken = sentToken;
+      res.setHeader("cache-control", "no-store");
+      const fieldError = (fields) => json(400, envelope("validation_error", "The request contains invalid values.", fields));
+      if (changeMode === "session_gone") {
+        liveSession = false;
+        return json(401, envelope("unauthenticated", "Authentication is required."));
+      }
+      if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+      if (changeMode === "csrf_always") return json(403, envelope("forbidden", "CSRF check failed."));
+      if (changeMode === "csrf_once" && !csrfOnceSpent) {
+        csrfOnceSpent = true;
+        csrfSeed += 1;
+        return json(403, envelope("forbidden", "CSRF check failed."));
+      }
+      if (sentToken !== `csrf-${csrfSeed}`) return json(403, envelope("forbidden", "CSRF check failed."));
+      if (changeMode === "wrong_current") return fieldError({ current_password: ["incorrect"] });
+      if (changeMode === "same") return fieldError({ new_password: ["password_same_as_current"] });
+      if (changeMode === "weak") return fieldError({ new_password: ["password_too_short", "password_too_common"] });
+      if (changeMode === "rate_limited") return throttled();
+      if (changeMode === "unknown_code") return fieldError({ new_password: ["mystery_code"] });
+      if (changeMode === "server_messages") {
+        return fieldError({ current_password: ["The current password is incorrect."], new_password: ["Choose a password different from your current one."] });
+      }
+      if (changeMode === "error" || changeMode === "broken" || changeMode === "hang") return serverFailure(changeMode);
+      return json(200, { status: "password_changed" });
+    });
+  }
   if (url.pathname === "/__ping") return json(200, {});
   if (url.pathname === "/__mode") {
     const value = url.searchParams.get("value") ?? "up";
@@ -261,6 +375,15 @@ createServer((req, res) => {
     lastSignIn = lastSignInToken = lastSignOutToken = null;
     csrfOnceSpent = false;
     csrfMode = "ok";
+    forgotMode = "accepted";
+    forgotCount = 0;
+    lastForgot = null;
+    resetMode = "ok";
+    resetCount = 0;
+    lastReset = null;
+    changeMode = "ok";
+    changeCount = 0;
+    lastChange = lastChangeToken = null;
     while (pending.length) pending.pop().end();
     return json(200, { mode });
   }
