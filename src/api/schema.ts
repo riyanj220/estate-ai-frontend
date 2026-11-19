@@ -4,6 +4,46 @@
  */
 
 export interface paths {
+    "/api/v1/email-verification-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request a new verification link
+         * @description Always answers the same 202 whether or not the address is registered; the limit applies to every request alike.
+         */
+        post: operations["request_email_verification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/email-verifications/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm an email verification link
+         * @description POST, not GET, so link prefetchers cannot consume the single-use token. Errors: `link_invalid`, `link_expired` (410), `link_used` (409).
+         */
+        post: operations["confirm_email_verification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -77,6 +117,15 @@ export interface components {
         CityList: {
             items: components["schemas"]["City"][];
         };
+        ConfirmEmailRequest: {
+            /** @description The token from the verification link. */
+            token: string;
+        };
+        /**
+         * @description * `verified` - verified
+         * @enum {string}
+         */
+        EmailVerifiedStatusEnum: "verified";
         Health: {
             status: components["schemas"]["HealthStatusEnum"];
         };
@@ -115,11 +164,18 @@ export interface components {
          * @enum {string}
          */
         RegistrationAcceptedStatusEnum: "check_your_email";
+        VerificationRequestRequest: {
+            /** @description The address to send a new link to. */
+            email: string;
+        };
+        Verified: {
+            status: components["schemas"]["EmailVerifiedStatusEnum"];
+        };
         /**
          * @description Stable error code catalogue.
          * @enum {string}
          */
-        ErrorCode: "bad_request" | "validation_error" | "unauthenticated" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error";
+        ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error";
         ErrorBody: {
             code: components["schemas"]["ErrorCode"];
             message: string;
@@ -140,6 +196,166 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    request_email_verification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerificationRequestRequest"];
+            };
+        };
+        responses: {
+            /** @description Check your email */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationAccepted"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    confirm_email_verification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmEmailRequest"];
+            };
+        };
+        responses: {
+            /** @description Email verified */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Verified"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     health: {
         parameters: {
             query?: never;

@@ -4,6 +4,130 @@ info:
   version: 1.0.0
   description: EstateAI backend contract. One error envelope, stable error codes.
 paths:
+  /api/v1/email-verification-requests:
+    post:
+      operationId: request_email_verification
+      description: Always answers the same 202 whether or not the address is registered;
+        the limit applies to every request alike.
+      summary: Request a new verification link
+      tags:
+      - email-verification-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequestRequest'
+        required: true
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationAccepted'
+          description: Check your email
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/email-verifications/confirm:
+    post:
+      operationId: confirm_email_verification
+      description: 'POST, not GET, so link prefetchers cannot consume the single-use
+        token. Errors: `link_invalid`, `link_expired` (410), `link_used` (409).'
+      summary: Confirm an email verification link
+      tags:
+      - email-verifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmEmailRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Verified'
+          description: Email verified
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/health:
     get:
       operationId: health
@@ -206,6 +330,20 @@ components:
             $ref: '#/components/schemas/City'
       required:
       - items
+    ConfirmEmailRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+          description: The token from the verification link.
+      required:
+      - token
+    EmailVerifiedStatusEnum:
+      enum:
+      - verified
+      type: string
+      description: '* `verified` - verified'
     Health:
       type: object
       properties:
@@ -271,17 +409,36 @@ components:
       - check_your_email
       type: string
       description: '* `check_your_email` - check_your_email'
+    VerificationRequestRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          minLength: 1
+          description: The address to send a new link to.
+      required:
+      - email
+    Verified:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/EmailVerifiedStatusEnum'
+      required:
+      - status
     ErrorCode:
       type: string
       enum:
       - bad_request
       - validation_error
+      - link_invalid
       - unauthenticated
       - forbidden
       - not_found
       - method_not_allowed
       - not_acceptable
       - stale_revision
+      - link_used
+      - link_expired
       - unsupported_media_type
       - idempotency_key_reused
       - throttled
