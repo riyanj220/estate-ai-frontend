@@ -80,7 +80,10 @@ test("placeholder routes have no accessibility violations", async ({ page }) => 
   }
 });
 
-test("route groups render their placeholders", async ({ page }) => {
+test("route groups render their placeholders", async ({ page, request }) => {
+  // The signed-in and admin areas are guarded (Story 1.17): give the stub a live session cookie first.
+  await request.get(`${STUB}/__force-session`);
+  await page.context().addCookies([{ name: "estate_session", value: "stub-live", url: "http://127.0.0.1:3100" }]);
   for (const [path, heading] of [
     ["/", "EstateAI"],
     ["/dashboard", "Dashboard"],

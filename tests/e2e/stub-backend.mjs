@@ -12,6 +12,23 @@ let lastConfirm = null;
 let resendMode = "accepted";
 let resendCount = 0;
 let lastResend = null;
+// Session stand-in (Story 1.17): the cookie is stateful, so `me` is 401 before sign-in and after sign-out.
+const SESSION_COOKIE = "estate_session=stub-live";
+let signInMode = "ok";
+let meMode = "up";
+let signOutMode = "ok";
+let liveSession = false;
+let csrfSeed = 0;
+let csrfFetches = 0;
+let signInCount = 0;
+let signOutCount = 0;
+let meCount = 0;
+let unsafeCount = 0;
+let lastSignIn = null;
+let lastSignInToken = null;
+let lastSignOutToken = null;
+let csrfOnceSpent = false;
+let csrfMode = "ok";
 const pending = []; // responses held open by the hang mode
 
 createServer((req, res) => {
@@ -88,6 +105,134 @@ createServer((req, res) => {
     });
     return;
   }
+  const choose = (name, allowed, apply) => {
+    const value = url.searchParams.get("value") ?? allowed[0];
+    if (!allowed.includes(value)) return json(400, { error: "unknown mode" });
+    apply(value);
+    return json(200, { [name]: value });
+  };
+  if (url.pathname === "/__signin-mode") {
+    return choose("signInMode", ["ok", "unverified", "suspended", "no_name", "rate_limited", "wrong_credentials", "validation", "csrf_once", "csrf_always", "error", "broken", "hang"], (v) => {
+      signInMode = v;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__me-mode") return choose("meMode", ["up", "error", "broken", "hang"], (v) => (meMode = v));
+  if (url.pathname === "/__signout-mode") {
+    return choose("signOutMode", ["ok", "gone", "csrf_once", "csrf_always", "error", "broken", "hang"], (v) => {
+      signOutMode = v;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__csrf-mode") return choose("csrfMode", ["ok", "error", "rate_limited"], (v) => (csrfMode = v));
+  if (url.pathname === "/__force-session") {
+    liveSession = true;
+    return json(200, {});
+  }
+  if (url.pathname === "/__expire-session") {
+    liveSession = false;
+    return json(200, {});
+  }
+  if (url.pathname === "/__session-stats") {
+    return json(200, { csrfFetches, signInCount, signOutCount, meCount, unsafeCount, lastSignIn, lastSignInToken, lastSignOutToken, liveSession, csrfToken: `csrf-${csrfSeed}` });
+  }
+  const hasSession = () => liveSession && (req.headers.cookie ?? "").includes(SESSION_COOKIE);
+  const account = () => ({
+    id: "00000000-0000-4000-8000-000000000001",
+    account_type: "individual",
+    state: signInMode === "unverified" ? "email_unverified" : signInMode === "suspended" ? "suspended" : "active",
+    email: "ayesha@example.com",
+    full_name: signInMode === "no_name" ? "" : "Ayesha Khan",
+    capabilities: ["sign_in", "browse"],
+  });
+  if (url.pathname === "/api/v1/csrf" && req.method === "GET") {
+    csrfFetches += 1;
+    if (csrfMode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (csrfMode === "rate_limited") {
+      res.writeHead(429, { "content-type": "application/json", "retry-after": "120" });
+      return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+    }
+    res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "set-cookie": "csrftoken=stub; HttpOnly; Path=/; SameSite=Lax" });
+    return res.end(JSON.stringify({ csrf_token: `csrf-${csrfSeed}` }));
+  }
+  if (url.pathname === "/api/v1/me" && req.method === "GET") {
+    meCount += 1;
+    if (meMode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (meMode === "broken") return req.socket.destroy();
+    if (meMode === "hang") {
+      pending.push(res);
+      return;
+    }
+    res.setHeader("cache-control", "no-store");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication required."));
+    return json(200, account());
+  }
+  if (url.pathname === "/api/v1/session" && (req.method === "POST" || req.method === "DELETE")) {
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    req.on("end", () => {
+      unsafeCount += 1;
+      const isSignIn = req.method === "POST";
+      const mode = isSignIn ? signInMode : signOutMode;
+      const sentToken = req.headers["x-csrftoken"] ?? null;
+      if (isSignIn) {
+        signInCount += 1;
+        lastSignInToken = sentToken;
+        try {
+          lastSignIn = JSON.parse(raw);
+        } catch {
+          lastSignIn = null;
+        }
+      } else {
+        signOutCount += 1;
+        lastSignOutToken = sentToken;
+      }
+      const forbidden = () => json(403, envelope("forbidden", "CSRF check failed."));
+      if (mode === "csrf_always") return forbidden();
+      if (mode === "csrf_once" && !csrfOnceSpent) {
+        csrfOnceSpent = true;
+        csrfSeed += 1; // the stale token is what the client holds; a refetch returns the new one
+        return forbidden();
+      }
+      if (sentToken !== `csrf-${csrfSeed}`) return forbidden();
+      if (isSignIn) {
+        if (mode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+        if (mode === "broken") return req.socket.destroy();
+        if (mode === "hang") {
+          pending.push(res);
+          return;
+        }
+        if (mode === "rate_limited") {
+          res.writeHead(429, { "content-type": "application/json", "retry-after": "120" });
+          return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+        }
+        if (mode === "wrong_credentials") return json(401, envelope("invalid_credentials", "Internal: no such account."));
+        if (mode === "validation") {
+          return json(400, envelope("validation_error", "Some fields are invalid.", { email: ["Enter a valid email address."], password: ["This field may not be blank."] }));
+        }
+        liveSession = true;
+        csrfSeed += 1; // the backend rotates the CSRF secret with the new session
+        res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "set-cookie": `${SESSION_COOKIE}; HttpOnly; Path=/; SameSite=Lax` });
+        return res.end(JSON.stringify(account()));
+      }
+      if (mode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+      if (mode === "broken") return req.socket.destroy();
+      if (mode === "hang") {
+        pending.push(res);
+        return;
+      }
+      const had = hasSession();
+      liveSession = false;
+      csrfSeed += 1;
+      if (mode === "gone" || !had) {
+        res.writeHead(401, { "content-type": "application/json", "set-cookie": "estate_session=; Max-Age=0; Path=/" });
+        return res.end(JSON.stringify(envelope("unauthenticated", "Authentication required.")));
+      }
+      res.writeHead(204, { "set-cookie": "estate_session=; Max-Age=0; Path=/" });
+      return res.end();
+    });
+    return;
+  }
   if (url.pathname === "/__ping") return json(200, {});
   if (url.pathname === "/__mode") {
     const value = url.searchParams.get("value") ?? "up";
@@ -107,6 +252,15 @@ createServer((req, res) => {
     resendMode = "accepted";
     resendCount = 0;
     lastResend = null;
+    signInMode = "ok";
+    meMode = "up";
+    signOutMode = "ok";
+    liveSession = false;
+    csrfSeed = 0;
+    csrfFetches = signInCount = signOutCount = meCount = unsafeCount = 0;
+    lastSignIn = lastSignInToken = lastSignOutToken = null;
+    csrfOnceSpent = false;
+    csrfMode = "ok";
     while (pending.length) pending.pop().end();
     return json(200, { mode });
   }

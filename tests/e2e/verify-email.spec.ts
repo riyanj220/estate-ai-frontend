@@ -31,7 +31,7 @@ test("valid link: token leaves the address bar, one confirm request, success sta
   await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();
   await expect(page.getByText(/account is ready/)).toBeVisible();
-  await expect(page.getByRole("link", { name: "Go to the home page" })).toHaveAttribute("href", "/");
+  await expect(page.getByRole("main").getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/sign-in");
   expect(page.url()).not.toContain(TOKEN);
   expect(page.url()).not.toContain("token");
   expect(await lastConfirm(request)).toEqual({ count: 1, body: { token: TOKEN } });
