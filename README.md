@@ -72,9 +72,23 @@ To try it against the real backend: start Django (`BACKEND_URL`, default `http:/
 `npm run dev` and open `http://localhost:3000/register`. The Playwright tests use the stub backend instead
 (`tests/e2e/stub-backend.mjs`, registration modes set through `/__registration-mode`).
 
+## Email verification page (`/verify-email`)
+
+Story 1.16 (frontend half). The emailed link opens `/verify-email?token=...`. The client component
+(`src/app/(public)/verify-email/verify-email-client.tsx`) reads the token, removes it from the address bar with
+`history.replaceState`, then sends one `POST /api/v1/email-verifications/confirm` (a ref guard prevents a second
+request). The token lives only in a ref: it is never logged, stored or rendered. The state comes from the response
+(`error.code` of the standard envelope): success, `link_expired`, `link_used`, `link_invalid`, a missing token, or a
+generic retry state (network, timeout, `5xx`, unknown code) with a "Try again" button that reuses the token in
+memory. Every link failure shows a request-a-new-link form (`request-link-form.tsx`, `POST
+/api/v1/email-verification-requests`): `202` always shows the same generic confirmation, `429` shows the wait from
+`Retry-After`, `400` shows the server's message. `next.config.ts` sends `Referrer-Policy: no-referrer` and
+`Cache-Control: no-store` for the route. Helpers shared with the registration page live in `src/lib/forms.ts`.
+The Playwright stub has `/__confirm-mode` and `/__resend-mode` (see `tests/e2e/stub-backend.mjs`).
+
 ## Layout
 
-- `src/app/(public)` public pages (includes `/health` and `/register`), `src/app/(app)` signed-in pages,
+- `src/app/(public)` public pages (includes `/health`, `/register` and `/verify-email`), `src/app/(app)` signed-in pages,
   `src/app/admin` admin area. Placeholders only; no visibility, privacy or quota logic lives here.
 
 `/dashboard` and `/admin` are temporary placeholders: there is no authentication yet, so they are not
