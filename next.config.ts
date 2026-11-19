@@ -10,6 +10,18 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${target}/api/:path*` }];
   },
+  // The link carries a single-use token: no referrer leaks it and no cache keeps the page.
+  async headers() {
+    return [
+      {
+        source: "/verify-email",
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "no-store" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
