@@ -101,6 +101,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the signed-in account's password
+         * @description Needs `X-CSRFToken`. A wrong current password is `validation_error` with `fields.current_password = incorrect` (after repeated failures the same answer is returned without checking; never 429). Ends every other session; the current one stays signed in.
+         */
+        post: operations["change_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/password-reset-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request a password reset link
+         * @description Always answers the same 202 whether or not the address is registered. The limit is per client and applies to every request alike (429 with `Retry-After`); a per-account cap is silent.
+         */
+        post: operations["request_password_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/password-resets/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a new password with a reset link
+         * @description POST, not GET, so link prefetchers cannot consume the single-use token. Link errors: `link_invalid`, `link_expired` (410), `link_used` (409). A password the policy refuses is `validation_error` with `fields.password` set, only for a valid link, and does not use up the link. On success every session of the account ends. Limited per client (429 with `Retry-After`).
+         */
+        post: operations["confirm_password_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reference/cities": {
         parameters: {
             query?: never;
@@ -201,6 +261,12 @@ export interface components {
          * @enum {string}
          */
         CapabilitiesEnum: "sign_in" | "browse" | "view_drafts" | "edit_drafts" | "publish" | "send_messages" | "read_conversations" | "report" | "request_support" | "request_deactivation";
+        ChangePasswordRequest: {
+            /** @description The password in use now. */
+            current_password: string;
+            /** @description 8 to 1024 characters, not common, not the email address, not the current one. */
+            new_password: string;
+        };
         /** @description Allowlist. Names are plain strings: city values are managed in the database. */
         City: {
             /** Format: uuid */
@@ -251,6 +317,32 @@ export interface components {
             password: string;
             /** @description Pakistani mobile (03xx xxxxxxx) or international number (+, 8 to 15 digits). */
             phone: string;
+        };
+        PasswordChanged: {
+            status: components["schemas"]["PasswordChangedStatusEnum"];
+        };
+        /**
+         * @description * `password_changed` - password_changed
+         * @enum {string}
+         */
+        PasswordChangedStatusEnum: "password_changed";
+        PasswordResetConfirmRequest: {
+            /** @description The token from the reset link. */
+            token: string;
+            /** @description The new password: 8 to 1024 characters, not common, not the email address. */
+            password: string;
+        };
+        PasswordResetDone: {
+            status: components["schemas"]["PasswordResetDoneStatusEnum"];
+        };
+        /**
+         * @description * `password_reset` - password_reset
+         * @enum {string}
+         */
+        PasswordResetDoneStatusEnum: "password_reset";
+        PasswordResetRequestRequest: {
+            /** @description The address to send a reset link to. */
+            email: string;
         };
         RegistrationAccepted: {
             status: components["schemas"]["RegistrationAcceptedStatusEnum"];
@@ -644,6 +736,246 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActorSummary"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    change_password: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Password changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordChanged"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    request_password_reset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequestRequest"];
+            };
+        };
+        responses: {
+            /** @description Check your email */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationAccepted"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    confirm_password_reset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Password reset */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetDone"];
                 };
             };
             /** @description Bad request or validation error */
