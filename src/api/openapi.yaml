@@ -1,0 +1,136 @@
+openapi: 3.0.3
+info:
+  title: EstateAI API
+  version: 1.0.0
+  description: EstateAI backend contract. One error envelope, stable error codes.
+paths:
+  /api/v1/health:
+    get:
+      operationId: health
+      description: Liveness plus database reachability. Never reveals connection details.
+      summary: Liveness plus database reachability
+      tags:
+      - health
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: Service and database are reachable
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthUnavailable'
+          description: Database unreachable
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+components:
+  schemas:
+    Health:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/HealthStatusEnum'
+      required:
+      - status
+    HealthStatusEnum:
+      enum:
+      - ok
+      type: string
+      description: '* `ok` - ok'
+    HealthUnavailable:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/HealthUnavailableStatusEnum'
+      required:
+      - status
+    HealthUnavailableStatusEnum:
+      enum:
+      - unavailable
+      type: string
+      description: '* `unavailable` - unavailable'
+    ErrorCode:
+      type: string
+      enum:
+      - bad_request
+      - validation_error
+      - unauthenticated
+      - forbidden
+      - not_found
+      - method_not_allowed
+      - not_acceptable
+      - stale_revision
+      - unsupported_media_type
+      - idempotency_key_reused
+      - throttled
+      - server_error
+      description: Stable error code catalogue.
+    ErrorBody:
+      type: object
+      properties:
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+        fields:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        request_id:
+          type: string
+      required:
+      - code
+      - message
+      - fields
+      - request_id
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+      required:
+      - error
