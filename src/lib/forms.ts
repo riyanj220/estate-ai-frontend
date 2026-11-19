@@ -44,3 +44,8 @@ export async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>): 
     clearTimeout(timer);
   }
 }
+
+/** True for the error `withTimeout` raises when its timer fires. */
+export function isTimeoutError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
