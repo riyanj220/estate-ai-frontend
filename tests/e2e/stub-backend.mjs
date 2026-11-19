@@ -6,6 +6,12 @@ let lastCookie = "";
 let registrationMode = "accepted";
 let lastRegistration = null;
 let registrationCount = 0;
+let confirmMode = "ok";
+let confirmCount = 0;
+let lastConfirm = null;
+let resendMode = "accepted";
+let resendCount = 0;
+let lastResend = null;
 const pending = []; // responses held open by the hang mode
 
 createServer((req, res) => {
@@ -14,6 +20,74 @@ createServer((req, res) => {
     res.writeHead(status, { "content-type": "application/json" });
     res.end(JSON.stringify(body));
   };
+  const envelope = (code, message, fields = {}) => ({ error: { code, message, fields, request_id: "stub" } });
+  if (url.pathname === "/__confirm-mode") {
+    const value = url.searchParams.get("value") ?? "ok";
+    if (!["ok", "expired", "used", "invalid", "unknown_code", "expired_status_unknown_code", "invalid_status_no_code", "flaky", "error", "broken", "hang"].includes(value)) {
+      return json(400, { error: "unknown mode" });
+    }
+    confirmMode = value;
+    return json(200, { confirmMode });
+  }
+  if (url.pathname === "/__last-confirm") return json(200, { count: confirmCount, body: lastConfirm });
+  if (url.pathname === "/__resend-mode") {
+    const value = url.searchParams.get("value") ?? "accepted";
+    if (!["accepted", "field", "rate_20", "rate_90", "rate_none", "rate_abc", "error", "broken", "hang"].includes(value)) {
+      return json(400, { error: "unknown mode" });
+    }
+    resendMode = value;
+    return json(200, { resendMode });
+  }
+  if (url.pathname === "/__last-resend") return json(200, { count: resendCount, body: lastResend });
+  if (url.pathname === "/api/v1/email-verifications/confirm" && req.method === "POST") {
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    req.on("end", () => {
+      confirmCount += 1;
+      try {
+        lastConfirm = JSON.parse(raw);
+      } catch {
+        lastConfirm = null;
+      }
+      if (confirmMode === "ok") return json(200, { status: "verified" });
+      if (confirmMode === "flaky") {
+        return confirmCount === 1 ? json(500, envelope("server_error", "Internal detail that must not show.")) : json(200, { status: "verified" });
+      }
+      if (confirmMode === "expired") return json(410, envelope("link_expired", "This link has expired."));
+      if (confirmMode === "used") return json(409, envelope("link_used", "This link was already used."));
+      if (confirmMode === "invalid") return json(400, envelope("link_invalid", "This link is not valid."));
+      if (confirmMode === "unknown_code") return json(403, envelope("forbidden", "Forbidden."));
+      if (confirmMode === "expired_status_unknown_code") return json(410, envelope("something_else", "Gone."));
+      if (confirmMode === "invalid_status_no_code") return json(400, { detail: "not an envelope" });
+      if (confirmMode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+      if (confirmMode === "broken") return req.socket.destroy();
+      pending.push(res);
+    });
+    return;
+  }
+  if (url.pathname === "/api/v1/email-verification-requests" && req.method === "POST") {
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    req.on("end", () => {
+      resendCount += 1;
+      try {
+        lastResend = JSON.parse(raw);
+      } catch {
+        lastResend = null;
+      }
+      if (resendMode === "accepted") return json(202, { status: "check_your_email" });
+      if (resendMode === "field") return json(400, envelope("validation_error", "Some fields are invalid.", { email: ["Enter a valid email address."] }));
+      if (resendMode.startsWith("rate_")) {
+        const retry = { rate_20: "20", rate_90: "90", rate_abc: "soon" }[resendMode];
+        res.writeHead(429, { "content-type": "application/json", ...(retry ? { "retry-after": retry } : {}) });
+        return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+      }
+      if (resendMode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+      if (resendMode === "broken") return req.socket.destroy();
+      pending.push(res);
+    });
+    return;
+  }
   if (url.pathname === "/__ping") return json(200, {});
   if (url.pathname === "/__mode") {
     const value = url.searchParams.get("value") ?? "up";
@@ -27,6 +101,12 @@ createServer((req, res) => {
     registrationMode = "accepted";
     lastRegistration = null;
     registrationCount = 0;
+    confirmMode = "ok";
+    confirmCount = 0;
+    lastConfirm = null;
+    resendMode = "accepted";
+    resendCount = 0;
+    lastResend = null;
     while (pending.length) pending.pop().end();
     return json(200, { mode });
   }
