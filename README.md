@@ -86,10 +86,44 @@ memory. Every link failure shows a request-a-new-link form (`request-link-form.t
 `Cache-Control: no-store` for the route. Helpers shared with the registration page live in `src/lib/forms.ts`.
 The Playwright stub has `/__confirm-mode` and `/__resend-mode` (see `tests/e2e/stub-backend.mjs`).
 
+## Sign-in, sign-out and the signed-in area
+
+Story 1.17 (frontend half). The contract is the backend's `docs/sessions.md`.
+
+- `src/lib/csrf.ts`: `getCsrfToken()` fetches `GET /api/v1/csrf` once and keeps the token in memory only; concurrent
+  callers share one fetch. `clearCsrfToken()` drops it (done after sign-in and sign-out, because the backend rotates
+  it). `withCsrf(call)` sends it as `X-CSRFToken`; a `403` refetches the token and retries that call once, a second
+  `403` is returned as a failure.
+- `src/lib/session.tsx`: `SessionProvider` (mounted in the root layout) restores the session with `GET /api/v1/me` and
+  exposes `{status: "loading" | "signed_out" | "signed_in" | "error", account, signIn, signOut, refresh}`. `401` is
+  signed out; any other failure is `error` (the header says "Could not check your session" with Retry, never a false
+  signed-out claim). The account summary lives in memory only; the session cookie is HttpOnly and never touched by script.
+- `src/components/site-header.tsx`: brand link; Sign in and Create account for a Visitor; display name, a state note
+  ("Email not verified", "Account restricted", driven only by `state`) and Sign out for a signed-in account.
+- `/sign-in` (`src/app/(public)/sign-in/`): email and password, same accessibility pattern as `/register`. One message for
+  every credential failure (`401 invalid_credentials`); field messages from a `400` envelope; separate generic messages for
+  a rejected request (`403` after the retry), `5xx`, timeout and network failure. A signed-in visitor is redirected to
+  `/dashboard`. `?next=` is validated by `src/lib/next-target.ts` (single leading `/`, no `//`, no backslash, no control
+  characters, at most 200 characters); anything else goes to `/dashboard`.
+- Guard (`src/lib/current-account.ts`, `src/components/guarded.tsx`): the `(app)` and `admin` layouts call the backend
+  `GET /api/v1/me` on the server with the forwarded cookie. `401` redirects to `/sign-in?next=<requested path>`; a backend
+  failure renders "Temporarily unavailable" and no protected content. The areas are dynamic and sent `Cache-Control:
+  no-store`. `src/proxy.ts` (Next.js 16 name for middleware) copies the requested path into the `x-requested-path` request
+  header, overwriting any client-supplied value, because layouts cannot see the path. Any signed-in account may see the
+  `/admin` placeholder until Story 1.19 adds the role check.
+- Playwright stub (`tests/e2e/stub-backend.mjs`): `/api/v1/csrf`, `/api/v1/session` (POST, DELETE), `/api/v1/me` with a
+  stateful cookie (`me` is `401` before sign-in and after sign-out) and a rotating CSRF token. Modes:
+  `/__signin-mode` (`ok`, `unverified`, `suspended`, `wrong_credentials`, `validation`, `csrf_once`, `csrf_always`,
+  `error`, `broken`, `hang`), `/__me-mode` (`up`, `error`, `broken`, `hang`), `/__signout-mode` (`ok`, `gone`,
+  `csrf_once`, `csrf_always`, `error`, `broken`), plus `/__session-stats`, `/__force-session`, `/__expire-session`.
+
+Hand-off to Story 1.18: add the "Forgot your password?" link to the sign-in page; the backend ends other sessions on a
+password change, so a later `401` on any call means the session ended (return to the signed-out state).
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register` and `/verify-email`), `src/app/(app)` signed-in pages,
   `src/app/admin` admin area. Placeholders only; no visibility, privacy or quota logic lives here.
 
-`/dashboard` and `/admin` are temporary placeholders: there is no authentication yet, so they are not
-protected (they are marked `noindex`). Do not treat them as secured pages.
+`/dashboard` and `/admin` are placeholders guarded on the server (see above); `/admin` has no role check until Story 1.19.
+Both are marked `noindex`.
