@@ -117,12 +117,52 @@ Story 1.17 (frontend half). The contract is the backend's `docs/sessions.md`.
   `error`, `broken`, `hang`), `/__me-mode` (`up`, `error`, `broken`, `hang`), `/__signout-mode` (`ok`, `gone`,
   `csrf_once`, `csrf_always`, `error`, `broken`), plus `/__session-stats`, `/__force-session`, `/__expire-session`.
 
-Hand-off to Story 1.18: add the "Forgot your password?" link to the sign-in page; the backend ends other sessions on a
-password change, so a later `401` on any call means the session ended (return to the signed-out state).
+## Password reset and change
+
+Story 1.18 (frontend half). The contract is the backend's `docs/password-reset.md`.
+
+- `/forgot-password` (`src/app/(public)/forgot-password/`): email field, `POST /api/v1/password-reset-requests`. A `202`
+  always shows the same confirmation ("If that address has an account, we have sent a link. It works once and expires in
+  1 hour."), so nothing says whether the address exists; the address is trimmed. `429` shows the wait from `Retry-After`,
+  `400` shows field errors on the email field, and `5xx`, timeout and network failure each have their own message. An empty
+  field sends nothing. The sign-in page links here ("Forgot your password?").
+- `/reset-password` (`src/app/(public)/reset-password/`, the emailed link): `reset-password-client.tsx` reads `token` from
+  the query, removes it from the address bar with `history.replaceState` (other parameters stay) and keeps it only in a
+  ref. Nothing is sent on load; the person types a new password and `POST /api/v1/password-resets/confirm` sends exactly
+  `{token, password}`. `200` shows success with a sign-in link and refreshes the header (every session ended server-side);
+  `link_expired` (410), `link_used` (409) and `link_invalid` (400) each have their own state with a "Request a new link" link
+  and drop the token; a `400 validation_error` shows the mapped policy message under the field and keeps the form and the
+  token (the link is not consumed by a typo); `429`, `5xx`, timeout and network failure keep the form. `next.config.ts`
+  sends `Referrer-Policy: no-referrer` and `Cache-Control: no-store` for the route. The page is statically prerendered on
+  purpose (no `force-dynamic`), so the token never reaches the served HTML. In `next dev` the framework embeds the requested
+  URL in script payloads, so the "no token in the HTML" check is made against the production build:
+  `BACKEND_URL=http://127.0.0.1:4010 npm run build`, `npx next start -p 3100` with the stub, then
+  `curl -si "http://127.0.0.1:3100/reset-password?token=abc"` shows the headers and no `abc` in the body.
+- `/account/password` (`src/app/(app)/account/password/`): signed-in only (same guard as the dashboard; `no-store`).
+  Current password and New password, each with a show/hide button, `POST /api/v1/me/password` through `withCsrf`.
+  `200` shows "Your password was changed. Your other devices were signed out.", clears both fields and refreshes the
+  session provider; `400` maps `current_password` (`incorrect`) and `new_password` codes (policy codes and
+  `password_same_as_current`) to text; `401` refreshes the provider (signed out) and goes to
+  `/sign-in?next=%2Faccount%2Fpassword`; a second `403`, `5xx`, timeout and network failure show generic messages. The
+  header and the dashboard link to it.
+- The reset request and the reset confirm are anonymous calls: the backend views set `authentication_classes = []` and
+  ignore the session cookie, so they are sent without a CSRF token (no `withCsrf`); only the signed-in change uses it.
+  The production check above (`next build && next start`, then `curl -si` on `/reset-password?token=...`) is manual; the
+  Playwright header assertions run against `next dev`, which also sends `no-store`, so `password.spec.ts` additionally
+  asserts the `headers()` rules in `next.config.ts` directly.
+- `src/lib/password-messages.ts`: the one map from backend codes to human text. The backend sends its own static field
+  messages (never echoing input) rather than bare codes, so a value that is not a known code but is a sentence is shown
+  as sent; anything else becomes "Enter a valid value." The register form shows server messages directly and has no map to
+  share.
+- Playwright stub: `/__forgot-mode` (`accepted`, `field`, `rate_limited`, `error`, `broken`, `hang`), `/__reset-mode`
+  (`ok`, `expired`, `used`, `invalid`, `weak`, `weak_once`, `weak_messages`, `rate_limited`, `forbidden`, `error`, `broken`,
+  `hang`) and `/__change-mode` (`ok`, `wrong_current`, `same`, `weak`, `server_messages`, `session_gone`, `csrf_once`,
+  `csrf_always`, `error`, `broken`, `hang`), with `/__last-forgot`, `/__last-reset` and `/__last-change` for the request
+  bodies. Tests: `tests/e2e/password.spec.ts`.
 
 ## Layout
 
-- `src/app/(public)` public pages (includes `/health`, `/register` and `/verify-email`), `src/app/(app)` signed-in pages,
+- `src/app/(public)` public pages (includes `/health`, `/register`, `/verify-email`, `/forgot-password` and `/reset-password`), `src/app/(app)` signed-in pages,
   `src/app/admin` admin area. Placeholders only; no visibility, privacy or quota logic lives here.
 
 `/dashboard` and `/admin` are placeholders guarded on the server (see above); `/admin` has no role check until Story 1.19.
