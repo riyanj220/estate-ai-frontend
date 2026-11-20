@@ -40,6 +40,17 @@ let changeMode = "ok";
 let changeCount = 0;
 let lastChange = null;
 let lastChangeToken = null;
+// Agency registration and city reference stand-ins (Story 1.19).
+let agencyMode = "accepted";
+let agencyCount = 0;
+let lastAgency = null;
+let citiesMode = "ok";
+let citiesCount = 0;
+const CITIES = [
+  { id: "11111111-1111-4111-8111-111111111111", name: "Karachi" },
+  { id: "22222222-2222-4222-8222-222222222222", name: "Lahore" },
+  { id: "33333333-3333-4333-8333-333333333333", name: "Islamabad" },
+];
 const pending = []; // responses held open by the hang mode
 
 createServer((req, res) => {
@@ -128,7 +139,7 @@ createServer((req, res) => {
       csrfOnceSpent = false;
     });
   }
-  if (url.pathname === "/__me-mode") return choose("meMode", ["up", "error", "broken", "hang"], (v) => (meMode = v));
+  if (url.pathname === "/__me-mode") return choose("meMode", ["up", "agency", "agency_no_name", "agency_bare", "admin", "error", "broken", "hang"], (v) => (meMode = v));
   if (url.pathname === "/__signout-mode") {
     return choose("signOutMode", ["ok", "gone", "csrf_once", "csrf_always", "error", "broken", "hang"], (v) => {
       signOutMode = v;
@@ -150,10 +161,11 @@ createServer((req, res) => {
   const hasSession = () => liveSession && (req.headers.cookie ?? "").includes(SESSION_COOKIE);
   const account = () => ({
     id: "00000000-0000-4000-8000-000000000001",
-    account_type: "individual",
+    account_type: meMode.startsWith("agency") ? "agency" : meMode === "admin" ? "admin" : "individual",
     state: signInMode === "unverified" ? "email_unverified" : signInMode === "suspended" ? "suspended" : "active",
     email: "ayesha@example.com",
-    full_name: signInMode === "no_name" ? "" : "Ayesha Khan",
+    full_name: meMode === "agency" || meMode === "agency_bare" ? "" : signInMode === "no_name" ? "" : "Ayesha Khan",
+    agency_name: meMode === "agency" ? "Sunrise Estates" : "",
     capabilities: ["sign_in", "browse"],
   });
   if (url.pathname === "/api/v1/csrf" && req.method === "GET") {
@@ -347,6 +359,77 @@ createServer((req, res) => {
       return json(200, { status: "password_changed" });
     });
   }
+  if (url.pathname === "/__cities-mode") {
+    return choose("citiesMode", ["ok", "empty", "error", "flaky", "hang", "slow", "other", "malformed", "partial"], (v) => {
+      citiesMode = v;
+      citiesCount = 0;
+    });
+  }
+  if (url.pathname === "/__last-cities") return json(200, { count: citiesCount });
+  if (url.pathname === "/api/v1/reference/cities" && req.method === "GET") {
+    citiesCount += 1;
+    if (citiesMode === "ok") return json(200, { items: CITIES });
+    if (citiesMode === "empty") return json(200, { items: [] });
+    if (citiesMode === "other") return json(200, { items: [{ id: "44444444-4444-4444-8444-444444444444", name: "Multan" }, { id: "55555555-5555-4555-8555-555555555555", name: "Peshawar" }] });
+    if (citiesMode === "malformed") return json(200, { items: [{ id: 7, name: "Numeric id" }, { id: "66666666-6666-4666-8666-666666666666", name: "  " }, null] });
+    if (citiesMode === "partial") {
+      return json(200, { items: [CITIES[0], { id: CITIES[0].id, name: "Duplicate id" }, { id: 7, name: "Numeric id" }, { id: "66666666-6666-4666-8666-666666666666", name: "" }, CITIES[1]] });
+    }
+    if (citiesMode === "flaky") return citiesCount === 1 ? json(500, envelope("server_error", "Internal detail that must not show.")) : json(200, { items: CITIES });
+    if (citiesMode === "slow") return void setTimeout(() => json(200, { items: CITIES }), 1500);
+    return serverFailure(citiesMode);
+  }
+  if (url.pathname === "/__agency-mode") {
+    return choose("agencyMode", [
+      "accepted", "existing", "ok_200", "email_sentence", "fields", "required", "sentences", "invalid_city", "mixed", "non_field", "empty_fields",
+      "bad_json", "signed_in", "bad_gateway", "rate_limited", "rate_20", "rate_90", "rate_none", "rate_abc", "error", "broken", "hang",
+    ], (v) => (agencyMode = v));
+  }
+  if (url.pathname === "/__last-agency") return json(200, { count: agencyCount, body: lastAgency });
+  if (url.pathname === "/api/v1/registrations/agencies" && req.method === "POST") {
+    return readBody((parsed) => {
+      agencyCount += 1;
+      lastAgency = parsed;
+      const fail = (fields) => json(400, envelope("validation_error", "Some fields are invalid.", fields));
+      if (agencyMode === "accepted" || agencyMode === "existing") return json(202, { status: "check_your_email" });
+      if (agencyMode === "ok_200") return json(200, { status: "check_your_email" });
+      if (agencyMode === "email_sentence") return fail({ email: ["This address is already registered."] });
+      if (agencyMode === "fields") {
+        return fail({
+          agency_name: ["invalid_name"],
+          email: ["invalid_email"],
+          phone: ["invalid_phone"],
+          office_address: ["invalid_address"],
+          city_id: ["invalid"],
+          password: ["password_too_short", "password_too_common"],
+        });
+      }
+      if (agencyMode === "required") {
+        const required = ["required"];
+        return fail({ agency_name: required, email: required, phone: required, office_address: required, city_id: required, password: required });
+      }
+      if (agencyMode === "sentences") return fail({ agency_name: ["Enter a valid agency name."], phone: ["mystery_code"] });
+      if (agencyMode === "invalid_city") return fail({ city_id: ["invalid_city"] });
+      if (agencyMode === "mixed") return fail({ email: ["invalid_email"], role: ["Unknown field."], non_field_errors: ["unknown_field"] });
+      if (agencyMode === "non_field") return fail({ non_field_errors: ["Unexpected field."] });
+      if (agencyMode === "empty_fields") return json(400, envelope("bad_request", "The server rejected this request."));
+      if (agencyMode === "bad_json") {
+        res.writeHead(400, { "content-type": "text/plain" });
+        return res.end("not json");
+      }
+      if (agencyMode === "signed_in") return json(403, envelope("forbidden", "Forbidden."));
+      if (agencyMode === "bad_gateway") {
+        res.writeHead(502, { "content-type": "text/html" });
+        return res.end("<html><body>Bad gateway</body></html>");
+      }
+      if (agencyMode.startsWith("rate_")) {
+        const retry = { rate_limited: "1800", rate_20: "20", rate_90: "90", rate_abc: "soon" }[agencyMode];
+        res.writeHead(429, { "content-type": "application/json", ...(retry ? { "retry-after": retry } : {}) });
+        return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+      }
+      return serverFailure(agencyMode);
+    });
+  }
   if (url.pathname === "/__ping") return json(200, {});
   if (url.pathname === "/__mode") {
     const value = url.searchParams.get("value") ?? "up";
@@ -384,13 +467,18 @@ createServer((req, res) => {
     changeMode = "ok";
     changeCount = 0;
     lastChange = lastChangeToken = null;
+    agencyMode = "accepted";
+    agencyCount = 0;
+    lastAgency = null;
+    citiesMode = "ok";
+    citiesCount = 0;
     while (pending.length) pending.pop().end();
     return json(200, { mode });
   }
   if (url.pathname === "/__registration-mode") {
     const value = url.searchParams.get("value") ?? "accepted";
     if (![
-      "accepted", "fields", "required", "empty_fields", "bad_json", "mixed", "forbidden", "bad_gateway",
+      "accepted", "ok_200", "fields", "required", "empty_fields", "bad_json", "mixed", "forbidden", "bad_gateway",
       "non_field", "rate_limited", "rate_20", "rate_90", "rate_none", "rate_abc", "error", "broken", "hang",
     ].includes(value)) {
       return json(400, { error: "unknown mode" });
@@ -411,6 +499,7 @@ createServer((req, res) => {
       }
       const envelope = (code, message, fields = {}) => ({ error: { code, message, fields, request_id: "stub" } });
       if (registrationMode === "accepted") return json(202, { status: "check_your_email" });
+      if (registrationMode === "ok_200") return json(200, { status: "check_your_email" });
       if (registrationMode === "fields") {
         return json(
           400,
