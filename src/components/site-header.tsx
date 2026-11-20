@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { STATE_NOTES, displayName, profileLinkLabel } from "@/lib/account";
+import { STATE_NOTES, canOwnListings, displayName, profileLinkLabel } from "@/lib/account";
 import { NotificationsLink } from "@/components/notifications-link";
+import { LISTINGS_PATH } from "@/lib/listing-messages";
 import { useSession } from "@/lib/session";
 
 export function SiteHeader() {
@@ -64,6 +65,11 @@ export function SiteHeader() {
               {profileLinkLabel(account.account_type) && (
                 <Link href="/account/profile" className="text-link">
                   {profileLinkLabel(account.account_type)}
+                </Link>
+              )}
+              {canOwnListings(account.account_type) && (
+                <Link href={LISTINGS_PATH} className="text-link">
+                  My listings
                 </Link>
               )}
               <NotificationsLink />
