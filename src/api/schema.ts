@@ -121,6 +121,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/agency-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in Agency's business profile
+         * @description Agency accounts only (any other type is `403 forbidden`). The business phone and office address are private and appear only in this route's answers, to their owner. Name, description and city are the public-class fields. Never cached.
+         */
+        get: operations["get_agency_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the signed-in Agency's business details
+         * @description Needs `X-CSRFToken`. Only `agency_name`, `description`, `city_id`, `business_phone` and `office_address` are accepted, at least one; any other field (the email and verification status included) is `validation_error` (`unknown_field`). Name, phone, address and city stay mandatory (blank or null is `required`); a blank or null description clears it. A description with phone numbers, email addresses or street addresses is `fields.description = contains_contact_details`. All failing fields are reported at once. An unchanged submission succeeds and records nothing.
+         */
+        patch: operations["update_agency_profile"];
+        trace?: never;
+    };
     "/api/v1/me/email-change": {
         parameters: {
             query?: never;
@@ -333,6 +357,27 @@ export interface components {
             agency_name: string;
             capabilities: components["schemas"]["CapabilitiesEnum"][];
         };
+        AgencyProfile: {
+            /** @description Public. */
+            agency_name: string;
+            /** @description Public. Empty when not set. */
+            description: string;
+            /**
+             * Format: uuid
+             * @description Public. An active City reference id.
+             */
+            city_id: string;
+            /** @description The owner's own business phone in E.164. Private: returned only here. */
+            business_phone: string;
+            /** @description The owner's own office address. Private: returned only here. */
+            office_address: string;
+            /** @description The current sign-in address. Private. */
+            email: string;
+            /** @description The address of the newest unused, unexpired email-change request, or null. */
+            pending_email: string | null;
+            /** @description Read-only Agency Verification status (`unverified` until a later story). */
+            verification_status: string;
+        };
         /**
          * @description Strict allowlist of the six fields; the account type and verification status are never
          *     client-chosen. Rules come from `identity.validation`; every failing field is reported at
@@ -467,11 +512,26 @@ export interface components {
             /** @description The address to send a reset link to. */
             email: string;
         };
+        PatchedAgencyProfileUpdateRequest: {
+            /** @description 2 to 100 characters, no phone numbers or email addresses. */
+            agency_name?: string;
+            /** @description Optional, up to 1000 characters, no phone numbers, email addresses or street addresses. Blank or null clears it. */
+            description?: string | null;
+            /**
+             * Format: uuid
+             * @description An active City reference id.
+             */
+            city_id?: string;
+            /** @description Pakistani mobile or international number. Mandatory: blank or null is refused. */
+            business_phone?: string;
+            /** @description 5 to 300 characters. Mandatory: blank or null is refused. */
+            office_address?: string;
+        };
         PatchedProfileUpdateRequest: {
             /** @description 2 to 80 characters. */
             full_name?: string;
             /** @description Pakistani mobile or international number. Mandatory: blank or null is refused. */
-            phone?: string | null;
+            phone?: string;
         };
         Profile: {
             full_name: string;
@@ -954,6 +1014,162 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActorSummary"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_agency_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The business profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyProfile"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    update_agency_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedAgencyProfileUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated business profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyProfile"];
                 };
             };
             /** @description Bad request or validation error */
