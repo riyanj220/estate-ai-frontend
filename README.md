@@ -210,9 +210,80 @@ Story 1.18 (frontend half). The contract is the backend's `docs/password-reset.m
   `csrf_always`, `error`, `broken`, `hang`), with `/__last-forgot`, `/__last-reset` and `/__last-change` for the request
   bodies. Tests: `tests/e2e/password.spec.ts`.
 
+## Profile and email change
+
+Story 1.20 (frontend half). The contract is the backend's `docs/profile.md`.
+
+- `/account/profile` (`src/app/(app)/account/profile/`): signed-in only (same guard as the dashboard; `no-store` through the
+  `/account/:path*` rule). `profile-client.tsx` loads `GET /api/v1/me/profile` on the client (`{full_name, phone, email,
+  pending_email}`) with a loading state and a Retry on 5xx, timeout, network or an unreadable body; `403` (not an Individual)
+  shows "Profile editing is available for individual accounts." with no form; `401` flips the session provider to signed out
+  and goes to `/sign-in?next=%2Faccount%2Fprofile`. Linked from the header and the dashboard as "Profile".
+  - `details-form.tsx`: Full name and Phone number, both required (client check sends nothing), prefilled. Submit sends
+    `PATCH /api/v1/me/profile` through `withCsrf` with only the fields that changed (nothing changed: no request and "No
+    changes to save."). `200` shows "Your profile was saved.", refreshes the form from the answer and the session provider
+    (the header name updates); the note clears when a field is edited. `400` maps the codes (`required`, `invalid`,
+    `invalid_name`, `invalid_phone`, `unknown_field`) through `PROFILE_MESSAGES` to text against the fields with the summary
+    focused; 429 (with the wait), 5xx, timeout, network and a second 403 each have a generic message. The phone appears only
+    in this input.
+  - `email-change-form.tsx`: shows the current address and, when `pending_email` is set, "We received a request to change to
+    ... If that address can be used, we sent it a confirmation link. Your sign-in address stays ... until you open the
+    link." (neutral on purpose: the backend sets `pending_email` for free, taken, same and capped addresses alike, and the
+    note never claims a link definitely went out; the address is shown in text only; if the quiet re-read after a 202 fails
+    the typed address stands in). New email address (`autocomplete="off"`) and Current
+    password (`current-password`, show/hide) send exactly `{new_email, current_password}` to `POST /api/v1/me/email-change`
+    through `withCsrf`. Any `202` shows the one neutral confirmation ("If that address can be used, we have sent it a
+    confirmation link. Your sign-in address does not change until you open it."), clears the password and re-reads the
+    profile quietly so the pending note appears. `400` maps `new_email` (known codes only, so no server sentence can hint at
+    whether an address is registered) and `current_password: incorrect`, and clears the password; 429, 403, 5xx, timeout and
+    network show generic messages.
+  - Server text is allow-listed: both forms show only known codes (`PROFILE_MESSAGES`, `CURRENT_PASSWORD_MESSAGES`,
+    `GENERAL_FIELD_MESSAGES`) through `mapKnownCodes`; any other sentence, unknown code, prototype key (`constructor`) or
+    unknown field key becomes the generic field text or the generic rejected message, never verbatim. `mapFieldMessages` (used
+    by the older forms) looks codes up with `Object.hasOwn`.
+  - The profile re-reads silently on window focus and `visibilitychange` (never flips to loading; a failure keeps the page).
+    While a save is in flight only fields the person has not touched since submitting take the server's value; a trim-only
+    difference is set to the trimmed value with "No changes to save."; a 2xx with an unreadable body shows a polite "saved,
+    reload to see" note and triggers a re-read. The "Profile" header and dashboard links show for individual accounts only.
+    Retry keeps its heading and button mounted (`aria-disabled`) and focuses the form heading on success.
+  - A CSRF rejection happens before the backend service runs, so the one CSRF retry in `withCsrf` cannot double-count the
+    password throttle; a second 403 is the generic rejected message.
+  - The two forms are independent: each has its own error summary (unique title ids), one live region and busy state.
+- `/confirm-email-change` (`src/app/(public)/confirm-email-change/`, the emailed link): handled exactly like
+  `/reset-password`. `confirm-email-change-client.tsx` reads `token`, removes it from the address bar with
+  `history.replaceState` (other parameters stay), keeps it only in a ref, and sends nothing on load: the person presses
+  "Confirm the change" (so a prefetch or link scanner cannot consume it) and `POST /api/v1/email-changes/confirm` sends
+  exactly `{token}` (anonymous call, no CSRF). `200` shows "Your sign-in email address was changed. Use the new address to
+  sign in next time." with links to sign in and the profile, drops the token and refreshes the session provider;
+  `link_expired` (410), `link_used` (409) and `link_invalid` (400, any 400) each have their own state with a "Request the
+  change again" link to `/account/profile` and drop the token; a missing or blank token shows the invalid state; 429, 5xx,
+  timeout, network and unknown codes keep the button and the token with a generic message (a 410 or 409 with an unknown code
+  is deliberately the generic message, not a link state: only the documented code and status pairs end the link). The
+  scrub (`src/lib/scrub-token.ts`) also rewrites the router's `history.state`, which otherwise keeps the token in
+  `renderedSearch`, so Back never restores it. `next.config.ts` sends
+  `Referrer-Policy: no-referrer` and `Cache-Control: no-store` for the route and the page is statically prerendered (no
+  `force-dynamic`), so the token never reaches the served HTML. Check against the production build:
+  `BACKEND_URL=http://127.0.0.1:4010 npm run build`, `node tests/e2e/stub-backend.mjs`, `npx next start -p 3100`, then
+  `curl -si "http://127.0.0.1:3100/confirm-email-change?token=abc"` shows both headers and no `abc` in the body.
+- Shared code: `PROFILE_MESSAGES` in `src/lib/registration-messages.ts`, `mapKnownCodes` in `src/lib/password-messages.ts`, `src/lib/request-errors.ts` (generic messages for a
+  failed answer or a thrown error), and `PasswordField` takes an `autoComplete` prop. The check-your-email component is not
+  reused: its text is registration-specific.
+- Playwright stub: `/__profile-mode` (`ok`, `forbidden`, `flaky`, `session_gone`, `malformed`, `error`, `broken`, `hang`),
+  `/__profile-patch-mode` (`ok`, `fields`, `required`, `sentences`, `proto`, `empty_ok`, `non_field`, `unknown_code`, `empty_fields`,
+  `session_gone`, `forbidden`, `rate_limited`, `csrf_once`, `csrf_always`, `error`, `broken`, `hang`),
+  `/__email-change-mode` (`ok`, `wrong_password`, `invalid_email`, `required`, `sentences`, `proto`, `non_field`, `unknown_code`,
+  `session_gone`, `forbidden`, `rate_limited`, `rate_none`, `csrf_once`, `csrf_always`, `error`, `broken`, `hang`) and
+  `/__email-confirm-mode` (`ok`, `expired`, `used`, `invalid`, `other_400`, `unknown_code`, `rate_limited`, `flaky`, `error`,
+  `broken`, `hang`), with `/__last-profile`, `/__last-profile-patch`, `/__last-email-change` and `/__last-email-confirm`. The
+  profile is stateful (a save shows on the next read, any accepted email request sets `pending_email`, a confirm moves it
+  into `email`). Tests: `tests/e2e/profile.spec.ts`.
+- Hand-off to Story 1.21 (Agency profile management): the profile routes answer `403` for an Agency, so the page shows the
+  "individual accounts" message; 1.21 adds the Agency view (and can reuse `EmailChangeForm`, which the backend already allows
+  for Agencies) behind the same route.
+
 ## Layout
 
-- `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password` and `/reset-password`), `src/app/(app)` signed-in pages,
+- `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages,
   `src/app/admin` admin area. Placeholders only; no visibility, privacy or quota logic lives here.
 
 `/dashboard` and `/admin` are placeholders guarded on the server (see above); `/admin` has no role check until Story 1.19.
