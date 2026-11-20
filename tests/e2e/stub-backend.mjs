@@ -137,6 +137,78 @@ let lastNotificationReadAllToken = null;
 let unreadCountMode = "ok";
 let unreadCountGets = 0;
 const publicNotification = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key !== "seq"));
+// Listings and the Field registry (Story 2.1). The registry serves the real taxonomy (or another one, to prove the choices
+// come from it) with a strong ETag. Listings are stateful: a created Draft shows in the list and in the detail. Ids are
+// repetitive digit patterns; `owner` is "mine" (the signed-in account) or "other" (never shown to it).
+const TAXONOMIES = {
+  default: {
+    purposes: ["sale", "rent"],
+    categories: [
+      { id: "house", subtypes: ["house"] },
+      { id: "apartment", subtypes: ["apartment"] },
+      { id: "plot", subtypes: ["residential_plot", "commercial_plot", "plot_file"] },
+      { id: "commercial", subtypes: ["shop", "office"] },
+    ],
+  },
+  // One Subtype id (shared_unit) belongs to two Categories.
+  shared: {
+    purposes: ["sale", "rent"],
+    categories: [
+      { id: "villa", subtypes: ["shared_unit", "only_villa"] },
+      { id: "bungalow", subtypes: ["shared_unit", "only_bungalow"] },
+    ],
+  },
+  other: {
+    purposes: ["sale", "rent", "lease_out"],
+    categories: [
+      { id: "villa", subtypes: ["farm_house", "beach_hut"] },
+      { id: "plot", subtypes: ["plot_file"] },
+    ],
+  },
+};
+let taxonomyName = "default";
+let registryMode = "ok";
+let registryGets = 0;
+let registryNotModified = 0;
+let lastRegistryConditional = null;
+const listingId = (seq) => `00000000-0000-4000-9000-${String(seq).padStart(12, "0")}`;
+const makeListing = (seq, owner, fields) => ({ seq, owner, id: listingId(seq), fields: { purpose: "sale", category: "house", subtype: "house", ...fields } });
+const publicListing = (item) => ({
+  id: item.id,
+  status: "draft",
+  visibility: "private",
+  revision: 1,
+  registry_version: 1,
+  fields: item.fields,
+  media: [],
+  amenities: [],
+});
+const LISTING_PRESETS = {
+  empty: () => [],
+  few: () => [
+    makeListing(3, "mine", { purpose: "rent", category: "apartment", subtype: "apartment" }),
+    makeListing(2, "mine", { purpose: "sale", category: "plot", subtype: "plot_file" }),
+    makeListing(1, "mine", { purpose: "sale", category: "house", subtype: "house" }),
+  ],
+  many: () => Array.from({ length: 25 }, (_, index) => makeListing(25 - index, "mine", { purpose: index % 2 ? "rent" : "sale" })),
+  capped: () => Array.from({ length: 20 }, (_, index) => makeListing(20 - index, "mine", {})),
+  unknown: () => [
+    makeListing(3, "mine", { purpose: null, category: null, subtype: null }),
+    makeListing(2, "mine", { purpose: "lease_out", category: "villa", subtype: "farm_house" }),
+  ],
+  foreign: () => [makeListing(1, "mine", {}), makeListing(900, "other", { purpose: "rent", category: "commercial", subtype: "shop" })],
+};
+let listings = LISTING_PRESETS.empty();
+let listingsMode = "ok";
+let listingsGets = 0;
+let listingQueries = [];
+let createMode = "ok";
+let createCount = 0;
+let lastCreate = null;
+let lastCreateToken = null;
+let detailMode = "ok";
+let detailGets = 0;
+let lastDetailId = null;
 const pending = []; // responses held open by the hang mode
 
 createServer((req, res) => {
@@ -300,6 +372,10 @@ createServer((req, res) => {
   };
   const throttled = () => {
     res.writeHead(429, { "content-type": "application/json", "retry-after": "120" });
+    return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+  };
+  const throttledNoRetry = () => {
+    res.writeHead(429, { "content-type": "application/json" });
     return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
   };
   const serverFailure = (mode) => {
@@ -587,6 +663,212 @@ createServer((req, res) => {
     }
     return false;
   };
+  // ---- Listings and the registry (Story 2.1)
+  if (url.pathname === "/__registry-mode") {
+    return choose("registryMode", ["ok", "flaky", "flaky_slow", "gone", "error", "broken", "hang", "malformed", "empty_choices", "bad_subtypes", "odd_ids"], (v) => {
+      registryMode = v;
+      registryGets = 0;
+    });
+  }
+  if (url.pathname === "/__registry-taxonomy") return choose("taxonomyName", Object.keys(TAXONOMIES), (v) => (taxonomyName = v));
+  if (url.pathname === "/__listings-mode") {
+    return choose("listingsMode", ["ok", "flaky", "flaky_slow", "more_fail", "more_gone", "more_forbidden", "more_rate_limited", "small_pages", "dup", "inpage_dup", "repeat_cursor", "known_advance", "bad_first", "bad_next", "malformed", "partial", "rate_limited", "forbidden", "session_gone", "error", "broken", "hang"], (v) => {
+      listingsMode = v;
+      listingsGets = 0;
+    });
+  }
+  if (url.pathname === "/__listing-create-mode") {
+    return choose("createMode", ["ok", "required", "fields", "subtype_mismatch", "sentences", "non_field", "no_id", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"], (v) => {
+      createMode = v;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__listing-detail-mode") {
+    return choose("detailMode", ["ok", "flaky", "malformed", "forbidden", "bad_request", "unprocessable", "rate_limited", "session_gone", "error", "broken", "hang"], (v) => {
+      detailMode = v;
+      detailGets = 0;
+    });
+  }
+  if (url.pathname === "/__listings-preset") {
+    const value = url.searchParams.get("value") ?? "empty";
+    if (!Object.hasOwn(LISTING_PRESETS, value)) return json(400, { error: "unknown preset" });
+    listings = LISTING_PRESETS[value]();
+    return json(200, { total: listings.length });
+  }
+  if (url.pathname === "/__listings-stats") {
+    return json(200, {
+      registryGets,
+      registryNotModified,
+      lastRegistryConditional,
+      listGets: listingsGets,
+      queries: listingQueries,
+      detailGets,
+      lastDetailId,
+      createCount,
+      lastCreate,
+      lastCreateToken,
+      mine: listings.filter((item) => item.owner === "mine").length,
+      listings: listings.map((item) => ({ id: item.id, owner: item.owner, fields: item.fields })),
+    });
+  }
+  if (url.pathname === "/api/v1/registry" && req.method === "GET") {
+    registryGets += 1;
+    const taxonomy = TAXONOMIES[taxonomyName];
+    const etag = `"1-${taxonomyName}"`;
+    lastRegistryConditional = req.headers["if-none-match"] ?? null;
+    if ((registryMode === "flaky" || registryMode === "flaky_slow") && registryGets === 1) return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (registryMode === "gone") return json(401, envelope("unauthenticated", "Authentication is required."));
+    if (registryMode === "odd_ids") {
+      return json(200, {
+        version: 1,
+        taxonomy: {
+          purposes: ["sale", "Bad Id", "rent"],
+          categories: [
+            { id: "house", subtypes: ["house", "bad id", "x\"y"] },
+            { id: "empty_one", subtypes: [] },
+            { id: "Bad Category", subtypes: ["house"] },
+          ],
+        },
+        fields: [],
+      });
+    }
+    if (registryMode === "error" || registryMode === "broken" || registryMode === "hang") return serverFailure(registryMode);
+    if (registryMode === "malformed") return json(200, { version: 1, taxonomy: { purposes: "sale", categories: null }, fields: [] });
+    if (registryMode === "empty_choices") return json(200, { version: 1, taxonomy: { purposes: [], categories: [] }, fields: [] });
+    if (registryMode === "bad_subtypes") return json(200, { version: 1, taxonomy: { purposes: ["sale"], categories: [{ id: "house", subtypes: [7] }] }, fields: [] });
+    const headers = { "content-type": "application/json", etag, "cache-control": "public, max-age=0, must-revalidate" };
+    if (lastRegistryConditional === etag) {
+      registryNotModified += 1;
+      res.writeHead(304, { etag, "cache-control": headers["cache-control"] });
+      return res.end();
+    }
+    const send = () => {
+      res.writeHead(200, headers);
+      res.end(JSON.stringify({ version: 1, taxonomy, fields: [] }));
+    };
+    if (registryMode === "flaky_slow") return void setTimeout(send, 1500);
+    return send();
+  }
+  if (url.pathname === "/api/v1/listings" && req.method === "POST") {
+    return readBody((parsed) => {
+      unsafeCount += 1;
+      createCount += 1;
+      lastCreate = parsed;
+      lastCreateToken = req.headers["x-csrftoken"] ?? null;
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(createMode, lastCreateToken)) return;
+      if (sessionAdmin) return json(403, envelope("forbidden", "Forbidden."));
+      const fail = (fields) => json(400, envelope("validation_error", "The request contains invalid values.", fields));
+      if (createMode === "required") return fail({ purpose: ["required"], category: ["required"], subtype: ["required"] });
+      if (createMode === "fields") return fail({ purpose: ["invalid_choice"], category: ["invalid"], subtype: ["invalid_choice"] });
+      if (createMode === "subtype_mismatch") return fail({ subtype: ["subtype_not_in_category"] });
+      if (createMode === "sentences") return fail({ purpose: ["Some server sentence."], subtype: ["mystery_code"], role: ["constructor"] });
+      if (createMode === "non_field") return fail({ non_field_errors: ["unknown_field"] });
+      if (createMode === "error" || createMode === "broken" || createMode === "hang") return serverFailure(createMode);
+      const taxonomy = TAXONOMIES[taxonomyName];
+      const body = parsed && typeof parsed === "object" ? parsed : {};
+      const category = taxonomy.categories.find((entry) => entry.id === body.category);
+      const problems = {};
+      if (!body.purpose) problems.purpose = ["required"];
+      else if (!taxonomy.purposes.includes(body.purpose)) problems.purpose = ["invalid_choice"];
+      if (!body.category) problems.category = ["required"];
+      else if (!category) problems.category = ["invalid_choice"];
+      if (!body.subtype) problems.subtype = ["required"];
+      else if (category && !category.subtypes.includes(body.subtype)) problems.subtype = ["subtype_not_in_category"];
+      if (Object.keys(problems).length > 0) return fail(problems);
+      if (listings.filter((item) => item.owner === "mine").length >= 20) return throttledNoRetry();
+      const seq = Math.max(0, ...listings.map((item) => item.seq)) + 1;
+      const created = makeListing(seq, "mine", { purpose: body.purpose, category: body.category, subtype: body.subtype });
+      listings = [created, ...listings];
+      if (createMode === "no_id") return json(201, { status: "draft" });
+      return json(201, publicListing(created));
+    });
+  }
+  const listingMatch = /^\/api\/v1\/listings\/([^/]+)$/.exec(url.pathname);
+  if (listingMatch && req.method === "GET") {
+    detailGets += 1;
+    lastDetailId = decodeURIComponent(listingMatch[1]);
+    res.setHeader("cache-control", "no-store");
+    if (detailMode === "session_gone") {
+      liveSession = false;
+      return json(401, envelope("unauthenticated", "Authentication is required."));
+    }
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    if (detailMode === "flaky" && detailGets === 1) return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (detailMode === "forbidden") return json(403, envelope("forbidden", "Forbidden."));
+    if (detailMode === "bad_request") return json(400, envelope("validation_error", "Invalid id."));
+    if (detailMode === "unprocessable") return json(422, envelope("validation_error", "Invalid id."));
+    if (detailMode === "rate_limited") return throttled();
+    if (detailMode === "error" || detailMode === "broken" || detailMode === "hang") return serverFailure(detailMode);
+    if (detailMode === "malformed") return json(200, { status: "draft" });
+    // Unknown, malformed, someone else's and an administrator's reads are one answer.
+    const found = sessionAdmin ? undefined : listings.find((item) => item.id === lastDetailId && item.owner === "mine");
+    if (!found) return json(404, envelope("not_found", "Not found."));
+    return json(200, publicListing(found));
+  }
+  if (url.pathname === "/api/v1/me/listings" && req.method === "GET") {
+    listingsGets += 1;
+    listingQueries.push(url.search);
+    res.setHeader("cache-control", "no-store");
+    if (listingsMode === "session_gone") {
+      liveSession = false;
+      return json(401, envelope("unauthenticated", "Authentication is required."));
+    }
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    const cursor = url.searchParams.get("cursor");
+    if (sessionAdmin) return json(403, envelope("forbidden", "Forbidden."));
+    if ((listingsMode === "flaky" || listingsMode === "flaky_slow") && listingsGets === 1) return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (listingsMode === "forbidden") return json(403, envelope("forbidden", "Forbidden."));
+    if (listingsMode === "more_forbidden" && cursor) return json(403, envelope("forbidden", "Forbidden."));
+    if (listingsMode === "more_rate_limited" && cursor) return throttled();
+    if (listingsMode === "more_fail" && cursor) return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (listingsMode === "more_gone" && cursor) {
+      liveSession = false;
+      return json(401, envelope("unauthenticated", "Authentication is required."));
+    }
+    if (listingsMode === "rate_limited") return throttled();
+    if (listingsMode === "malformed") return json(200, { results: "none", next: null, previous: null });
+    if (listingsMode === "bad_next") return json(200, { results: [], next: `http://${req.headers.host}/api/v1/me/listings?x=1`, previous: null });
+    if (listingsMode === "error" || listingsMode === "broken" || listingsMode === "hang") return serverFailure(listingsMode);
+    const size = listingsMode === "small_pages" ? 1 : 20;
+    let pool = listings.filter((item) => item.owner === "mine");
+    if (cursor) {
+      const at = Number(cursor.replace("pos-", ""));
+      if (!cursor.startsWith("pos-") || !Number.isFinite(at)) return json(400, envelope("validation_error", "Invalid cursor.", { cursor: ["invalid"] }));
+      pool = pool.filter((item) => item.seq < at);
+    }
+    pool = [...pool].sort((a, b) => b.seq - a.seq);
+    const results = pool.slice(0, size);
+    // dup: the second page repeats the last item of the first page, so the client must not show it twice.
+    if (listingsMode === "dup" && cursor) {
+      const again = listings.find((item) => item.seq === Number(cursor.replace("pos-", "")));
+      if (again) results.unshift(again);
+    }
+    const more = pool.length > size;
+    const origin = `http://${req.headers.host ?? "127.0.0.1:4010"}/api/v1/me/listings`;
+    let next = more ? `${origin}?cursor=pos-${results[results.length - 1].seq}` : null;
+    let shown = results.map(publicListing);
+    if (listingsMode === "partial") shown.unshift({ status: "draft" }, null);
+    if (listingsMode === "inpage_dup" && shown.length > 0) shown = [...shown, shown[0]];
+    // bad_first: the first page has only unusable items but a next cursor (the real items follow).
+    if (listingsMode === "bad_first" && !cursor) {
+      shown = [{ status: "draft" }, null];
+      next = `${origin}?cursor=pos-3`;
+    }
+    // repeat_cursor: every page repeats the same items and the same cursor (the client must stop).
+    if (listingsMode === "repeat_cursor" && cursor) {
+      shown = pool.length > 0 ? [publicListing(listings.find((item) => item.seq === 25) ?? pool[0])] : [];
+      next = `${origin}?cursor=${cursor}`;
+    }
+    // known_advance: the second page only repeats a known item but moves the cursor on.
+    if (listingsMode === "known_advance" && cursor === "pos-6") {
+      shown = [publicListing(listings.find((item) => item.seq === 25))];
+      next = `${origin}?cursor=pos-5`;
+    }
+    const answer = () => json(200, { next, previous: null, results: shown });
+    if (listingsMode === "flaky_slow") return void setTimeout(answer, 1500);
+    return answer();
+  }
   // ---- Notifications (Story 1.24)
   if (url.pathname === "/__notifications-mode") {
     return choose("notificationsMode", ["ok", "flaky", "more_fail", "more_gone", "small_pages", "rate_limited", "forbidden", "dup", "known_only", "partial", "bad_next", "malformed", "session_gone", "error", "broken", "hang"], (v) => {
@@ -1024,6 +1306,12 @@ createServer((req, res) => {
     accountVariant = "1";
     cacheable = false;
     lastNotificationReadId = lastNotificationReadToken = lastNotificationReadAllToken = null;
+    listings = LISTING_PRESETS.empty();
+    taxonomyName = "default";
+    registryMode = listingsMode = createMode = detailMode = "ok";
+    registryGets = registryNotModified = listingsGets = createCount = detailGets = 0;
+    lastRegistryConditional = lastCreate = lastCreateToken = lastDetailId = null;
+    listingQueries = [];
     while (pending.length) pending.pop().end();
     return json(200, { mode });
   }

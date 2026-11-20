@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "api:sync": "node scripts/sync-api.mjs",
     "api:check": "node scripts/check-api.mjs",
-    "check:prod-admin": "node scripts/check-prod-admin.mjs"
+    "check:prod-admin": "node scripts/check-prod-admin.mjs",
+    "check:prod-listings": "node scripts/check-prod-listings.mjs"
   },
   "dependencies": {
     "next": "16.4.6",
