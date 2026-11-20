@@ -92,6 +92,51 @@ let agencyProfilePatchMode = "ok";
 let agencyProfilePatchCount = 0;
 let lastAgencyProfilePatch = null;
 let lastAgencyProfilePatchToken = null;
+// In-app notification stand-ins (Story 1.24). Stateful: marking read changes the list and the count. Newest first, `seq` is
+// the position; a cursor is "pos-<seq>" (the items strictly older than that position). Ids are repetitive digit patterns.
+const KIND_CYCLE = ["account.password_changed", "account.email_changed", "listing.mystery"];
+const UNKNOWN_SECRET = "payload canary text";
+const notificationId = (seq) => `00000000-0000-4000-8000-${String(seq).padStart(12, "0")}`;
+function makeNotifications(total, isRead) {
+  const items = [];
+  for (let seq = total; seq >= 1; seq -= 1) {
+    const kind = KIND_CYCLE[seq % 3];
+    items.push({
+      seq,
+      id: notificationId(seq),
+      kind,
+      payload: kind === "listing.mystery" ? { secret_detail: UNKNOWN_SECRET } : {},
+      created_at: new Date(Date.UTC(2026, 10, 20, 10, 0, 0) - seq * 60_000).toISOString(),
+      read: isRead(seq),
+    });
+  }
+  return items;
+}
+const NOTIFICATION_PRESETS = {
+  default: () => makeNotifications(25, (seq) => seq % 2 === 0), // 25 items (two pages), the odd ones unread: 13 unread
+  few: () => makeNotifications(3, (seq) => seq === 1), // newest three: 2 unread (seq 3 and 2), 1 read
+  one_unread: () => makeNotifications(2, (seq) => seq === 2),
+  empty: () => [],
+  all_read: () => makeNotifications(4, () => true),
+  many_unread: () => makeNotifications(120, () => false),
+  unread_pages: () => makeNotifications(45, (seq) => seq % 3 === 0), // 30 unread: the Unread filter has two pages
+};
+let notifications = NOTIFICATION_PRESETS.default();
+let cacheable = false; // test-only: answer list and count as cacheable, to prove the client never reuses a cached read
+let accountVariant = "1"; // test-only: another id makes /me answer as another account
+let notificationsMode = "ok";
+let notificationsGets = 0;
+let notificationQueries = [];
+let notificationReadMode = "ok";
+let notificationReadCount = 0;
+let lastNotificationReadId = null;
+let lastNotificationReadToken = null;
+let notificationReadAllMode = "ok";
+let notificationReadAllCount = 0;
+let lastNotificationReadAllToken = null;
+let unreadCountMode = "ok";
+let unreadCountGets = 0;
+const publicNotification = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key !== "seq"));
 const pending = []; // responses held open by the hang mode
 
 createServer((req, res) => {
@@ -210,7 +255,7 @@ createServer((req, res) => {
   }
   const hasSession = () => liveSession && (req.headers.cookie ?? "").includes(SESSION_COOKIE);
   const account = () => ({
-    id: "00000000-0000-4000-8000-000000000001",
+    id: `00000000-0000-4000-8000-00000000000${accountVariant}`,
     account_type: meMode.startsWith("agency") ? "agency" : meMode === "admin" || sessionAdmin ? "admin" : "individual",
     state: signInMode === "unverified" ? "email_unverified" : signInMode === "suspended" ? "suspended" : "active",
     email: profile.email,
@@ -542,6 +587,157 @@ createServer((req, res) => {
     }
     return false;
   };
+  // ---- Notifications (Story 1.24)
+  if (url.pathname === "/__notifications-mode") {
+    return choose("notificationsMode", ["ok", "flaky", "more_fail", "more_gone", "small_pages", "rate_limited", "forbidden", "dup", "known_only", "partial", "bad_next", "malformed", "session_gone", "error", "broken", "hang"], (v) => {
+      notificationsMode = v;
+      notificationsGets = 0;
+    });
+  }
+  if (url.pathname === "/__notification-read-mode") {
+    return choose("notificationReadMode", ["ok", "gone", "session_gone", "forbidden", "rate_limited", "csrf_once", "csrf_always", "error", "broken", "hang"], (v) => {
+      notificationReadMode = v;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__notification-readall-mode") {
+    return choose("notificationReadAllMode", ["ok", "session_gone", "forbidden", "rate_limited", "csrf_once", "csrf_always", "error", "broken", "hang"], (v) => {
+      notificationReadAllMode = v;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__unread-count-mode") return choose("unreadCountMode", ["ok", "error", "broken", "hang", "forbidden", "rate_limited", "session_gone"], (v) => (unreadCountMode = v));
+  if (url.pathname === "/__notifications-cacheable") {
+    cacheable = url.searchParams.get("value") === "1";
+    return json(200, { cacheable });
+  }
+  if (url.pathname === "/__account-variant") {
+    accountVariant = url.searchParams.get("value") === "2" ? "2" : "1";
+    return json(200, { accountVariant });
+  }
+  if (url.pathname === "/__notifications-preset") {
+    const value = url.searchParams.get("value") ?? "default";
+    if (!Object.hasOwn(NOTIFICATION_PRESETS, value)) return json(400, { error: "unknown preset" });
+    notifications = NOTIFICATION_PRESETS[value]();
+    return json(200, { total: notifications.length });
+  }
+  if (url.pathname === "/__notifications-read-elsewhere") {
+    // Test-only: reads the n newest unread notifications as if another tab or device had.
+    let left = Number(url.searchParams.get("n") ?? "1");
+    notifications = notifications.map((item) => (!item.read && left-- > 0 ? { ...item, read: true } : item));
+    return json(200, { unread: notifications.filter((item) => !item.read).length });
+  }
+  if (url.pathname === "/__notifications-add") {
+    // Test-only: a new unread notification arrives (newest) of the given kind.
+    const seq = Math.max(0, ...notifications.map((item) => item.seq)) + 1;
+    const kind = url.searchParams.get("kind") ?? "account.password_changed";
+    const payload = url.searchParams.get("payload") ? { secret_detail: UNKNOWN_SECRET, listing_title: UNKNOWN_SECRET } : {};
+    notifications = [{ seq, id: notificationId(seq), kind, payload, created_at: new Date(Date.UTC(2026, 10, 20, 11, 0, 0)).toISOString(), read: false }, ...notifications];
+    return json(200, { total: notifications.length });
+  }
+  if (url.pathname === "/__notifications-stats") {
+    return json(200, {
+      gets: notificationsGets,
+      queries: notificationQueries,
+      countGets: unreadCountGets,
+      readCount: notificationReadCount,
+      lastReadId: lastNotificationReadId,
+      lastReadToken: lastNotificationReadToken,
+      readAllCount: notificationReadAllCount,
+      lastReadAllToken: lastNotificationReadAllToken,
+      unread: notifications.filter((item) => !item.read).length,
+      total: notifications.length,
+    });
+  }
+  if (url.pathname === "/api/v1/notifications" && req.method === "GET") {
+    notificationsGets += 1;
+    notificationQueries.push(url.search);
+    res.setHeader("cache-control", cacheable ? "public, max-age=600" : "no-store");
+    if (notificationsMode === "session_gone") {
+      liveSession = false;
+      return json(401, envelope("unauthenticated", "Authentication is required."));
+    }
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    const cursor = url.searchParams.get("cursor");
+    if (notificationsMode === "flaky" && notificationsGets === 1) return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (notificationsMode === "more_fail" && cursor) return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (notificationsMode === "more_gone" && cursor) {
+      liveSession = false;
+      return json(401, envelope("unauthenticated", "Authentication is required."));
+    }
+    if (notificationsMode === "rate_limited") return throttled();
+    if (notificationsMode === "forbidden") return json(403, envelope("forbidden", "Forbidden."));
+    if (notificationsMode === "malformed") return json(200, { results: "none", next: null, previous: null });
+    if (notificationsMode === "bad_next") return json(200, { results: [], next: `http://${req.headers.host}/api/v1/notifications?state=all`, previous: null });
+    if (notificationsMode === "error" || notificationsMode === "broken" || notificationsMode === "hang") return serverFailure(notificationsMode);
+    const state = url.searchParams.get("state") ?? "all";
+    if (!["all", "unread"].includes(state)) return json(400, envelope("validation_error", "Invalid state.", { state: ["invalid"] }));
+    const size = notificationsMode === "small_pages" ? 1 : Math.min(50, Math.max(1, Number(url.searchParams.get("page_size")) || 20));
+    let pool = notifications.filter((item) => state === "all" || !item.read);
+    if (cursor) {
+      const at = Number(cursor.replace("pos-", ""));
+      if (!cursor.startsWith("pos-") || !Number.isFinite(at)) return json(400, envelope("validation_error", "Invalid cursor.", { cursor: ["invalid"] }));
+      pool = pool.filter((item) => item.seq < at);
+    }
+    const results = pool.slice(0, size);
+    // dup: the second page repeats the last item of the first page, so the client must not show it twice.
+    if (notificationsMode === "dup" && cursor) {
+      const again = notifications.find((item) => item.seq === Number(cursor.replace("pos-", "")));
+      if (again) results.unshift(again);
+    }
+    if (notificationsMode === "known_only" && cursor) {
+      // Only an item the client already has, and no further page.
+      const again = notifications.find((item) => item.seq === Number(cursor.replace("pos-", "")));
+      return json(200, { next: null, previous: null, results: again ? [publicNotification(again)] : [] });
+    }
+    const more = pool.length > size;
+    const next = more ? `http://${req.headers.host ?? "127.0.0.1:4010"}/api/v1/notifications?cursor=pos-${results[results.length - 1].seq}&state=${state}` : null;
+    const shown = results.map(publicNotification);
+    if (notificationsMode === "partial") shown.unshift({ id: 7 }, null);
+    return json(200, { next, previous: null, results: shown });
+  }
+  if (url.pathname === "/api/v1/notifications/unread-count" && req.method === "GET") {
+    unreadCountGets += 1;
+    res.setHeader("cache-control", cacheable ? "public, max-age=600" : "no-store");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    if (unreadCountMode === "error" || unreadCountMode === "broken" || unreadCountMode === "hang") return serverFailure(unreadCountMode);
+    if (unreadCountMode === "forbidden") return json(403, envelope("forbidden", "Forbidden."));
+    if (unreadCountMode === "rate_limited") return throttled();
+    return json(200, { unread: notifications.filter((item) => !item.read).length });
+  }
+  if (url.pathname === "/api/v1/notifications/read-all" && req.method === "POST") {
+    return readBody(() => {
+      unsafeCount += 1;
+      notificationReadAllCount += 1;
+      lastNotificationReadAllToken = req.headers["x-csrftoken"] ?? null;
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(notificationReadAllMode, lastNotificationReadAllToken)) return;
+      if (notificationReadAllMode === "error" || notificationReadAllMode === "broken" || notificationReadAllMode === "hang") return serverFailure(notificationReadAllMode);
+      const marked = notifications.filter((item) => !item.read).length;
+      notifications = notifications.map((item) => ({ ...item, read: true }));
+      return json(200, { marked });
+    });
+  }
+  const readMatch = /^\/api\/v1\/notifications\/([0-9a-f-]+)\/read$/.exec(url.pathname);
+  if (readMatch && req.method === "POST") {
+    return readBody(() => {
+      unsafeCount += 1;
+      notificationReadCount += 1;
+      lastNotificationReadId = readMatch[1];
+      lastNotificationReadToken = req.headers["x-csrftoken"] ?? null;
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(notificationReadMode, lastNotificationReadToken)) return;
+      if (notificationReadMode === "error" || notificationReadMode === "broken" || notificationReadMode === "hang") return serverFailure(notificationReadMode);
+      const found = notifications.find((item) => item.id === readMatch[1]);
+      if (notificationReadMode === "gone") {
+        notifications = notifications.filter((item) => item !== found);
+        return json(404, envelope("not_found", "Not found."));
+      }
+      if (!found) return json(404, envelope("not_found", "Not found."));
+      notifications = notifications.map((item) => (item === found ? { ...item, read: true } : item));
+      return json(200, publicNotification({ ...found, read: true }));
+    });
+  }
   if (url.pathname === "/api/v1/me/profile" && req.method === "PATCH") {
     return readBody((parsed) => {
       unsafeCount += 1;
@@ -821,6 +1017,13 @@ createServer((req, res) => {
     agencyProfileGets = agencyProfilePatchCount = 0;
     lastAgencyProfilePatch = lastAgencyProfilePatchToken = null;
     lastProfilePatch = lastProfilePatchToken = lastEmailChange = lastEmailChangeToken = lastEmailConfirm = null;
+    notifications = NOTIFICATION_PRESETS.default();
+    notificationsMode = notificationReadMode = notificationReadAllMode = unreadCountMode = "ok";
+    notificationsGets = notificationReadCount = notificationReadAllCount = unreadCountGets = 0;
+    notificationQueries = [];
+    accountVariant = "1";
+    cacheable = false;
+    lastNotificationReadId = lastNotificationReadToken = lastNotificationReadAllToken = null;
     while (pending.length) pending.pop().end();
     return json(200, { mode });
   }
