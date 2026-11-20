@@ -21,6 +21,13 @@ export default async function DashboardPage() {
       <p className="muted" data-testid="dashboard-state">
         Account state: {STATE_LABELS[account.state]}
       </p>
+      {account.account_type === "individual" && (
+        <p>
+          <Link href="/account/profile" className="text-link">
+            Profile
+          </Link>
+        </p>
+      )}
       <p>
         <Link href="/account/password" className="text-link">
           Change password

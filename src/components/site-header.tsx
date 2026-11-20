@@ -53,6 +53,11 @@ export function SiteHeader() {
                   {note}
                 </span>
               )}
+              {account.account_type === "individual" && (
+                <Link href="/account/profile" className="text-link">
+                  Profile
+                </Link>
+              )}
               <Link href="/account/password" className="text-link">
                 Change password
               </Link>
