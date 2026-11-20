@@ -106,8 +106,13 @@ test("session is restored on reload through me", async ({ page }) => {
 });
 
 test("a valid next target is honoured", async ({ page }) => {
+  await signIn(page, "/sign-in?next=%2Faccount%2Fpassword");
+  await expect(page).toHaveURL(/\/account\/password$/);
+});
+
+test("an ordinary account following next=/admin is sent to the admin sign-in", async ({ page }) => {
   await signIn(page, "/sign-in?next=%2Fadmin");
-  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page).toHaveURL(/\/admin\/sign-in\?next=%2Fadmin$/);
 });
 
 for (const bad of ["/api/v1/me", "/_next/x", "//evil.com", "https://evil.example/x", "/\\evil.com", "/" + "a".repeat(250), "/dash\tboard", "/da\nsh", "evil", ""]) {
@@ -117,11 +122,11 @@ for (const bad of ["/api/v1/me", "/_next/x", "//evil.com", "https://evil.example
   });
 }
 
-test("signed-in visit to /sign-in?next=/admin goes to /admin", async ({ page }) => {
+test("signed-in visit to /sign-in?next=/account/password goes there", async ({ page }) => {
   await signIn(page);
   await expect(page).toHaveURL(/\/dashboard$/);
-  await page.goto("/sign-in?next=%2Fadmin");
-  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto("/sign-in?next=%2Faccount%2Fpassword");
+  await expect(page).toHaveURL(/\/account\/password$/);
 });
 
 test("empty submit shows required field errors and sends no request", async ({ page, request }) => {
@@ -326,8 +331,8 @@ test("guard: a spoofed x-requested-path header never decides the target", async 
 test("guard: the admin page is guarded on a direct visit and never leaks content", async ({ request }) => {
   const raw = await request.get("http://127.0.0.1:3100/admin", { maxRedirects: 0 });
   expect([302, 303, 307, 308]).toContain(raw.status());
-  expect(raw.headers().location).toContain("/sign-in?next=%2Fadmin");
-  expect(await raw.text()).not.toContain("Admin area placeholder");
+  expect(raw.headers().location).toContain("/admin/sign-in?next=%2Fadmin");
+  expect(await raw.text()).not.toContain("Administration");
 });
 
 test("a Back after sign-out never shows protected content, and header and page agree", async ({ page }) => {
@@ -361,13 +366,9 @@ test("register success links to sign-in", async ({ page }) => {
   await expect(page.getByRole("main").getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/sign-in");
 });
 
-test("guard: /admin is guarded the same way", async ({ page }) => {
+test("guard: /admin sends a Visitor to the admin sign-in, not the ordinary one (see admin.spec.ts)", async ({ page }) => {
   await page.goto("/admin");
-  await expect(page).toHaveURL(/\/sign-in\?next=%2Fadmin$/);
-  await fill(page);
-  await submit(page).click();
-  await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByRole("heading", { name: "Admin" })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/sign-in\?next=%2Fadmin$/);
 });
 
 test("guard: signed-in responses are not cacheable", async ({ page }) => {

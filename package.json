@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "api:sync": "node scripts/sync-api.mjs",
-    "api:check": "node scripts/check-api.mjs"
+    "api:check": "node scripts/check-api.mjs",
+    "check:prod-admin": "node scripts/check-prod-admin.mjs"
   },
   "dependencies": {
     "next": "16.4.6",

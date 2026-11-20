@@ -18,6 +18,14 @@ let signInMode = "ok";
 let meMode = "up";
 let signOutMode = "ok";
 let liveSession = false;
+// Administrator stand-ins (Story 1.23): the live session is either an ordinary one or an administrator one.
+let sessionAdmin = false;
+let adminSignInMode = "ok";
+let adminMeMode = "up";
+let adminSignInCount = 0;
+let adminMeCount = 0;
+let lastAdminSignIn = null;
+let lastAdminSignInToken = null;
 let csrfSeed = 0;
 let csrfFetches = 0;
 let signInCount = 0;
@@ -182,19 +190,28 @@ createServer((req, res) => {
   if (url.pathname === "/__csrf-mode") return choose("csrfMode", ["ok", "error", "rate_limited"], (v) => (csrfMode = v));
   if (url.pathname === "/__force-session") {
     liveSession = true;
+    sessionAdmin = url.searchParams.get("kind") === "admin";
     return json(200, {});
   }
   if (url.pathname === "/__expire-session") {
     liveSession = false;
+    sessionAdmin = false;
     return json(200, {});
   }
+  if (url.pathname === "/__admin-signin-mode") {
+    return choose("adminSignInMode", ["ok", "wrong_credentials", "validation", "rate_limited", "csrf_once", "csrf_always", "error", "broken", "hang"], (v) => {
+      adminSignInMode = v;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__admin-me-mode") return choose("adminMeMode", ["up", "error", "broken", "hang", "slow", "denied_401", "denied_403", "denied_404", "rate_limited"], (v) => (adminMeMode = v));
   if (url.pathname === "/__session-stats") {
-    return json(200, { csrfFetches, signInCount, signOutCount, meCount, unsafeCount, lastSignIn, lastSignInToken, lastSignOutToken, liveSession, csrfToken: `csrf-${csrfSeed}` });
+    return json(200, { adminSignInCount, adminMeCount, lastAdminSignIn, lastAdminSignInToken, sessionAdmin, csrfFetches, signInCount, signOutCount, meCount, unsafeCount, lastSignIn, lastSignInToken, lastSignOutToken, liveSession, csrfToken: `csrf-${csrfSeed}` });
   }
   const hasSession = () => liveSession && (req.headers.cookie ?? "").includes(SESSION_COOKIE);
   const account = () => ({
     id: "00000000-0000-4000-8000-000000000001",
-    account_type: meMode.startsWith("agency") ? "agency" : meMode === "admin" ? "admin" : "individual",
+    account_type: meMode.startsWith("agency") ? "agency" : meMode === "admin" || sessionAdmin ? "admin" : "individual",
     state: signInMode === "unverified" ? "email_unverified" : signInMode === "suspended" ? "suspended" : "active",
     email: profile.email,
     full_name: meMode === "agency" || meMode === "agency_bare" ? "" : signInMode === "no_name" ? "" : profile.full_name,
@@ -222,6 +239,76 @@ createServer((req, res) => {
     res.setHeader("cache-control", "no-store");
     if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication required."));
     return json(200, account());
+  }
+  const readBody = (handle) => {
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    req.on("end", () => {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = null;
+      }
+      handle(parsed);
+    });
+  };
+  const throttled = () => {
+    res.writeHead(429, { "content-type": "application/json", "retry-after": "120" });
+    return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+  };
+  const serverFailure = (mode) => {
+    if (mode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (mode === "broken") return req.socket.destroy();
+    pending.push(res); // hang
+  };
+  if (url.pathname === "/api/v1/admin/me" && req.method === "GET") {
+    adminMeCount += 1;
+    if (adminMeMode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (adminMeMode === "broken") return req.socket.destroy();
+    if (adminMeMode === "hang") {
+      pending.push(res);
+      return;
+    }
+    res.setHeader("cache-control", "no-store");
+    // Denial modes keep `/me` an administrator while this endpoint refuses: only the page-level guard can notice.
+    if (adminMeMode === "denied_401") return json(401, envelope("unauthenticated", "Authentication required."));
+    if (adminMeMode === "denied_403") return json(403, envelope("forbidden", "Forbidden."));
+    if (adminMeMode === "denied_404") return json(404, envelope("not_found", "Not found."));
+    if (adminMeMode === "rate_limited") return throttled();
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication required."));
+    if (!sessionAdmin) return json(404, envelope("not_found", "Not found."));
+    const body = { id: "00000000-0000-4000-8000-0000000000aa", account_type: "admin", state: "active" };
+    if (adminMeMode === "slow") return setTimeout(() => json(200, body), 2000);
+    return json(200, body);
+  }
+  if (url.pathname === "/api/v1/admin-session" && req.method === "POST") {
+    return readBody((parsed) => {
+      unsafeCount += 1;
+      adminSignInCount += 1;
+      lastAdminSignIn = parsed;
+      const sentToken = req.headers["x-csrftoken"] ?? null;
+      lastAdminSignInToken = sentToken;
+      const forbidden = () => json(403, envelope("forbidden", "CSRF check failed."));
+      if (adminSignInMode === "csrf_always") return forbidden();
+      if (adminSignInMode === "csrf_once" && !csrfOnceSpent) {
+        csrfOnceSpent = true;
+        csrfSeed += 1;
+        return forbidden();
+      }
+      if (sentToken !== `csrf-${csrfSeed}`) return forbidden();
+      if (adminSignInMode === "error" || adminSignInMode === "broken" || adminSignInMode === "hang") return serverFailure(adminSignInMode);
+      if (adminSignInMode === "rate_limited") return throttled();
+      if (adminSignInMode === "wrong_credentials") return json(401, envelope("invalid_credentials", "Internal: no such administrator."));
+      if (adminSignInMode === "validation") {
+        return json(400, envelope("validation_error", "Some fields are invalid.", { email: ["Enter a valid email address."], password: ["This field may not be blank."] }));
+      }
+      liveSession = true;
+      sessionAdmin = true;
+      csrfSeed += 1; // the backend rotates the CSRF secret with the new session
+      res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "set-cookie": `${SESSION_COOKIE}; HttpOnly; Path=/; SameSite=Lax` });
+      return res.end(JSON.stringify(account()));
+    });
   }
   if (url.pathname === "/api/v1/session" && (req.method === "POST" || req.method === "DELETE")) {
     let raw = "";
@@ -267,6 +354,7 @@ createServer((req, res) => {
           return json(400, envelope("validation_error", "Some fields are invalid.", { email: ["Enter a valid email address."], password: ["This field may not be blank."] }));
         }
         liveSession = true;
+        sessionAdmin = false;
         csrfSeed += 1; // the backend rotates the CSRF secret with the new session
         res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "set-cookie": `${SESSION_COOKIE}; HttpOnly; Path=/; SameSite=Lax` });
         return res.end(JSON.stringify(account()));
@@ -279,6 +367,7 @@ createServer((req, res) => {
       }
       const had = hasSession();
       liveSession = false;
+      sessionAdmin = false;
       csrfSeed += 1;
       if (mode === "gone" || !had) {
         res.writeHead(401, { "content-type": "application/json", "set-cookie": "estate_session=; Max-Age=0; Path=/" });
@@ -298,34 +387,12 @@ createServer((req, res) => {
   }
   if (url.pathname === "/__last-reset") return json(200, { count: resetCount, body: lastReset });
   if (url.pathname === "/__change-mode") {
-    return choose("changeMode", ["ok", "wrong_current", "same", "weak", "server_messages", "session_gone", "unknown_code", "rate_limited", "csrf_once", "csrf_always", "error", "broken", "hang"], (v) => {
+    return choose("changeMode", ["ok", "wrong_current", "same", "weak", "admin_weak", "server_messages", "session_gone", "unknown_code", "rate_limited", "csrf_once", "csrf_always", "error", "broken", "hang"], (v) => {
       changeMode = v;
       csrfOnceSpent = false;
     });
   }
   if (url.pathname === "/__last-change") return json(200, { count: changeCount, body: lastChange, token: lastChangeToken });
-  const readBody = (handle) => {
-    let raw = "";
-    req.on("data", (chunk) => (raw += chunk));
-    req.on("end", () => {
-      let parsed = null;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        parsed = null;
-      }
-      handle(parsed);
-    });
-  };
-  const throttled = () => {
-    res.writeHead(429, { "content-type": "application/json", "retry-after": "120" });
-    return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
-  };
-  const serverFailure = (mode) => {
-    if (mode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
-    if (mode === "broken") return req.socket.destroy();
-    pending.push(res); // hang
-  };
   if (url.pathname === "/api/v1/password-reset-requests" && req.method === "POST") {
     return readBody((parsed) => {
       forgotCount += 1;
@@ -381,6 +448,7 @@ createServer((req, res) => {
       }
       if (sentToken !== `csrf-${csrfSeed}`) return json(403, envelope("forbidden", "CSRF check failed."));
       if (changeMode === "wrong_current") return fieldError({ current_password: ["incorrect"] });
+      if (changeMode === "admin_weak") return fieldError({ new_password: ["admin_password_too_short", "admin_password_weak", "admin_password_whitespace"] });
       if (changeMode === "same") return fieldError({ new_password: ["password_same_as_current"] });
       if (changeMode === "weak") return fieldError({ new_password: ["password_too_short", "password_too_common"] });
       if (changeMode === "rate_limited") return throttled();
@@ -721,6 +789,11 @@ createServer((req, res) => {
     meMode = "up";
     signOutMode = "ok";
     liveSession = false;
+    sessionAdmin = false;
+    adminSignInMode = "ok";
+    adminMeMode = "up";
+    adminSignInCount = adminMeCount = 0;
+    lastAdminSignIn = lastAdminSignInToken = null;
     csrfSeed = 0;
     csrfFetches = signInCount = signOutCount = meCount = unsafeCount = 0;
     lastSignIn = lastSignInToken = lastSignOutToken = null;

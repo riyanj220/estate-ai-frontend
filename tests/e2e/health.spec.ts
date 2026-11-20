@@ -81,13 +81,13 @@ test("placeholder routes have no accessibility violations", async ({ page }) => 
 });
 
 test("route groups render their placeholders", async ({ page, request }) => {
-  // The signed-in and admin areas are guarded (Story 1.17): give the stub a live session cookie first.
-  await request.get(`${STUB}/__force-session`);
+  // The signed-in and admin areas are guarded (Stories 1.17 and 1.23): give the stub a live administrator session cookie first.
+  await request.get(`${STUB}/__force-session?kind=admin`);
   await page.context().addCookies([{ name: "estate_session", value: "stub-live", url: "http://127.0.0.1:3100" }]);
   for (const [path, heading] of [
     ["/", "EstateAI"],
     ["/dashboard", "Dashboard"],
-    ["/admin", "Admin"],
+    ["/admin", "Administration"],
   ]) {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
