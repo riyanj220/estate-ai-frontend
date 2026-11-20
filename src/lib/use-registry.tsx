@@ -16,11 +16,78 @@ export type Registry = {
   categories: string[];
   /** The Subtypes of a Category; empty for an unknown Category. */
   subtypesOf: (category: string) => string[];
+  /** The definition of one Listing field (Story 2.2), or undefined when the registry does not define it. */
+  field: (id: string) => FieldDef | undefined;
+};
+
+/**
+ * One field definition as the editor uses it: the type, the requirement, the text limits, the money bounds, the allowed
+ * values (for an enum, possibly narrowed by purpose) and where it applies. The frontend decides nothing from these beyond
+ * which control to show and which hints to print; the server judges every value.
+ */
+export type FieldDef = {
+  id: string;
+  type: string;
+  /** `required_for_publication`, `recommended` or `optional` (other values are treated as optional). */
+  requirement: string;
+  minLength: number | null;
+  maxLength: number | null;
+  /** Money bounds and currency, as decimal text (never numbers). */
+  min: string | null;
+  max: string | null;
+  currency: string | null;
+  allowedValues: string[];
+  /** The values a purpose allows: the purpose's own list when the registry narrows it, else every allowed value. */
+  valuesFor: (purpose: string | null) => string[];
+  /** Whether the field applies to a Listing of this purpose, Category and Subtype (an empty list means all). */
+  appliesTo: (purpose: string | null, category: string | null, subtype: string | null) => boolean;
 };
 
 // Ids become element ids and option values: only simple tokens are accepted.
 const isToken = (value: unknown): value is string => typeof value === "string" && /^[a-z0-9_]+$/.test(value);
 const tokens = (value: unknown): string[] | null => (Array.isArray(value) ? [...new Set(value.filter(isToken))] : null);
+
+const limit = (value: unknown): number | null => (typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null);
+const decimalText = (value: unknown): string | null => (typeof value === "string" && /^\d+(\.\d{1,2})?$/.test(value) ? value : null);
+const covers = (list: string[], value: string | null) => list.length === 0 || (value !== null && list.includes(value));
+
+/** Reads the field definitions; an entry that is not usable is skipped, and a missing or odd list is simply no definitions. */
+function readFields(value: unknown): Map<string, FieldDef> {
+  const fields = new Map<string, FieldDef>();
+  if (!Array.isArray(value)) return fields;
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const raw = entry as Record<string, unknown>;
+    const { id, type, requirement } = raw;
+    if (!isToken(id) || fields.has(id) || typeof type !== "string") continue;
+    const allowed = tokens(raw.allowed_values) ?? [];
+    const narrowed = new Map<string, string[]>();
+    if (typeof raw.allowed_values_by_purpose === "object" && raw.allowed_values_by_purpose !== null) {
+      for (const [purpose, list] of Object.entries(raw.allowed_values_by_purpose)) {
+        const values = tokens(list);
+        if (isToken(purpose) && values) narrowed.set(purpose, values);
+      }
+    }
+    const applicability = typeof raw.applicability === "object" && raw.applicability !== null ? (raw.applicability as Record<string, unknown>) : {};
+    const purposes = tokens(applicability.purposes) ?? [];
+    const categories = tokens(applicability.categories) ?? [];
+    const subtypes = tokens(applicability.subtypes) ?? [];
+    fields.set(id, {
+      id,
+      type,
+      requirement: typeof requirement === "string" ? requirement : "optional",
+      minLength: limit(raw.min_length),
+      maxLength: limit(raw.max_length),
+      min: decimalText(raw.min),
+      max: decimalText(raw.max),
+      currency: typeof raw.currency === "string" && /^[A-Z]{3}$/.test(raw.currency) ? raw.currency : null,
+      allowedValues: allowed,
+      valuesFor: (purpose) => (purpose !== null && narrowed.has(purpose) ? (narrowed.get(purpose) ?? allowed) : allowed),
+      appliesTo: (purpose, category, subtype) => covers(purposes, purpose) && covers(categories, category) && covers(subtypes, subtype),
+    });
+  }
+  return fields;
+}
 
 /**
  * Validates the shape defensively: anything unexpected is a failed load, never a crash. Entries whose ids are not simple
@@ -28,7 +95,7 @@ const tokens = (value: unknown): string[] | null => (Array.isArray(value) ? [...
  */
 export function readRegistry(data: unknown): Registry | null {
   if (typeof data !== "object" || data === null) return null;
-  const { version, taxonomy } = data as Record<string, unknown>;
+  const { version, taxonomy, fields: fieldList } = data as Record<string, unknown>;
   if (typeof version !== "number" || !Number.isFinite(version)) return null;
   if (typeof taxonomy !== "object" || taxonomy === null) return null;
   const { purposes, categories } = taxonomy as Record<string, unknown>;
@@ -43,11 +110,13 @@ export function readRegistry(data: unknown): Registry | null {
     subtypes.set(id, list);
   }
   if (subtypes.size === 0) return null;
+  const fields = readFields(fieldList);
   return {
     version,
     purposes: purposeIds,
     categories: [...subtypes.keys()],
     subtypesOf: (category) => subtypes.get(category) ?? [],
+    field: (id) => fields.get(id),
   };
 }
 
