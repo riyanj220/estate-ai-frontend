@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { STATE_NOTES, displayName, profileLinkLabel } from "@/lib/account";
+import { NotificationsLink } from "@/components/notifications-link";
 import { useSession } from "@/lib/session";
 
 export function SiteHeader() {
@@ -28,8 +29,8 @@ export function SiteHeader() {
   }
 
   // The admin area has its own chrome (src/app/admin/(protected)/admin-shell.tsx).
-  // The shared password page shows the admin chrome to an administrator (it is outside /admin).
-  const adminOnSharedPage = account?.account_type === "admin" && pathname === "/account/password";
+  // The shared pages (password, notifications) show the admin chrome to an administrator (they are outside /admin).
+  const adminOnSharedPage = account?.account_type === "admin" && (pathname === "/account/password" || pathname === "/account/notifications");
   if (pathname === "/admin" || pathname.startsWith("/admin/") || adminOnSharedPage) return null;
 
   const note = account ? STATE_NOTES[account.state] : undefined;
@@ -65,6 +66,7 @@ export function SiteHeader() {
                   {profileLinkLabel(account.account_type)}
                 </Link>
               )}
+              <NotificationsLink />
               <Link href="/account/password" className="text-link">
                 Change password
               </Link>

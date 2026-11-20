@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { NotificationsLink } from "@/components/notifications-link";
 import { useSession } from "@/lib/session";
 import { AdminSessionWatch } from "./admin-session-watch";
 
@@ -57,6 +58,7 @@ export function useAdminSignOut() {
 function AccountControls({ signingOut, onSignOut }: { signingOut: boolean; onSignOut: () => void }) {
   return (
     <nav aria-label="Administrator account" className="account-nav">
+      <NotificationsLink />
       <Link href="/account/password?from=admin" className="text-link">
         Change password
       </Link>
