@@ -72,6 +72,56 @@ To try it against the real backend: start Django (`BACKEND_URL`, default `http:/
 `npm run dev` and open `http://localhost:3000/register`. The Playwright tests use the stub backend instead
 (`tests/e2e/stub-backend.mjs`, registration modes set through `/__registration-mode`).
 
+## Agency registration page (`/register/agency`)
+
+Story 1.19 (frontend half). The contract is the backend's `docs/registration.md`. A separate page from the Individual
+form (`src/app/(public)/register/agency/`, form in `agency-register-form.tsx`) with Agency name, Business email, Business
+phone, Office address (textarea, 300 characters), City and Password, all required and labelled with `autocomplete` hints.
+It posts exactly `{agency_name, email, phone, office_address, city_id, password}` to `POST /api/v1/registrations/agencies`
+(email trimmed, the rest as typed). The `/register` page links to it, it links back, and the home page links to both.
+
+- **Cities**: loaded in the browser on mount from `GET /api/v1/reference/cities` through the typed client with
+  `withTimeout`, so the page stays static. While loading the select is disabled ("Loading cities"); the first option is a
+  disabled "Select a city". A failure (5xx, timeout, network) shows an inline message with a Retry button and the rest of
+  the form stays usable; an empty list shows "No cities are available right now." Either way submit is blocked by the
+  required check on the city. The sent value is the city `id`; no list is hard-coded.
+- **Required checks** are the only client rule: an empty field shows an error in the focused summary and sends nothing.
+  Everything else is the server's: a `400` maps `fields` to the form fields with human text for the known codes
+  (`src/lib/registration-messages.ts`, password codes from `src/lib/password-messages.ts`), shows other static server
+  sentences as sent and anything else as "Enter a valid value."; `non_field_errors` and unknown keys go to the summary. The
+  password is cleared after a `400`, the other values are kept. `invalid_city` also clears the selection and re-fetches the
+  list (the usual cause is a city deactivated since the page loaded).
+- `202` shows the same generic "Check your email" state as the Individual form (`src/components/check-your-email.tsx`), so
+  nothing says whether the address was registered. `429` shows the wait from `Retry-After`; `403` (a signed-in caller)
+  shows "You are already signed in. Sign out to register another account."; `5xx`, timeout, network failure and a rejected
+  request each have their own message. Password, email, phone and address live in component state only.
+- **City loading details**: the status element above the select stays mounted (a focused Retry never disappears) and
+  every city message goes through the form's single live region. The select is disabled only during the first load. After
+  every load the chosen city is dropped if it is not in the new list; items that are not `{id: string, name: non-empty}`
+  or repeat an id are filtered, and a `200` with no usable item counts as a failed load. When the list failed or is
+  empty, the City required error says so and its summary link goes to the Retry button.
+- **Native submit**: every form that holds a password or private values has `method="post"`, so a submit before the page has
+  hydrated can never put values in a GET query string.
+- Success needs exactly `202`; any other `2xx` shows the rejected-request message. The email field only ever shows known
+  codes (never a server sentence). A multi-line office address is collapsed to one line as it is typed or pasted.
+  On success only the password is cleared, so "Use a different email address" keeps the other fields.
+- **Follow-up (not done)**: the Individual form does not yet have the agency form's timeout and 403 messages, code maps, 202-only
+  success or kept-values behaviour (it still clears the phone on success); porting them is a separate change.
+- **Shared code** extracted from the Individual form (whose behaviour and tests are unchanged): `src/components/form-field.tsx`
+  (`Field`, `PasswordField` with the show/hide control), `src/components/error-summary.tsx`,
+  `src/components/check-your-email.tsx` and `src/lib/use-form-feedback.ts` (announcement, notice and summary focus).
+- **Display name**: `displayName(account)` (`src/lib/account.ts`) is the `agency_name` for agency accounts, else the full
+  name, else the email; the header and the dashboard use it, and the dashboard shows the account type ("Agency",
+  "Individual") as plain text. `GET /api/v1/me` now carries `agency_name`.
+- Playwright stub: `/__agency-mode` (`accepted`, `existing`, `ok_200`, `email_sentence`, `fields`, `required`, `sentences`, `invalid_city`, `mixed`,
+  `non_field`, `empty_fields`, `bad_json`, `signed_in`, `bad_gateway`, `rate_limited`, `rate_20`, `rate_90`, `rate_none`,
+  `rate_abc`, `error`, `broken`, `hang`) with `/__last-agency`; `/__cities-mode` (`ok`, `empty`, `error`, `flaky`, `hang`,
+  `slow`, `other`, `malformed`, `partial`) with `/__last-cities` (request count); `/__me-mode` also takes `agency`, `agency_no_name`, `agency_bare` and `admin`. Tests:
+  `tests/e2e/agency-register.spec.ts`.
+- **Hand-off**: the account is created Email-unverified with agency verification status "unverified"; nothing here
+  shows or decides that status. The agency's own profile page (Story 1.21) builds on the `account_type` and
+  `agency_name` already in the session summary; the Individual profile page is Story 1.20.
+
 ## Email verification page (`/verify-email`)
 
 Story 1.16 (frontend half). The emailed link opens `/verify-email?token=...`. The client component
@@ -152,8 +202,8 @@ Story 1.18 (frontend half). The contract is the backend's `docs/password-reset.m
   asserts the `headers()` rules in `next.config.ts` directly.
 - `src/lib/password-messages.ts`: the one map from backend codes to human text. The backend sends its own static field
   messages (never echoing input) rather than bare codes, so a value that is not a known code but is a sentence is shown
-  as sent; anything else becomes "Enter a valid value." The register form shows server messages directly and has no map to
-  share.
+  as sent; anything else becomes "Enter a valid value." The Individual register form shows server messages directly; the agency form maps its codes
+  (`src/lib/registration-messages.ts`).
 - Playwright stub: `/__forgot-mode` (`accepted`, `field`, `rate_limited`, `error`, `broken`, `hang`), `/__reset-mode`
   (`ok`, `expired`, `used`, `invalid`, `weak`, `weak_once`, `weak_messages`, `rate_limited`, `forbidden`, `error`, `broken`,
   `hang`) and `/__change-mode` (`ok`, `wrong_current`, `same`, `weak`, `server_messages`, `session_gone`, `csrf_once`,
@@ -162,7 +212,7 @@ Story 1.18 (frontend half). The contract is the backend's `docs/password-reset.m
 
 ## Layout
 
-- `src/app/(public)` public pages (includes `/health`, `/register`, `/verify-email`, `/forgot-password` and `/reset-password`), `src/app/(app)` signed-in pages,
+- `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password` and `/reset-password`), `src/app/(app)` signed-in pages,
   `src/app/admin` admin area. Placeholders only; no visibility, privacy or quota logic lives here.
 
 `/dashboard` and `/admin` are placeholders guarded on the server (see above); `/admin` has no role check until Story 1.19.
