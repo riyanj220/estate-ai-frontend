@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/site-header";
 import { SessionProvider } from "@/lib/session";
+import { UnreadCountProvider } from "@/lib/use-unread-count";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,8 +14,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <SessionProvider>
-          <SiteHeader />
-          {children}
+          <UnreadCountProvider>
+            <SiteHeader />
+            {children}
+          </UnreadCountProvider>
         </SessionProvider>
       </body>
     </html>
