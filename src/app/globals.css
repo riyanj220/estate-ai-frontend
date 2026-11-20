@@ -75,7 +75,9 @@ body {
   font-weight: 600;
   margin-bottom: 0.25rem;
 }
-.field input {
+.field input,
+.field select,
+.field textarea {
   display: block;
   width: 100%;
   min-height: 2.75rem;
@@ -86,7 +88,13 @@ body {
   border-radius: var(--radius);
   font: inherit;
 }
-.field input[aria-invalid="true"] {
+.field textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+.field input[aria-invalid="true"],
+.field select[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
   border-color: var(--color-error);
   border-width: 2px;
 }

@@ -11,6 +11,11 @@ export default function HomePage() {
         </Link>
       </p>
       <p>
+        <Link href="/register/agency" className="text-link">
+          Register an agency
+        </Link>
+      </p>
+      <p>
         <Link href="/sign-in" className="text-link">
           Sign in
         </Link>
