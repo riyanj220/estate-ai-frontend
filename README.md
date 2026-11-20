@@ -388,9 +388,96 @@ The frontend decides nothing about administration: it shows what the backend ans
 - **Hand-off to later admin screens**: add a route under `src/app/admin/(protected)/`, call `requireAdmin()` in its page,
   and turn the matching placeholder in `admin-shell.tsx` into a link. Show only what the backend allows.
 
+## Notifications (`/account/notifications`, Story 1.24)
+
+Story 1.24 (frontend half). The contract is the backend's `docs/notifications.md`. The frontend only renders what the backend
+returns: it decides nothing about who is notified or what is private.
+
+- **Page** (`src/app/(app)/account/notifications/`): signed-in only (`requireAccount`, `no-store` through the `/account/:path*`
+  rule), for every account type. A Visitor is redirected to `/sign-in?next=%2Faccount%2Fnotifications`; an administrator sees
+  the page inside the admin chrome (like `/account/password`; the public header hides itself for them). `page.tsx` is the
+  guard and picks the chrome, `notifications-client.tsx` loads `GET /api/v1/notifications?state=all` on the client with a loading
+  state and a Retry that stays mounted (it reuses `useProfileLoad`, with `signInPath` and `refreshOnFocus: false` options: the
+  list does not re-read on focus, so load-more state is not thrown away). A `401` flips the session provider to signed out and goes to
+  `/sign-in?next=%2Faccount%2Fnotifications` (administrators: `/admin/sign-in?next=%2Fadmin`). The heading is a focus target
+  (`tabindex="-1"`); focus moves there after a Retry succeeds, as on the profile pages.
+  - Each item is a list item with the catalogue title (`<strong>`, no per-item heading), the detail line, a `<time datetime>`
+    in the browser's local format, an "Unread" marker in text (plus a left border) and a "Mark as read" button for unread items.
+  - **The loaded list is the authority**: button states come from it, the header count is only a hint. Every edit remembers the
+    list it started from and a re-read counter; an answer that arrives after the list was replaced edits nothing and has the
+    current filter's first page re-read quietly instead. While a filter reload is in flight mark one, mark all and load more are
+    refused (`aria-disabled`, no request); the toolbar and the live region stay mounted so focus is never lost.
+  - **Filter**: "All" and "Unread" are `aria-pressed` toggle buttons that reload page one from the server with
+    `state=all|unread` (the cursor starts over; a stale answer to an earlier choice is dropped). A failed reload shows the load
+    error with Retry and keeps the filter buttons.
+  - **Load more**: follows the server's `next` link by its `cursor` parameter, appends without duplicates (by id), moves focus
+    to the first new item, shows "Loading more…" while pending, and is hidden when `next` is `null`. A failure keeps the list and
+    shows the generic failure message (`failureMessage`, 429 with the wait); the button stays as the retry. An answer that
+    brings only known items says "No more notifications to show." and ends the list unless the cursor advanced.
+  - **Parsing**: a malformed item is skipped, not the page; a non-empty `next` without a usable `cursor` is a load error with
+    Retry; a catalogue entry that resolves to an empty title falls back to the unknown-kind line. List load: `429` shows the
+    wait, `403` shows "Notifications are not available for this account." with no Retry, anything else keeps Retry.
+  - **Mark one read**: `POST /api/v1/notifications/{id}/read` through `withCsrf` (a first 403 refetches the token and retries once;
+    a second is the generic "could not be submitted" message). `200`: the item is read in place (removed under the Unread
+    filter; if that empties the list while `next` is set, up to 5 further pages are read, then the empty state shows), focus goes
+    to the item (or, once removed, to the next one, the previous one, or the heading) and the header count is re-read. `404`
+    (already gone): the item is removed quietly and the count re-read. If the item is no longer listed only the count is
+    refreshed. Other failures (429 with the wait, 5xx, timeout, network) show one polite message and the item stays unread.
+    Requests per item are de-duplicated (double click).
+  - **Mark all read**: enabled when the loaded list has an unread item or the header count is above zero; clicking it while
+    disabled announces "No unread notifications." and sends nothing. `POST /api/v1/notifications/read-all` through `withCsrf`;
+    then every loaded item is marked read in place (under Unread the list is cleared and `next` dropped), the loaded pages stay
+    and page one is not re-read; announces "N notifications marked as read." (a missing numeric `marked` gives "Notifications
+    marked as read."). One request at a time.
+  - **Focus and tab return**: no focus is taken on first load. Back on the tab (focus, `visibilitychange`, at most one per 5
+    seconds) the first page of the current filter is re-read quietly, only when no extra pages are loaded and nothing is pending.
+  - **Empty**: "You have no notifications." (Unread filter: "You have no unread notifications.").
+  - **One live region** (`role="status"`, via `useFormFeedback`, which clears before it sets so an identical message announces
+    again) announces results and failures once; failures use the error colour and no `role="alert"`.
+- **Kind catalogue** (`src/lib/notification-kinds.ts`): the one place a backend `kind` becomes text. `KINDS` maps a kind to
+  `{ title, text }`, each a string or a function of the payload for kinds that carry payload keys. Shipped:
+  `account.password_changed` and `account.email_changed`. An unregistered kind renders "You have a notification." with no
+  payload at all; payload values are never rendered for unknown kinds, and known kinds read only the keys their entry names
+  (through `field`), as plain text (React escapes it; there is no raw HTML anywhere). **How a later epic adds a kind**: register the
+  kind and its payload schema in the backend, then add one entry to `KINDS` here (and a Playwright case if it has payload keys);
+  nothing else changes.
+- **Header link and unread count**: `NotificationsLink` (`src/components/notifications-link.tsx`) is shown for every signed-in
+  account in the site header and in the admin chrome ("Administrator account" navigation). With unread items the count is
+  visible text and the accessible name is "Notifications, 3 unread" ("99+" above 99); at zero or unknown it is just
+  "Notifications". `UnreadCountProvider` / `useUnreadCount()` (`src/lib/use-unread-count.tsx`, mounted in the root layout inside the
+  `SessionProvider`) reads `GET /api/v1/notifications/unread-count` once when the session becomes signed in, quietly on window
+  focus and `visibilitychange`, and after the page marks something read (`refresh()`); it clears when signed out and never
+  asks for a Visitor. There is no polling timer. The count is held per account id (an account switch without a signed-out step
+  drops it and reads again); focus and visibility events are coalesced (one request in flight, at most one per 5 seconds);
+  a `403` or `429` stops reading until the next sign-in; a `401` asks the session provider to check; if the first read after
+  sign-in fails it is retried once after 2 seconds. A failure keeps the last known count and shows nothing (the count is a
+  hint, the page is the truth); the count never blocks rendering. The link has `aria-current="page"` on the page.
+- **Privacy**: no notification content, id or count goes to storage, the console, the URL or the document title (the title is
+  fixed); the page and count calls are `no-store`. New Messages are not notifications (Epic 7 has its own indicator) and there is no
+  email alert UI.
+- **Playwright stub**: `GET /api/v1/notifications` (newest first, 20 per page, `page_size`, `state`, `cursor` as `pos-<n>`, absolute
+  `next` links), `GET /api/v1/notifications/unread-count`, `POST /api/v1/notifications/{id}/read` and `POST .../read-all`. It is
+  stateful and seeded with 25 notifications of both known kinds and an unregistered kind (whose payload holds a canary text
+  that must never render; ids are repetitive digit patterns). Modes: `/__notifications-mode` (`ok`, `flaky`, `more_fail`, `dup`,
+  `malformed`, `session_gone`, `error`, `broken`, `hang`), `/__notification-read-mode` (`ok`, `gone`, `session_gone`, `forbidden`,
+  `rate_limited`, `csrf_once`, `csrf_always`, `error`, `broken`, `hang`), `/__notification-readall-mode` (the same without `gone`),
+  `/__unread-count-mode` (`ok`, `error`, `broken`, `hang`, `forbidden`, `rate_limited`). `/__notifications-mode` also has
+  `more_gone`, `small_pages`, `rate_limited`, `forbidden`, `known_only`, `partial` and `bad_next`. Helpers: `/__notifications-cacheable`
+  (answers list and count as cacheable, to prove the client never reuses a cache), `/__account-variant` (changes the account id), `/__notifications-preset?value=` (`default`, `few`,
+  `one_unread`, `empty`, `all_read`, `many_unread`, `unread_pages`), `/__notifications-read-elsewhere?n=`,
+  `/__notifications-add?kind=` and `/__notifications-stats`. Tests: `tests/e2e/notifications.spec.ts` (axe at desktop and mobile on the
+  list, filter, load more, empty, error and admin states; low-entropy fake values only, the secret scanner flags random-looking
+  literals).
+- **Tech debt**: the list reuses `useProfileLoad` (with `signInPath`, `refreshOnFocus` and an error `message` option) although it
+  mirrors list state around it (`list`, `listRef`, `filterRef`, epoch counter). A dedicated list hook would remove that; it is
+  deferred. Scroll anchoring after load more and auto-polling are also deliberately not done.
+- **Hand-off at the end of Epic 1**: features that raise notifications add their catalogue entry here and nothing else; the
+  account-removal and retention rules are the backend's. If a later epic wants a richer link per kind, extend `KindEntry` (for
+  example an optional `href`) in `notification-kinds.ts`; the list component already renders only what the catalogue returns.
+
 ## Layout
 
-- `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages,
+- `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications),
   `src/app/admin` admin area (`sign-in` public, everything else in the guarded `(protected)` group). Shells only; no visibility, privacy or quota logic lives here.
 
 `/dashboard` is a placeholder guarded on the server (see above); `/admin` is the administrator area (see "Admin area").
