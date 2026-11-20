@@ -831,6 +831,7 @@ test("bfcache: a restored Draft page whose session is alive reloads the Draft an
   await titleInput(page).fill("A different title for the house");
   await saveButton(page).click();
   await expect(saveButton(page)).toHaveText("Saving…");
+  await expect.poll(async () => (await patches(request)).count).toBe(1); // the frozen request has reached the stub
   await setMode(request, "listing-patch", "ok");
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
   await expect(titleInput(page)).toHaveValue(TITLE0);
