@@ -144,6 +144,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a Draft
+         * @description Needs `X-CSRFToken`. Body: `purpose`, `category` and `subtype`; any other field (`owner_account_id`, `status`, `revision`) is `validation_error` (`unknown_field`). Failing fields are reported at once (`required`, `invalid`, `invalid_choice`, `subtype_not_in_category`). Only Active and Email-unverified Individual and Agency accounts may start one (`forbidden` otherwise, administrators included). The Draft belongs to the account. At 20 open Drafts the answer is `429 throttled` without `Retry-After` (a cap clears when a Draft is removed). Never cached.
+         */
+        post: operations["create_listing_draft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/listings/{listing_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One of the signed-in account's own Listings
+         * @description Owner only. Another account's, an unknown and a malformed id are all `404 not_found`, so existence is never confirmed. Never cached.
+         */
+        get: operations["get_listing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -199,6 +239,26 @@ export interface paths {
          * @description Needs `X-CSRFToken`; not available to administrators. A wrong current password is `validation_error` with `fields.current_password = incorrect` (shared with the password change: after repeated failures the same answer returns without checking; never 429). A malformed address is `fields.new_email = invalid_email`. Otherwise ALWAYS the same `202`, whether the address is free, registered, the current one or unusable. A single-use link goes only to a free new address, after commit; the current address keeps signing in until it is used. Every accepted request also sends a heads-up to the current address. Only requests with the right password count against the per-account hourly limit (429 with `Retry-After`).
          */
         post: operations["request_email_change"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in account's own Listings, newest first
+         * @description Own Listings only, newest first, with cursor pagination (`next` link, `previous` is always null; 20 per page, `page_size` up to 50, an invalid `page_size` falls back to the default). `status` filters by a known status. A bad `cursor` or `status` is `validation_error` (`fields.cursor`, `fields.status`). Never cached.
+         */
+        get: operations["list_my_listings"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -429,6 +489,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Field registry and taxonomy
+         * @description Public. The versioned definition of every Listing field, with the purposes, Categories and Subtypes. Strong `ETag` from the version and content hash; send `If-None-Match` to get `304`. `Cache-Control: public, max-age=300`.
+         */
+        get: operations["get_registry"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/session": {
         parameters: {
             query?: never;
@@ -528,6 +608,11 @@ export interface components {
             /** @description 8 to 1024 characters, not a common password, not the email address. */
             password: string;
         };
+        Applicability: {
+            purposes: string[];
+            categories: string[];
+            subtypes: string[];
+        };
         /**
          * @description * `sign_in` - sign_in
          *     * `browse` - browse
@@ -542,6 +627,14 @@ export interface components {
          * @enum {string}
          */
         CapabilitiesEnum: "sign_in" | "browse" | "view_drafts" | "edit_drafts" | "publish" | "send_messages" | "read_conversations" | "report" | "request_support" | "request_deactivation";
+        /**
+         * @description * `house` - house
+         *     * `apartment` - apartment
+         *     * `plot` - plot
+         *     * `commercial` - commercial
+         * @enum {string}
+         */
+        CategoryEnum: "house" | "apartment" | "plot" | "commercial";
         ChangePasswordRequest: {
             /** @description The password in use now. */
             current_password: string;
@@ -563,6 +656,36 @@ export interface components {
         };
         CsrfToken: {
             csrf_token: string;
+        };
+        DraftCreateRequest: {
+            /**
+             * @description From the registry.
+             *
+             *     * `sale` - sale
+             *     * `rent` - rent
+             */
+            purpose: components["schemas"]["PurposeEnum"];
+            /**
+             * @description From the registry.
+             *
+             *     * `house` - house
+             *     * `apartment` - apartment
+             *     * `plot` - plot
+             *     * `commercial` - commercial
+             */
+            category: components["schemas"]["CategoryEnum"];
+            /**
+             * @description A Subtype of the chosen Category.
+             *
+             *     * `house` - house
+             *     * `apartment` - apartment
+             *     * `residential_plot` - residential_plot
+             *     * `commercial_plot` - commercial_plot
+             *     * `plot_file` - plot_file
+             *     * `shop` - shop
+             *     * `office` - office
+             */
+            subtype: components["schemas"]["SubtypeEnum"];
         };
         EmailChangeConfirmRequest: {
             /** @description The token from the email-change link. */
@@ -587,6 +710,29 @@ export interface components {
          * @enum {string}
          */
         EmailVerifiedStatusEnum: "verified";
+        /**
+         * @description * `public` - public
+         *     * `private` - private
+         * @enum {string}
+         */
+        FieldClassEnum: "public" | "private";
+        /**
+         * @description * `required_for_publication` - required_for_publication
+         *     * `recommended` - recommended
+         *     * `optional` - optional
+         * @enum {string}
+         */
+        FieldRequirementEnum: "required_for_publication" | "recommended" | "optional";
+        /**
+         * @description * `enum` - enum
+         *     * `text` - text
+         *     * `money` - money
+         *     * `integer` - integer
+         *     * `decimal` - decimal
+         *     * `boolean` - boolean
+         * @enum {string}
+         */
+        FieldTypeEnum: "enum" | "text" | "money" | "integer" | "decimal" | "boolean";
         Health: {
             status: components["schemas"]["HealthStatusEnum"];
         };
@@ -617,6 +763,37 @@ export interface components {
             /** @description Pakistani mobile (03xx xxxxxxx) or international number (+, 8 to 15 digits). */
             phone: string;
         };
+        Listing: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["ListingStatusEnum"];
+            visibility: components["schemas"]["VisibilityEnum"];
+            revision: number;
+            registry_version: number;
+            fields: components["schemas"]["ListingFields"];
+            /** @description Empty until Story 2.10. */
+            media: {
+                [key: string]: unknown;
+            }[];
+            /** @description Empty until Story 2.8. */
+            amenities: string[];
+        };
+        /** @description Flat registry ids. Null means unknown. */
+        ListingFields: {
+            purpose: (components["schemas"]["PurposeEnum"] | components["schemas"]["NullEnum"]) | null;
+            category: (components["schemas"]["CategoryEnum"] | components["schemas"]["NullEnum"]) | null;
+            subtype: (components["schemas"]["SubtypeEnum"] | components["schemas"]["NullEnum"]) | null;
+        };
+        ListingPage: {
+            next: string | null;
+            previous: string | null;
+            results: components["schemas"]["Listing"][];
+        };
+        /**
+         * @description * `draft` - draft
+         * @enum {string}
+         */
+        ListingStatusEnum: "draft";
         Marked: {
             marked: number;
         };
@@ -638,6 +815,8 @@ export interface components {
             previous: string | null;
             results: components["schemas"]["Notification"][];
         };
+        /** @enum {unknown} */
+        NullEnum: null;
         PasswordChanged: {
             status: components["schemas"]["PasswordChangedStatusEnum"];
         };
@@ -694,6 +873,12 @@ export interface components {
             /** @description The address of the newest unused, unexpired email-change request, or null. */
             pending_email: string | null;
         };
+        /**
+         * @description * `sale` - sale
+         *     * `rent` - rent
+         * @enum {string}
+         */
+        PurposeEnum: "sale" | "rent";
         RegistrationAccepted: {
             status: components["schemas"]["RegistrationAcceptedStatusEnum"];
         };
@@ -702,6 +887,28 @@ export interface components {
          * @enum {string}
          */
         RegistrationAcceptedStatusEnum: "check_your_email";
+        Registry: {
+            version: number;
+            taxonomy: components["schemas"]["Taxonomy"];
+            fields: components["schemas"]["RegistryField"][];
+        };
+        RegistryField: {
+            /** @description Stable snake_case id. */
+            id: string;
+            type: components["schemas"]["FieldTypeEnum"];
+            requirement: components["schemas"]["FieldRequirementEnum"];
+            /** @description Empty lists mean all values. */
+            applicability: components["schemas"]["Applicability"];
+            /** @description Enums only; null otherwise. */
+            allowed_values: string[] | null;
+            /** Class */
+            class_: components["schemas"]["FieldClassEnum"];
+            searchable: boolean;
+            sortable: boolean;
+            ai_extractable: boolean;
+            valuation_input: boolean;
+            quota_identity: boolean;
+        };
         /** @description Exactly `email` and `password`, both strings. Nothing else is accepted. */
         SignInRequest: {
             /** @description The account email; matched case-insensitively. */
@@ -717,6 +924,25 @@ export interface components {
          * @enum {string}
          */
         StateEnum: "email_unverified" | "active" | "suspended" | "deactivated";
+        /**
+         * @description * `house` - house
+         *     * `apartment` - apartment
+         *     * `residential_plot` - residential_plot
+         *     * `commercial_plot` - commercial_plot
+         *     * `plot_file` - plot_file
+         *     * `shop` - shop
+         *     * `office` - office
+         * @enum {string}
+         */
+        SubtypeEnum: "house" | "apartment" | "residential_plot" | "commercial_plot" | "plot_file" | "shop" | "office";
+        Taxonomy: {
+            categories: components["schemas"]["TaxonomyCategory"][];
+            purposes: string[];
+        };
+        TaxonomyCategory: {
+            id: string;
+            subtypes: string[];
+        };
         UnreadCount: {
             unread: number;
         };
@@ -727,6 +953,11 @@ export interface components {
         Verified: {
             status: components["schemas"]["EmailVerifiedStatusEnum"];
         };
+        /**
+         * @description * `private` - private
+         * @enum {string}
+         */
+        VisibilityEnum: "private";
         /**
          * @description Stable error code catalogue.
          * @enum {string}
@@ -1309,6 +1540,164 @@ export interface operations {
             };
         };
     };
+    create_listing_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description The new Draft */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Listing"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Listing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Listing"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     get_me: {
         parameters: {
             query?: never;
@@ -1561,6 +1950,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegistrationAccepted"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_my_listings: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                page_size?: number;
+                status?: "draft";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingPage"];
                 };
             };
             /** @description Bad request or validation error */
@@ -2504,6 +2973,89 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RegistrationAccepted"];
                 };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_registry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The registry */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Registry"];
+                };
+            };
+            /** @description Not modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Bad request or validation error */
             400: {

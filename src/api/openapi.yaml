@@ -435,6 +435,140 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/listings:
+    post:
+      operationId: create_listing_draft
+      description: 'Needs `X-CSRFToken`. Body: `purpose`, `category` and `subtype`;
+        any other field (`owner_account_id`, `status`, `revision`) is `validation_error`
+        (`unknown_field`). Failing fields are reported at once (`required`, `invalid`,
+        `invalid_choice`, `subtype_not_in_category`). Only Active and Email-unverified
+        Individual and Agency accounts may start one (`forbidden` otherwise, administrators
+        included). The Draft belongs to the account. At 20 open Drafts the answer
+        is `429 throttled` without `Retry-After` (a cap clears when a Draft is removed).
+        Never cached.'
+      summary: Start a Draft
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftCreateRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+          description: The new Draft
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/listings/{listing_id}:
+    get:
+      operationId: get_listing
+      description: Owner only. Another account's, an unknown and a malformed id are
+        all `404 not_found`, so existence is never confirmed. Never cached.
+      summary: One of the signed-in account's own Listings
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+          description: The Listing
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/me:
     get:
       operationId: get_me
@@ -650,6 +784,82 @@ paths:
               schema:
                 $ref: '#/components/schemas/RegistrationAccepted'
           description: Check your email
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/listings:
+    get:
+      operationId: list_my_listings
+      description: Own Listings only, newest first, with cursor pagination (`next`
+        link, `previous` is always null; 20 per page, `page_size` up to 50, an invalid
+        `page_size` falls back to the default). `status` filters by a known status.
+        A bad `cursor` or `status` is `validation_error` (`fields.cursor`, `fields.status`).
+        Never cached.
+      summary: The signed-in account's own Listings, newest first
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - draft
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingPage'
+          description: One page
         '400':
           description: Bad request or validation error
           content:
@@ -1446,6 +1656,65 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/registry:
+    get:
+      operationId: get_registry
+      description: 'Public. The versioned definition of every Listing field, with
+        the purposes, Categories and Subtypes. Strong `ETag` from the version and
+        content hash; send `If-None-Match` to get `304`. `Cache-Control: public, max-age=300`.'
+      summary: The Field registry and taxonomy
+      tags:
+      - registry
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Registry'
+          description: The registry
+        '304':
+          description: Not modified
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/session:
     post:
       operationId: sign_in
@@ -1709,6 +1978,25 @@ components:
       - office_address
       - password
       - phone
+    Applicability:
+      type: object
+      properties:
+        purposes:
+          type: array
+          items:
+            type: string
+        categories:
+          type: array
+          items:
+            type: string
+        subtypes:
+          type: array
+          items:
+            type: string
+      required:
+      - categories
+      - purposes
+      - subtypes
     CapabilitiesEnum:
       enum:
       - sign_in
@@ -1733,6 +2021,18 @@ components:
         * `report` - report
         * `request_support` - request_support
         * `request_deactivation` - request_deactivation
+    CategoryEnum:
+      enum:
+      - house
+      - apartment
+      - plot
+      - commercial
+      type: string
+      description: |-
+        * `house` - house
+        * `apartment` - apartment
+        * `plot` - plot
+        * `commercial` - commercial
     ChangePasswordRequest:
       type: object
       properties:
@@ -1786,6 +2086,44 @@ components:
           type: string
       required:
       - csrf_token
+    DraftCreateRequest:
+      type: object
+      properties:
+        purpose:
+          allOf:
+          - $ref: '#/components/schemas/PurposeEnum'
+          description: |-
+            From the registry.
+
+            * `sale` - sale
+            * `rent` - rent
+        category:
+          allOf:
+          - $ref: '#/components/schemas/CategoryEnum'
+          description: |-
+            From the registry.
+
+            * `house` - house
+            * `apartment` - apartment
+            * `plot` - plot
+            * `commercial` - commercial
+        subtype:
+          allOf:
+          - $ref: '#/components/schemas/SubtypeEnum'
+          description: |-
+            A Subtype of the chosen Category.
+
+            * `house` - house
+            * `apartment` - apartment
+            * `residential_plot` - residential_plot
+            * `commercial_plot` - commercial_plot
+            * `plot_file` - plot_file
+            * `shop` - shop
+            * `office` - office
+      required:
+      - category
+      - purpose
+      - subtype
     EmailChangeConfirmRequest:
       type: object
       properties:
@@ -1826,6 +2164,40 @@ components:
       - verified
       type: string
       description: '* `verified` - verified'
+    FieldClassEnum:
+      enum:
+      - public
+      - private
+      type: string
+      description: |-
+        * `public` - public
+        * `private` - private
+    FieldRequirementEnum:
+      enum:
+      - required_for_publication
+      - recommended
+      - optional
+      type: string
+      description: |-
+        * `required_for_publication` - required_for_publication
+        * `recommended` - recommended
+        * `optional` - optional
+    FieldTypeEnum:
+      enum:
+      - enum
+      - text
+      - money
+      - integer
+      - decimal
+      - boolean
+      type: string
+      description: |-
+        * `enum` - enum
+        * `text` - text
+        * `money` - money
+        * `integer` - integer
+        * `decimal` - decimal
+        * `boolean` - boolean
     Health:
       type: object
       properties:
@@ -1879,6 +2251,89 @@ components:
       - full_name
       - password
       - phone
+    Listing:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/ListingStatusEnum'
+        visibility:
+          $ref: '#/components/schemas/VisibilityEnum'
+        revision:
+          type: integer
+          minimum: 1
+        registry_version:
+          type: integer
+          minimum: 1
+        fields:
+          $ref: '#/components/schemas/ListingFields'
+        media:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          description: Empty until Story 2.10.
+        amenities:
+          type: array
+          items:
+            type: string
+          description: Empty until Story 2.8.
+      required:
+      - amenities
+      - fields
+      - id
+      - media
+      - registry_version
+      - revision
+      - status
+      - visibility
+    ListingFields:
+      type: object
+      description: Flat registry ids. Null means unknown.
+      properties:
+        purpose:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PurposeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        category:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/CategoryEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        subtype:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/SubtypeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - category
+      - purpose
+      - subtype
+    ListingPage:
+      type: object
+      properties:
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Listing'
+      required:
+      - next
+      - previous
+      - results
+    ListingStatusEnum:
+      enum:
+      - draft
+      type: string
+      description: '* `draft` - draft'
     Marked:
       type: object
       properties:
@@ -1928,6 +2383,9 @@ components:
       - next
       - previous
       - results
+    NullEnum:
+      enum:
+      - null
     PasswordChanged:
       type: object
       properties:
@@ -2036,6 +2494,14 @@ components:
       - full_name
       - pending_email
       - phone
+    PurposeEnum:
+      enum:
+      - sale
+      - rent
+      type: string
+      description: |-
+        * `sale` - sale
+        * `rent` - rent
     RegistrationAccepted:
       type: object
       properties:
@@ -2048,6 +2514,68 @@ components:
       - check_your_email
       type: string
       description: '* `check_your_email` - check_your_email'
+    Registry:
+      type: object
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        taxonomy:
+          $ref: '#/components/schemas/Taxonomy'
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistryField'
+      required:
+      - fields
+      - taxonomy
+      - version
+    RegistryField:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Stable snake_case id.
+        type:
+          $ref: '#/components/schemas/FieldTypeEnum'
+        requirement:
+          $ref: '#/components/schemas/FieldRequirementEnum'
+        applicability:
+          allOf:
+          - $ref: '#/components/schemas/Applicability'
+          description: Empty lists mean all values.
+        allowed_values:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Enums only; null otherwise.
+        class_:
+          allOf:
+          - $ref: '#/components/schemas/FieldClassEnum'
+          title: 'Class '
+        searchable:
+          type: boolean
+        sortable:
+          type: boolean
+        ai_extractable:
+          type: boolean
+        valuation_input:
+          type: boolean
+        quota_identity:
+          type: boolean
+      required:
+      - ai_extractable
+      - allowed_values
+      - applicability
+      - class_
+      - id
+      - quota_identity
+      - requirement
+      - searchable
+      - sortable
+      - type
+      - valuation_input
     SignInRequest:
       type: object
       description: Exactly `email` and `password`, both strings. Nothing else is accepted.
@@ -2075,6 +2603,50 @@ components:
         * `active` - active
         * `suspended` - suspended
         * `deactivated` - deactivated
+    SubtypeEnum:
+      enum:
+      - house
+      - apartment
+      - residential_plot
+      - commercial_plot
+      - plot_file
+      - shop
+      - office
+      type: string
+      description: |-
+        * `house` - house
+        * `apartment` - apartment
+        * `residential_plot` - residential_plot
+        * `commercial_plot` - commercial_plot
+        * `plot_file` - plot_file
+        * `shop` - shop
+        * `office` - office
+    Taxonomy:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaxonomyCategory'
+        purposes:
+          type: array
+          items:
+            type: string
+      required:
+      - categories
+      - purposes
+    TaxonomyCategory:
+      type: object
+      properties:
+        id:
+          type: string
+        subtypes:
+          type: array
+          items:
+            type: string
+      required:
+      - id
+      - subtypes
     UnreadCount:
       type: object
       properties:
@@ -2099,6 +2671,11 @@ components:
           $ref: '#/components/schemas/EmailVerifiedStatusEnum'
       required:
       - status
+    VisibilityEnum:
+      enum:
+      - private
+      type: string
+      description: '* `private` - private'
     ErrorCode:
       type: string
       enum:
