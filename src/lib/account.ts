@@ -17,6 +17,20 @@ export const STATE_LABELS: Record<Account["state"], string> = {
   deactivated: "Deactivated",
 };
 
+/** Agencies are named by their agency name; individuals by their own name; the email is the fallback. */
 export function displayName(account: Account): string {
+  if (account.account_type === "agency" && account.agency_name) return account.agency_name;
   return account.full_name || account.email;
+}
+
+/** Labels for the dashboard's account type line. */
+const TYPE_LABELS: Record<string, string> = {
+  individual: "Individual",
+  agency: "Agency",
+  admin: "Administrator",
+};
+
+/** The label for an account type; an unexpected type is shown as sent rather than hidden. */
+export function typeLabel(type: string): string {
+  return TYPE_LABELS[type] ?? type;
 }

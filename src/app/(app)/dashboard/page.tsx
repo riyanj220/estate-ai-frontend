@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { STATE_LABELS, displayName } from "@/lib/account";
+import { STATE_LABELS, displayName, typeLabel } from "@/lib/account";
 import { requireAccount } from "@/lib/current-account";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -14,6 +14,9 @@ export default async function DashboardPage() {
       <h1 className="page-title">Dashboard</h1>
       <p>
         Signed in as <strong data-testid="dashboard-name">{displayName(account)}</strong>.
+      </p>
+      <p className="muted" data-testid="dashboard-type">
+        Account type: {typeLabel(account.account_type)}
       </p>
       <p className="muted" data-testid="dashboard-state">
         Account state: {STATE_LABELS[account.state]}
