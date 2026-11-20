@@ -5,11 +5,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "@/lib/session";
 
 /** What a profile fetch answers: the profile, a failure, a wrong account type, or a session that is gone (401). */
-export type ProfileFetch<T> = { kind: "ready"; profile: T } | { kind: "error" } | { kind: "forbidden" } | "gone";
+export type ProfileFetch<T> = { kind: "ready"; profile: T } | { kind: "error"; message?: string } | { kind: "forbidden" } | "gone";
 export type ProfileLoad<T> =
   | { kind: "loading" }
   | { kind: "ready"; profile: T }
-  | { kind: "error"; retrying?: boolean }
+  | { kind: "error"; retrying?: boolean; message?: string }
   | { kind: "forbidden" };
 
 export const PROFILE_PATH = "/account/profile";
@@ -17,9 +17,15 @@ export const PROFILE_PATH = "/account/profile";
 /**
  * The load handling shared by the Individual and Agency profile pages: the initial read, quiet re-reads (after an email
  * change request, on focus and visibility), a Retry that keeps its button mounted, focus to `headingId` after a Retry
- * succeeds, and the session-gone redirect. `fetchProfile` must not depend on render state.
+ * succeeds, and the session-gone redirect (to `signInPath`, the profile sign-in by default). `refreshOnFocus: false` leaves
+ * out the quiet re-read on focus (a page with load-more state, like the notification list, keeps what it shows).
+ * `fetchProfile` must not depend on render state.
  */
-export function useProfileLoad<T>(fetchProfile: () => Promise<ProfileFetch<T>>, headingId: string) {
+export function useProfileLoad<T>(
+  fetchProfile: () => Promise<ProfileFetch<T>>,
+  headingId: string,
+  { signInPath = `/sign-in?next=${encodeURIComponent(PROFILE_PATH)}`, refreshOnFocus = true }: { signInPath?: string; refreshOnFocus?: boolean } = {},
+) {
   const { refresh } = useSession();
   const router = useRouter();
   const [load, setLoad] = useState<ProfileLoad<T>>({ kind: "loading" });
@@ -35,8 +41,8 @@ export function useProfileLoad<T>(fetchProfile: () => Promise<ProfileFetch<T>>, 
   // The session is gone: flip the provider to signed out, then sign in again and come back here.
   const sessionGone = useCallback(async () => {
     await refresh();
-    router.replace(`/sign-in?next=${encodeURIComponent(PROFILE_PATH)}`);
-  }, [refresh, router]);
+    router.replace(signInPath);
+  }, [refresh, router, signInPath]);
 
   // A quiet load (after an email change request, on focus) keeps what is on screen when it fails and never shows
   // "loading". It resolves true when a fresh profile was applied.
@@ -68,6 +74,7 @@ export function useProfileLoad<T>(fetchProfile: () => Promise<ProfileFetch<T>>, 
 
   // Silent refresh when the person comes back to the tab, so a change made elsewhere does not leave the page stale.
   useEffect(() => {
+    if (!refreshOnFocus) return;
     const again = () => {
       if (loadKind.current === "ready") void read(true);
     };
@@ -80,7 +87,7 @@ export function useProfileLoad<T>(fetchProfile: () => Promise<ProfileFetch<T>>, 
       window.removeEventListener("focus", again);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [read]);
+  }, [read, refreshOnFocus]);
 
   useEffect(() => {
     loadKind.current = load.kind;
@@ -116,7 +123,7 @@ export function ProfileLoadState({ load, onRetry, noun }: { load: ProfileLoad<un
       <h2 id="load-error-title" className="section-title">
         We could not load your {noun}
       </h2>
-      <p className="muted">Check your connection and try again.</p>
+      <p className="muted">{load.message ?? "Check your connection and try again."}</p>
       <p role="status" className={load.retrying ? "muted" : "sr-only"}>
         {load.retrying ? "Retrying…" : ""}
       </p>
