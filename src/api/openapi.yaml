@@ -4,6 +4,130 @@ info:
   version: 1.0.0
   description: EstateAI backend contract. One error envelope, stable error codes.
 paths:
+  /api/v1/admin-session:
+    post:
+      operationId: admin_sign_in
+      description: The only door to an administrator session; the ordinary sign-in
+        refuses administrator accounts. Needs `X-CSRFToken`. Anything but an active
+        administrator with the right password (wrong password, unknown email, an Individual
+        or Agency account, a disabled administrator, a throttled attempt) answers
+        the same `401 invalid_credentials`; the throttle is silent, never 429. Administrator
+        sessions expire after 30 idle minutes or 8 hours.
+      summary: Sign in as an administrator
+      tags:
+      - admin-session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActorSummary'
+          description: Signed in
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/me:
+    get:
+      operationId: get_admin_me
+      description: Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`, so the admin area is not confirmed to them.
+      summary: The signed-in administrator
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMe'
+          description: The administrator
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/csrf:
     get:
       operationId: get_csrf_token
@@ -1187,16 +1311,6 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
 components:
   schemas:
-    AccountTypeEnum:
-      enum:
-      - individual
-      - agency
-      - admin
-      type: string
-      description: |-
-        * `individual` - individual
-        * `agency` - agency
-        * `admin` - admin
     ActorSummary:
       type: object
       properties:
@@ -1204,7 +1318,7 @@ components:
           type: string
           format: uuid
         account_type:
-          $ref: '#/components/schemas/AccountTypeEnum'
+          $ref: '#/components/schemas/ActorSummaryAccountTypeEnum'
         state:
           $ref: '#/components/schemas/StateEnum'
         email:
@@ -1228,6 +1342,35 @@ components:
       - full_name
       - id
       - state
+    ActorSummaryAccountTypeEnum:
+      enum:
+      - individual
+      - agency
+      - admin
+      type: string
+      description: |-
+        * `individual` - individual
+        * `agency` - agency
+        * `admin` - admin
+    AdminMe:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        account_type:
+          $ref: '#/components/schemas/AdminMeAccountTypeEnum'
+        state:
+          $ref: '#/components/schemas/StateEnum'
+      required:
+      - account_type
+      - id
+      - state
+    AdminMeAccountTypeEnum:
+      enum:
+      - admin
+      type: string
+      description: '* `admin` - admin'
     AgencyProfile:
       type: object
       properties:

@@ -4,6 +4,46 @@
  */
 
 export interface paths {
+    "/api/v1/admin-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign in as an administrator
+         * @description The only door to an administrator session; the ordinary sign-in refuses administrator accounts. Needs `X-CSRFToken`. Anything but an active administrator with the right password (wrong password, unknown email, an Individual or Agency account, a disabled administrator, a throttled attempt) answers the same `401 invalid_credentials`; the throttle is silent, never 429. Administrator sessions expire after 30 idle minutes or 8 hours.
+         */
+        post: operations["admin_sign_in"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in administrator
+         * @description Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`, so the admin area is not confirmed to them.
+         */
+        get: operations["get_admin_me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/csrf": {
         parameters: {
             query?: never;
@@ -337,17 +377,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /**
-         * @description * `individual` - individual
-         *     * `agency` - agency
-         *     * `admin` - admin
-         * @enum {string}
-         */
-        AccountTypeEnum: "individual" | "agency" | "admin";
         ActorSummary: {
             /** Format: uuid */
             id: string;
-            account_type: components["schemas"]["AccountTypeEnum"];
+            account_type: components["schemas"]["ActorSummaryAccountTypeEnum"];
             state: components["schemas"]["StateEnum"];
             /** @description The account's own email. Private: owner only. */
             email: string;
@@ -357,6 +390,24 @@ export interface components {
             agency_name: string;
             capabilities: components["schemas"]["CapabilitiesEnum"][];
         };
+        /**
+         * @description * `individual` - individual
+         *     * `agency` - agency
+         *     * `admin` - admin
+         * @enum {string}
+         */
+        ActorSummaryAccountTypeEnum: "individual" | "agency" | "admin";
+        AdminMe: {
+            /** Format: uuid */
+            id: string;
+            account_type: components["schemas"]["AdminMeAccountTypeEnum"];
+            state: components["schemas"]["StateEnum"];
+        };
+        /**
+         * @description * `admin` - admin
+         * @enum {string}
+         */
+        AdminMeAccountTypeEnum: "admin";
         AgencyProfile: {
             /** @description Public. */
             agency_name: string;
@@ -597,6 +648,162 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    admin_sign_in: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignInRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActorSummary"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_admin_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The administrator */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMe"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     get_csrf_token: {
         parameters: {
             query?: never;
