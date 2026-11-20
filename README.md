@@ -486,9 +486,84 @@ returns: it decides nothing about who is notified or what is private.
   account-removal and retention rules are the backend's. If a later epic wants a richer link per kind, extend `KindEntry` (for
   example an optional `href`) in `notification-kinds.ts`; the list component already renders only what the catalogue returns.
 
+## Listings: create, My listings and the Draft page (Story 2.1)
+
+Frontend half of Story 2.1. The contract is the backend's `docs/listings.md` and `docs/registry.md`; the client was synced with
+`npm run api:sync`. Only the manual path exists (the AI-assisted path arrives in Epic 5); a note on the create page says so.
+
+- **Routes** (`src/app/(app)/account/listings/`, all behind the server guard and `Cache-Control: no-store` through the existing
+  `/account/:path*` rule): `/account/listings` ("My listings", `listings-client.tsx`), `/account/listings/new` ("Create listing",
+  `new/create-listing-form.tsx`) and `/account/listings/[id]` (the Draft page, `[id]/draft-client.tsx`; the dynamic `params` are a
+  promise in this version of Next.js and are awaited in the page). The header and the dashboard link to "My listings" for individual
+  and agency accounts only (`canOwnListings` in `src/lib/account.ts`). An administrator who opens a route directly sees "Listings
+  are available for individual and agency accounts." and no form (the list page shows the server's `403`; the create page is not
+  given a form for an administrator; the Draft page answers like any other 404).
+- **Registry hook** (`src/lib/use-registry.tsx`): `useRegistry()` reads `GET /api/v1/registry` once per page load (the browser
+  revalidates it by the server's ETag) and answers `{status: "loading" | "ready" | "error", registry, retry, retrying}`.
+  `registry` has `purposes`, `categories`, `subtypesOf(category)` and `version`. The shape is validated defensively
+  (`readRegistry`): anything malformed, or no usable purpose or Category, is an error with a Retry that stays mounted, never a crash.
+  Ids that are not simple tokens (lowercase letters, digits, underscore) and Categories without a Subtype are skipped, so an id
+  can never break an element id. A `401` ends the session like on the other pages, and `refetch()` revalidates the registry
+  (used once after the server refused a choice, since a stale registry is the likely cause; the user's other valid choices stay). The
+  frontend owns no taxonomy: purposes, Categories and Subtypes are rendered only from this answer.
+- **Labels** (`src/lib/listing-labels.ts`): the registry carries ids only, so `label(id)` turns `plot_file` into "Plot file" (a
+  missing or unknown value is "Not set"); `summaryOf(fields)` builds "Sale · House · House"; `readListing` reads a Listing from a
+  response defensively. Error texts are in `src/lib/listing-messages.ts`.
+- **Create listing**: Purpose (radio group), Category and Subtype (selects; the Subtype is disabled until a Category is chosen,
+  lists only that Category's Subtypes and is cleared when the Category changes to one that does not contain it). Only "required" is
+  checked on the client (nothing is sent when a choice is missing). It posts exactly `{purpose, category, subtype}` through
+  `withCsrf` and opens the new Draft page on `201`. `400` codes (`required`, `invalid`, `invalid_choice`,
+  `subtype_not_in_category`) map to text in the focused error summary and the values are kept; unknown codes and sentences are
+  generic. a `403` shows "Your account cannot create listings right now." only when the session says the account is suspended
+  (the real backend answers a CSRF rejection and a suspended account alike with `forbidden`); any other persistent `403` (after the
+  one CSRF retry) is the generic rejected-request message.
+  A `429` with code `throttled` and no `Retry-After` shows the open-drafts limit message with a link to My listings (the number is
+  not repeated in the copy); otherwise the usual wait text; `401` signs out and goes to the
+  sign-in with `next`; 5xx, timeout and network failures have their own messages and keep the form. After a `201` the form never submits again
+  (Create stays `aria-disabled` and reads "Draft created"); if the Draft page has not opened after about 8 seconds, or the id
+  cannot be read, a notice points to My listings instead of freezing. A page restored from the back-forward cache re-checks the
+  session (`src/lib/use-pageshow-recheck.ts`) and resets a frozen form. Controls use `aria-disabled` (not `disabled`) so focus is
+  kept; the Subtype stays reachable with a "Choose a category first." hint; field errors clear when the field is edited.
+- **My listings**: the first page of `GET /api/v1/me/listings` (newest first, as the server orders it), a summary line and a
+  "Draft" marker per item linking to its page, "Load more" with the server cursor (appended, deduplicated by id, hidden at the
+  end, a failed load more keeps the list and says so), an empty state with a Create listing link, a Retry that stays mounted and a
+  `401` redirect (to the admin sign-in for an administrator). It reuses the shared loader (`useResourceLoad`, an alias of
+  `useProfileLoad`, with `refreshOnFocus: false`, so nothing polls or refreshes on focus). The empty state shows only when there
+  is no item and no `next`; items are deduplicated within a page and across pages; a load more that only repeats known items but
+  moves the cursor on is followed (a few pages at most); a `403` for an owner type reads "Listings are not available for this
+  account right now." (the type-based wording is for administrators).
+- **Draft page**: `GET /api/v1/listings/{id}` shown read-only (status, revision, registry version and the three fields, a note
+  that more can be added in later steps, a link back). A `404` (and `400`, `403`, `422`) is one answer for an unknown, someone else's or malformed id and
+  for an administrator: "We could not find that listing." An id that is not a canonical UUID gets the same copy without a request.
+  A `429` shows the wait with Retry. Nothing editable yet.
+- **Privacy**: no listing or registry data goes to storage, the console, the page title or a URL beyond the Draft id in its path.
+- **Playwright stub** (`tests/e2e/stub-backend.mjs`): `GET /api/v1/registry` (the real taxonomy, strong ETag, `304` on
+  `If-None-Match`; `/__registry-mode`: `ok`, `flaky`, `flaky_slow`, `gone`, `odd_ids`, `error`, `broken`, `hang`, `malformed`, `empty_choices`, `bad_subtypes`;
+  `/__registry-taxonomy?value=other|shared` serves another taxonomy (`shared`: one Subtype id in two Categories)), `POST /api/v1/listings` (`/__listing-create-mode`: `ok`, `required`,
+  `fields`, `subtype_mismatch`, `sentences`, `non_field`, `no_id`, `forbidden`, `session_gone`, `rate_limited`, `rate_none`,
+  `csrf_once`, `csrf_always`, `error`, `broken`, `hang`; it validates against the current taxonomy and enforces the 20-draft cap),
+  `GET /api/v1/listings/{id}` (`/__listing-detail-mode`: `ok`, `flaky`, `malformed`, `session_gone`, `error`, `broken`, `hang`;
+  `404` for unknown, malformed, other accounts' and administrators) and `GET /api/v1/me/listings` (`/__listings-mode`: `ok`,
+  `flaky`, `flaky_slow`, `inpage_dup`, `repeat_cursor`, `known_advance`, `bad_first`, `forbidden`, `more_forbidden`, `more_rate_limited`, `more_fail`, `more_gone`, `small_pages`, `dup`, `bad_next`, `malformed`, `partial`, `rate_limited`, `session_gone`,
+  `error`, `broken`, `hang`; 20 per page with `next` cursors; `403` for administrators). It is stateful: created Drafts appear in
+  the list and the detail. `/__listings-preset?value=` (`empty`, `few`, `many`, `capped`, `unknown`, `foreign`) and
+  `/__listings-stats`. Tests: `tests/e2e/listings.spec.ts` (every row of the story's matrix; axe at desktop and mobile on the form,
+  its errors, the registry error, the list, the Draft page, the empty, error and administrator states).
+- **Deviations**: the Listing wire shape has no timestamp, so the list shows no created time (the order is the server's, newest
+  first); created time arrives with Story 2.13 (draft management).
+- **Caching**: `npm run check:prod-listings` (`scripts/check-prod-listings.mjs`) builds the app and proves a Visitor gets `307`
+  and the signed-in pages `no-store` for `/account/listings`, `/account/listings/new` and `/account/listings/<uuid>`. The dev-mode
+  Playwright test reads the same config, so it cannot fail on it alone.
+- **Tech debt**: the list (like the notification list) mirrors list state around `useProfileLoad`; a dedicated list hook would
+  serve both and is deferred.
+- **Hand-off to Story 2.2**: the Draft page is read-only on purpose. Editing adds forms that send `{base_revision, fields}` and
+  handle `409` with the current Listing; field labels and the field list will come from the registry's `fields` (the hook already
+  carries the full answer's version; extend `readRegistry` rather than adding a second fetch). Labels are derived from ids until the
+  registry carries display text.
+
 ## Layout
 
-- `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications),
+- `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),
   `src/app/admin` admin area (`sign-in` public, everything else in the guarded `(protected)` group). Shells only; no visibility, privacy or quota logic lives here.
 
 `/dashboard` is a placeholder guarded on the server (see above); `/admin` is the administrator area (see "Admin area").
