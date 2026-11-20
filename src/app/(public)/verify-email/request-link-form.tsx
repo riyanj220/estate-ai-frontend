@@ -118,7 +118,7 @@ export function RequestLinkForm() {
           {notice}
         </p>
       )}
-      <form onSubmit={onSubmit} noValidate aria-busy={pending}>
+      <form method="post" onSubmit={onSubmit} noValidate aria-busy={pending}>
         <div className="field">
           <label htmlFor="email">Email address</label>
           {fieldErrors.length > 0 && (

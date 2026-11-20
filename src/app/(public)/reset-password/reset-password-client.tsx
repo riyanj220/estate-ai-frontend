@@ -229,7 +229,7 @@ export function ResetPasswordClient() {
           {notice}
         </p>
       )}
-      <form onSubmit={onSubmit} noValidate className="card" aria-busy={pending}>
+      <form method="post" onSubmit={onSubmit} noValidate className="card" aria-busy={pending}>
         <div className="field">
           <label htmlFor="password">New password</label>
           {fieldErrors.length > 0 && (

@@ -4,7 +4,7 @@
  */
 export const GENERIC_FIELD_MESSAGE = "Enter a valid value.";
 
-const POLICY_MESSAGES: Record<string, string> = {
+export const POLICY_MESSAGES: Record<string, string> = {
   required: "Enter a password.",
   password_too_short: "Use at least 8 characters.",
   password_too_long: "Use at most 1024 characters.",

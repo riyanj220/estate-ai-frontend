@@ -1,7 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { CheckYourEmail } from "@/components/check-your-email";
+import { ErrorSummary } from "@/components/error-summary";
+import { Field, PasswordField } from "@/components/form-field";
 import { getApi } from "@/lib/api";
 import {
   NETWORK_ERROR,
@@ -11,6 +13,7 @@ import {
   readErrorBody,
   withTimeout,
 } from "@/lib/forms";
+import { useFormFeedback } from "@/lib/use-form-feedback";
 
 type FieldName = "full_name" | "email" | "password" | "phone";
 type Fields = Record<string, string[]>;
@@ -33,27 +36,14 @@ export function RegisterForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [fieldErrors, setFieldErrors] = useState<Fields>({});
   const [formErrors, setFormErrors] = useState<string[]>([]);
-  const [notice, setNotice] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [announcement, setAnnouncement] = useState("");
+  const { announcement, setAnnouncement, resetAnnouncement, announce, notice, setNotice, showNotice, focusSummary, summaryRef, noticeRef } =
+    useFormFeedback();
   const [submittedEmail, setSubmittedEmail] = useState("");
   const submitting = useRef(false);
-  const summaryRef = useRef<HTMLDivElement>(null);
   const successRef = useRef<HTMLHeadingElement>(null);
-  const [summaryTick, setSummaryTick] = useState(0);
-  const [noticeTick, setNoticeTick] = useState(0);
-  const noticeRef = useRef<HTMLParagraphElement>(null);
   const focusEmail = useRef(false);
 
   const hasErrors = formErrors.length > 0 || Object.keys(fieldErrors).length > 0;
-
-  useEffect(() => {
-    if (summaryTick > 0) summaryRef.current?.focus();
-  }, [summaryTick]);
-
-  useEffect(() => {
-    if (noticeTick > 0) noticeRef.current?.focus();
-  }, [noticeTick]);
 
   useEffect(() => {
     if (status === "idle" && focusEmail.current) {
@@ -62,22 +52,10 @@ export function RegisterForm() {
     }
   }, [status]);
 
-  // Clearing first makes a repeated identical message announce again.
-  function announce(message: string) {
-    setAnnouncement("");
-    setTimeout(() => setAnnouncement(message), 50);
-  }
-
-  function showNotice(message: string) {
-    setNotice(message);
-    setNoticeTick((tick) => tick + 1);
-    announce(message);
-  }
-
   function useDifferentEmail() {
     setValues((current) => ({ ...current, email: "", password: "" }));
     setSubmittedEmail("");
-    setAnnouncement("");
+    resetAnnouncement();
     focusEmail.current = true;
     setStatus("idle");
   }
@@ -98,6 +76,7 @@ export function RegisterForm() {
     setFieldErrors({});
     setFormErrors([]);
     setNotice("");
+    resetAnnouncement();
     setAnnouncement("Creating your account.");
 
     const email = values.email.trim();
@@ -110,10 +89,9 @@ export function RegisterForm() {
         }),
       );
 
-      if (response.ok) {
+      if (response.status === 202) {
         setSubmittedEmail(email);
         setValues((current) => ({ ...current, email, password: "", phone: "" }));
-        setShowPassword(false);
         setStatus("success");
         announce("Check your email. We have sent the next steps.");
         return;
@@ -131,7 +109,7 @@ export function RegisterForm() {
         if (Object.keys(fields).length === 0 && general.length === 0) general.push(body.message);
         setFieldErrors(fields);
         setFormErrors(general);
-        setSummaryTick((tick) => tick + 1);
+        focusSummary();
         announce("The form has errors. Review the list at the top of the page.");
       } else if (response.status === 429) {
         showNotice(rateLimitMessage(response.headers.get("Retry-After")));
@@ -158,65 +136,31 @@ export function RegisterForm() {
     return (
       <>
         {live}
-        <section className="card" aria-labelledby="success-title">
-          <h2 id="success-title" tabIndex={-1} ref={successRef} className="section-title">
-            Check your email
-          </h2>
-          <p>
-            If we can use <strong>{submittedEmail}</strong>, we have sent a message with the next steps. It can take a few
-            minutes; look in your spam folder if you do not see it.
-          </p>
-          <p>
-            Already verified your email address?{" "}
-            <Link href="/sign-in" className="text-link">
-              Sign in
-            </Link>
-          </p>
-          <button type="button" className="secondary-button" onClick={useDifferentEmail}>
-            Use a different email address
-          </button>
-        </section>
+        <CheckYourEmail email={submittedEmail} headingRef={successRef} onUseDifferent={useDifferentEmail} />
       </>
     );
   }
 
   const pending = status === "pending";
-  const invalidFields = FIELD_ORDER.filter((name) => fieldErrors[name]?.length);
 
   return (
     <>
       {live}
       {hasErrors && (
-        <div ref={summaryRef} tabIndex={-1} role="group" className="error-summary" aria-labelledby="error-summary-title">
-          <h2 id="error-summary-title" className="summary-title">
-            There is a problem
-          </h2>
-          <ul>
-            {invalidFields.map((name) => (
-              <li key={name}>
-                <a
-                  href={`#${name}`}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    document.getElementById(name)?.focus();
-                  }}
-                >
-                  {FIELD_LABELS[name]}: {fieldErrors[name].join(" ")}
-                </a>
-              </li>
-            ))}
-            {formErrors.map((message, index) => (
-              <li key={index}>{message}</li>
-            ))}
-          </ul>
-        </div>
+        <ErrorSummary
+          ref={summaryRef}
+          order={FIELD_ORDER}
+          labels={FIELD_LABELS}
+          fieldErrors={fieldErrors}
+          formErrors={formErrors}
+        />
       )}
       {notice && (
         <p ref={noticeRef} tabIndex={-1} role="alert" className="notice" data-testid="form-notice">
           {notice}
         </p>
       )}
-      <form onSubmit={onSubmit} noValidate className="card" aria-busy={pending}>
+      <form method="post" onSubmit={onSubmit} noValidate className="card" aria-busy={pending}>
         <Field name="full_name" label="Full name" errors={fieldErrors.full_name}>
           {(props) => (
             <input
@@ -244,29 +188,11 @@ export function RegisterForm() {
             />
           )}
         </Field>
-        <Field name="password" label="Password" errors={fieldErrors.password}>
-          {(props) => (
-            <div className="password-row">
-              <input
-                {...props}
-                type={showPassword ? "text" : "password"}
-                autoComplete="new-password"
-                required
-                value={values.password}
-                onChange={(e) => setValue("password", e.target.value)}
-              />
-              <button
-                type="button"
-                className="secondary-button"
-                aria-pressed={showPassword}
-                aria-controls="password"
-                onClick={() => setShowPassword((shown) => !shown)}
-              >
-                Show password
-              </button>
-            </div>
-          )}
-        </Field>
+        <PasswordField
+          value={values.password}
+          onChange={(value) => setValue("password", value)}
+          errors={fieldErrors.password}
+        />
         <Field
           name="phone"
           label="Phone number"
@@ -290,52 +216,5 @@ export function RegisterForm() {
         </button>
       </form>
     </>
-  );
-}
-
-type InputProps = {
-  id: string;
-  name: string;
-  "aria-invalid": boolean | undefined;
-  "aria-describedby": string | undefined;
-};
-
-function Field({
-  name,
-  label,
-  hint,
-  errors,
-  children,
-}: {
-  name: FieldName;
-  label: string;
-  hint?: string;
-  errors?: string[];
-  children: (props: InputProps) => React.ReactNode;
-}) {
-  const hintId = `${name}-hint`;
-  const errorId = `${name}-error`;
-  const describedBy = [hint ? hintId : null, errors?.length ? errorId : null].filter(Boolean).join(" ");
-  return (
-    <div className="field">
-      <label htmlFor={name}>{label}</label>
-      {hint && (
-        <p id={hintId} className="hint">
-          {hint}
-        </p>
-      )}
-      {errors?.length ? (
-        <p id={errorId} className="field-error">
-          <span className="sr-only">Error: </span>
-          {errors.join(" ")}
-        </p>
-      ) : null}
-      {children({
-        id: name,
-        name,
-        "aria-invalid": errors?.length ? true : undefined,
-        "aria-describedby": describedBy || undefined,
-      })}
-    </div>
   );
 }

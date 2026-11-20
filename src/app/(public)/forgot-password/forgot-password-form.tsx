@@ -140,7 +140,7 @@ export function ForgotPasswordForm() {
           {notice}
         </p>
       )}
-      <form onSubmit={onSubmit} noValidate className="card" aria-busy={pending} style={sent ? { marginTop: "var(--space)" } : undefined}>
+      <form method="post" onSubmit={onSubmit} noValidate className="card" aria-busy={pending} style={sent ? { marginTop: "var(--space)" } : undefined}>
         <div className="field">
           <label htmlFor="email">Email address</label>
           {fieldErrors.length > 0 && (

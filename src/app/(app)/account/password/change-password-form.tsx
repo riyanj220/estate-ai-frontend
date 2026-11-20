@@ -181,7 +181,7 @@ export function ChangePasswordForm() {
           {notice}
         </p>
       )}
-      <form onSubmit={onSubmit} noValidate className="card" aria-busy={pending} style={changed ? { marginTop: "var(--space)" } : undefined}>
+      <form method="post" onSubmit={onSubmit} noValidate className="card" aria-busy={pending} style={changed ? { marginTop: "var(--space)" } : undefined}>
         {FIELD_ORDER.map((name) => {
           const errors = fieldErrors[name];
           const errorId = `${name}-error`;
