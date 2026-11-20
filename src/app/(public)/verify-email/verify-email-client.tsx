@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getApi } from "@/lib/api";
 import { readErrorBody, withTimeout } from "@/lib/forms";
+import { scrubTokenFromHistory } from "@/lib/scrub-token";
 import { RequestLinkForm } from "./request-link-form";
 
 type State = "pending" | "success" | "link_expired" | "link_used" | "link_invalid" | "missing" | "retry";
@@ -54,13 +55,7 @@ export function VerifyEmailClient() {
     // The ref guard keeps strict mode and re-renders to a single request; the token never leaves memory.
     if (started.current) return;
     started.current = true;
-    const params = new URLSearchParams(window.location.search);
-    token.current = params.get("token")?.trim() || null;
-    if (params.has("token")) {
-      params.delete("token");
-      const query = params.toString();
-      history.replaceState(history.state, "", window.location.pathname + (query ? `?${query}` : "") + window.location.hash);
-    }
+    token.current = scrubTokenFromHistory() || null; // the address bar and the router state lose the token at once
     if (token.current === null) setState("missing");
     else void confirm();
   }, []);

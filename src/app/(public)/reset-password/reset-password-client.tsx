@@ -15,6 +15,7 @@ import {
   withTimeout,
 } from "@/lib/forms";
 import { RESET_PASSWORD_MESSAGES, mapFieldMessages } from "@/lib/password-messages";
+import { scrubTokenFromHistory } from "@/lib/scrub-token";
 import { useSession } from "@/lib/session";
 
 type LinkFailure = "link_expired" | "link_used" | "link_invalid" | "missing";
@@ -56,13 +57,7 @@ export function ResetPasswordClient() {
     // The ref guard keeps strict mode and re-renders to one read. Nothing is sent until the person submits.
     if (started.current) return;
     started.current = true;
-    const params = new URLSearchParams(window.location.search);
-    token.current = params.get("token")?.trim() || null;
-    if (params.has("token")) {
-      params.delete("token");
-      const query = params.toString();
-      history.replaceState(history.state, "", window.location.pathname + (query ? `?${query}` : "") + window.location.hash);
-    }
+    token.current = scrubTokenFromHistory() || null; // the address bar and the router state lose the token at once
     setState(token.current === null ? "missing" : "form");
   }, []);
 
