@@ -161,7 +161,7 @@ test("registry: the browser revalidates it with its ETag", async ({ page, reques
   await expect(category(page)).toBeVisible();
   const after = await stats(request);
   expect(after.registryGets).toBe(2);
-  expect(after.lastRegistryConditional).toBe('"1-default"');
+  expect(after.lastRegistryConditional).toBe('"2-default"');
   expect(after.registryNotModified).toBe(1);
   await expect(category(page).locator("option")).toHaveCount(5);
 });
@@ -257,8 +257,8 @@ test("create: sends exactly the three fields through the CSRF token and opens th
   await expect(page.getByTestId("draft-purpose")).toHaveText("Rent");
   await expect(page.getByTestId("draft-category")).toHaveText("Apartment");
   await expect(page.getByTestId("draft-subtype")).toHaveText("Apartment");
-  await expect(page.getByTestId("draft-note")).toHaveText("The remaining details can be added in later steps. Nothing on this page can be edited yet.");
-  await expect(main(page).getByRole("textbox")).toHaveCount(0);
+  // The editor (Story 2.2) takes the place of the old read-only note; its own suite is listing-edit.spec.ts.
+  await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
   await main(page).getByRole("link", { name: "Back to My listings" }).click();
   await expect(page).toHaveURL(/\/account\/listings$/);
   await expect(items(page)).toHaveCount(1);

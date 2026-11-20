@@ -166,20 +166,82 @@ const TAXONOMIES = {
     ],
   },
 };
+// The Field registry version 2 (Story 2.2) adds the five editable fields. `other` has different limits and values to prove the
+// editor is built from the registry; `none` defines no editable field.
+const fieldDef = (id, type, requirement, extra = {}) => ({
+  id,
+  type,
+  requirement,
+  applicability: { purposes: [], categories: [], subtypes: [] },
+  allowed_values: null,
+  allowed_values_by_purpose: null,
+  min_length: null,
+  max_length: null,
+  min: null,
+  max: null,
+  currency: null,
+  class: "public",
+  searchable: false,
+  sortable: false,
+  ai_extractable: false,
+  valuation_input: false,
+  quota_identity: false,
+  ...extra,
+});
+const REGISTRY_FIELDS = {
+  default: [
+    fieldDef("title", "text", "required_for_publication", { min_length: 10, max_length: 100, ai_extractable: true }),
+    fieldDef("description", "text", "recommended", { min_length: 0, max_length: 5000, ai_extractable: true }),
+    fieldDef("asking_price", "money", "required_for_publication", { min: "0.01", max: "999999999999.99", currency: "PKR", ai_extractable: true }),
+    fieldDef("price_basis", "enum", "required_for_publication", {
+      allowed_values: ["total", "per_unit", "rental_period"],
+      allowed_values_by_purpose: { sale: ["total", "per_unit"], rent: ["rental_period"] },
+    }),
+    fieldDef("rental_period", "enum", "required_for_publication", {
+      allowed_values: ["day", "week", "month", "year"],
+      applicability: { purposes: ["rent"], categories: [], subtypes: [] },
+    }),
+  ],
+  other: [
+    fieldDef("title", "text", "recommended", { min_length: 5, max_length: 20 }),
+    fieldDef("description", "text", "optional", { min_length: 0, max_length: 50 }),
+    fieldDef("asking_price", "money", "recommended", { min: "1.00", max: "9999.00", currency: "PKR" }),
+    fieldDef("price_basis", "enum", "optional", {
+      allowed_values: ["total", "per_unit", "rental_period"],
+      allowed_values_by_purpose: { sale: ["total"], rent: ["rental_period"] },
+    }),
+    fieldDef("rental_period", "enum", "recommended", {
+      allowed_values: ["day", "week"],
+      applicability: { purposes: ["rent"], categories: [], subtypes: [] },
+    }),
+  ],
+  none: [],
+};
+let fieldsName = "default";
 let taxonomyName = "default";
 let registryMode = "ok";
 let registryGets = 0;
 let registryNotModified = 0;
 let lastRegistryConditional = null;
 const listingId = (seq) => `00000000-0000-4000-9000-${String(seq).padStart(12, "0")}`;
-const makeListing = (seq, owner, fields) => ({ seq, owner, id: listingId(seq), fields: { purpose: "sale", category: "house", subtype: "house", ...fields } });
+const EMPTY_EDITABLE = { title: null, description: null, asking_price: null, price_basis: null, rental_period: null };
+const makeListing = (seq, owner, fields, revision = 1) => ({
+  seq,
+  owner,
+  id: listingId(seq),
+  revision,
+  registryVersion: 1,
+  provenance: {},
+  fields: { purpose: "sale", category: "house", subtype: "house", ...EMPTY_EDITABLE, ...fields },
+});
 const publicListing = (item) => ({
   id: item.id,
   status: "draft",
   visibility: "private",
-  revision: 1,
-  registry_version: 1,
+  revision: item.revision,
+  registry_version: item.registryVersion,
   fields: item.fields,
+  provenance: item.provenance,
   media: [],
   amenities: [],
 });
@@ -197,6 +259,24 @@ const LISTING_PRESETS = {
     makeListing(2, "mine", { purpose: "lease_out", category: "villa", subtype: "farm_house" }),
   ],
   foreign: () => [makeListing(1, "mine", {}), makeListing(900, "other", { purpose: "rent", category: "commercial", subtype: "shop" })],
+  // Story 2.2: one sale Draft with its editable fields set (revision 3), one rent Draft with nothing set, one rent Draft filled.
+  titled: () => [
+    makeListing(
+      1,
+      "mine",
+      { title: "Corner house with garden", description: "Three bedrooms near the park.", asking_price: "1500000.00", price_basis: "total" },
+      3,
+    ),
+  ],
+  rent: () => [makeListing(1, "mine", { purpose: "rent", category: "apartment", subtype: "apartment" })],
+  rent_filled: () => [
+    makeListing(
+      1,
+      "mine",
+      { purpose: "rent", category: "apartment", subtype: "apartment", title: "Bright apartment near the market", asking_price: "85000.00", price_basis: "rental_period", rental_period: "month" },
+      2,
+    ),
+  ],
 };
 let listings = LISTING_PRESETS.empty();
 let listingsMode = "ok";
@@ -207,6 +287,11 @@ let createCount = 0;
 let lastCreate = null;
 let lastCreateToken = null;
 let detailMode = "ok";
+let patchMode = "ok";
+let patchCount = 0;
+let patchBodies = [];
+let patchTokens = [];
+let patchLostSpent = false;
 let detailGets = 0;
 let lastDetailId = null;
 const pending = []; // responses held open by the hang mode
@@ -671,6 +756,32 @@ createServer((req, res) => {
     });
   }
   if (url.pathname === "/__registry-taxonomy") return choose("taxonomyName", Object.keys(TAXONOMIES), (v) => (taxonomyName = v));
+  if (url.pathname === "/__registry-fields") return choose("fieldsName", Object.keys(REGISTRY_FIELDS), (v) => (fieldsName = v));
+  if (url.pathname === "/__listing-patch-mode") {
+    return choose(
+      "patchMode",
+      ["ok", "slow", "codes", "hidden", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
+      (v) => {
+        patchMode = v;
+        patchLostSpent = false;
+        csrfOnceSpent = false;
+      },
+    );
+  }
+  // Simulates another session: changes the given fields of a Listing directly and bumps its revision (and registry version).
+  if (url.pathname === "/__other-session") {
+    const target = listings.find((item) => item.id === url.searchParams.get("id"));
+    if (!target) return json(404, { error: "unknown listing" });
+    for (const name of Object.keys(EMPTY_EDITABLE)) {
+      if (url.searchParams.has(name)) target.fields[name] = url.searchParams.get(name) || null;
+    }
+    target.revision += 1;
+    target.registryVersion = 2;
+    return json(200, { revision: target.revision });
+  }
+  if (url.pathname === "/__listing-patch-stats") {
+    return json(200, { count: patchCount, bodies: patchBodies, tokens: patchTokens });
+  }
   if (url.pathname === "/__listings-mode") {
     return choose("listingsMode", ["ok", "flaky", "flaky_slow", "more_fail", "more_gone", "more_forbidden", "more_rate_limited", "small_pages", "dup", "inpage_dup", "repeat_cursor", "known_advance", "bad_first", "bad_next", "malformed", "partial", "rate_limited", "forbidden", "session_gone", "error", "broken", "hang"], (v) => {
       listingsMode = v;
@@ -714,7 +825,7 @@ createServer((req, res) => {
   if (url.pathname === "/api/v1/registry" && req.method === "GET") {
     registryGets += 1;
     const taxonomy = TAXONOMIES[taxonomyName];
-    const etag = `"1-${taxonomyName}"`;
+    const etag = fieldsName === "default" ? `"2-${taxonomyName}"` : `"2-${taxonomyName}-${fieldsName}"`;
     lastRegistryConditional = req.headers["if-none-match"] ?? null;
     if ((registryMode === "flaky" || registryMode === "flaky_slow") && registryGets === 1) return json(500, envelope("server_error", "Internal detail that must not show."));
     if (registryMode === "gone") return json(401, envelope("unauthenticated", "Authentication is required."));
@@ -744,7 +855,7 @@ createServer((req, res) => {
     }
     const send = () => {
       res.writeHead(200, headers);
-      res.end(JSON.stringify({ version: 1, taxonomy, fields: [] }));
+      res.end(JSON.stringify({ version: 2, taxonomy, fields: REGISTRY_FIELDS[fieldsName] }));
     };
     if (registryMode === "flaky_slow") return void setTimeout(send, 1500);
     return send();
@@ -805,6 +916,117 @@ createServer((req, res) => {
     const found = sessionAdmin ? undefined : listings.find((item) => item.id === lastDetailId && item.owner === "mine");
     if (!found) return json(404, envelope("not_found", "Not found."));
     return json(200, publicListing(found));
+  }
+  if (listingMatch && req.method === "PATCH") {
+    return readBody((parsed) => {
+      unsafeCount += 1;
+      patchCount += 1;
+      patchBodies.push(parsed);
+      const sentToken = req.headers["x-csrftoken"] ?? null;
+      patchTokens.push(sentToken);
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(patchMode, sentToken)) return;
+      const fail = (fields) => json(400, envelope("validation_error", "The request contains invalid values.", fields));
+      const target = sessionAdmin ? undefined : listings.find((item) => item.id === decodeURIComponent(listingMatch[1]) && item.owner === "mine");
+      if (!target || patchMode === "not_found") return json(404, envelope("not_found", "Not found."));
+      if (patchMode === "error" || patchMode === "broken" || patchMode === "hang") return serverFailure(patchMode);
+      // Shape first (it needs no stored data), then the stale check, then every value rule: the order of the real service.
+      const body = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+      const shape = {};
+      if (Object.keys(body).some((key) => key !== "base_revision" && key !== "fields")) shape.non_field_errors = ["unknown_field"];
+      if (!Number.isInteger(body.base_revision) || body.base_revision < 1) shape.base_revision = [body.base_revision === undefined ? "required" : "invalid"];
+      const sent = body.fields && typeof body.fields === "object" && !Array.isArray(body.fields) ? body.fields : null;
+      if (!sent) shape.fields = [body.fields === undefined ? "required" : "not_a_dict"];
+      else if (Object.keys(sent).length === 0) shape.fields = ["empty"];
+      else {
+        for (const key of Object.keys(sent)) {
+          if (Object.hasOwn(EMPTY_EDITABLE, key)) continue;
+          if (["purpose", "category", "subtype"].includes(key)) shape[key] = ["not_editable"];
+          else shape.non_field_errors = ["unknown_field"];
+        }
+      }
+      if (Object.keys(shape).length > 0) return fail(shape);
+      const conflictMessage = "This listing was changed since you loaded it.";
+      if (patchMode === "conflict_no_current") return json(409, envelope("stale_revision", conflictMessage));
+      if (patchMode === "conflict_bad_current") return json(409, { ...envelope("stale_revision", conflictMessage), current: { status: "draft" } });
+      if (body.base_revision !== target.revision) {
+        const conflict = () => json(409, { ...envelope("stale_revision", conflictMessage), current: publicListing(target) });
+        return patchMode === "slow" ? void setTimeout(conflict, 600) : conflict();
+      }
+      if (patchMode === "codes") return fail({ title: ["too_short"], description: ["contains_contact_details"], asking_price: ["invalid_price"], price_basis: ["invalid_choice"] });
+      if (patchMode === "hidden") return fail({ rental_period: ["not_applicable"] });
+      if (patchMode === "unknown") return fail({ title: ["Some server sentence."], description: ["mystery_code"], asking_price: ["constructor"], role: ["constructor"], non_field_errors: ["Some other sentence."] });
+      if (patchMode === "non_field") return fail({ non_field_errors: ["unknown_field"] });
+      if (patchMode === "not_editable") return fail({ title: ["not_editable"] });
+      if (patchMode === "empty_fields") return json(400, envelope("validation_error", "The request contains invalid values."));
+      const defs = REGISTRY_FIELDS[fieldsName];
+      const def = (id) => defs.find((entry) => entry.id === id);
+      const problems = {};
+      const next = {};
+      for (const [key, value] of Object.entries(sent)) {
+        const rule = def(key);
+        if (value === null) {
+          next[key] = null;
+        } else if (key === "title" || key === "description") {
+          if (typeof value !== "string") problems[key] = ["invalid"];
+          else if (value.length > 20000) problems[key] = ["too_long"];
+          else if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(value)) problems[key] = ["invalid"];
+          else {
+            const lines = value.replace(/\r\n?/g, "\n").trim();
+            const text = key === "title" ? lines.replace(/\s+/g, " ") : lines.replace(/[^\S\n]+/g, " ").replace(/ ?\n ?/g, "\n").replace(/\n{3,}/g, "\n\n");
+            const size = Array.from(text).length;
+            if (text === "") next[key] = null;
+            else if (rule?.min_length && size < rule.min_length) problems[key] = ["too_short"];
+            else if (rule?.max_length && size > rule.max_length) problems[key] = ["too_long"];
+            else if (/@|\b0\d{10}\b|\+\d{8,}/.test(text)) problems[key] = ["contains_contact_details"];
+            else next[key] = text;
+          }
+        } else if (key === "asking_price") {
+          // Money is text all the way, judged like the real service: digits with an optional decimal point, no commas, no signs
+          // other than a leading minus (which the range then refuses).
+          const plain = typeof value === "string" ? value : "";
+          const match = /^(-)?(\d{1,30})(?:\.(\d{1,30}))?$/.exec(plain);
+          if (!match) problems[key] = ["invalid"];
+          else if (match[1] || (match[3] ?? "").length > 2) problems[key] = ["invalid_price"];
+          else {
+            match[1] = match[2];
+            match[2] = match[3];
+            const toCents = (text) => BigInt(text.split(".")[0] + (text.split(".")[1] ?? "").padEnd(2, "0"));
+            const cents = toCents(plain);
+            const low = toCents(rule?.min ?? "0.01");
+            const high = toCents(rule?.max ?? "999999999999.99");
+            if (cents < low || cents > high) problems[key] = ["invalid_price"];
+            else next[key] = `${match[1].replace(/^0+(?=\d)/, "")}.${(match[2] ?? "").padEnd(2, "0")}`;
+          }
+        } else if (key === "price_basis") {
+          const allowed = rule?.allowed_values_by_purpose?.[target.fields.purpose] ?? rule?.allowed_values ?? [];
+          if (typeof value === "string" && allowed.includes(value)) next[key] = value;
+          else problems[key] = ["invalid_choice"];
+        } else if (key === "rental_period") {
+          if (target.fields.purpose !== "rent") problems[key] = ["not_applicable"];
+          else if (typeof value === "string" && (rule?.allowed_values ?? []).includes(value)) next[key] = value;
+          else problems[key] = ["invalid_choice"];
+        }
+      }
+      if (Object.keys(problems).length > 0) return fail(problems);
+      const changed = Object.keys(next).filter((key) => target.fields[key] !== next[key]);
+      if (changed.length > 0) {
+        for (const key of changed) {
+          target.fields[key] = next[key];
+          if (next[key] === null) delete target.provenance[key];
+          else target.provenance[key] = { origin: "manual", confirmed: true };
+        }
+        target.revision += 1;
+        target.registryVersion = 2;
+      }
+      if (patchMode === "lost_once" && !patchLostSpent) {
+        patchLostSpent = true;
+        return req.socket.destroy(); // the change landed, the answer is lost
+      }
+      const answer = () => json(200, patchMode === "unreadable" ? { status: "draft" } : publicListing(target));
+      if (patchMode === "slow") return void setTimeout(answer, 600);
+      return answer();
+    });
   }
   if (url.pathname === "/api/v1/me/listings" && req.method === "GET") {
     listingsGets += 1;
@@ -1308,6 +1530,12 @@ createServer((req, res) => {
     lastNotificationReadId = lastNotificationReadToken = lastNotificationReadAllToken = null;
     listings = LISTING_PRESETS.empty();
     taxonomyName = "default";
+    fieldsName = "default";
+    patchMode = "ok";
+    patchCount = 0;
+    patchBodies = [];
+    patchTokens = [];
+    patchLostSpent = false;
     registryMode = listingsMode = createMode = detailMode = "ok";
     registryGets = registryNotModified = listingsGets = createCount = detailGets = 0;
     lastRegistryConditional = lastCreate = lastCreateToken = lastDetailId = null;

@@ -532,10 +532,10 @@ Frontend half of Story 2.1. The contract is the backend's `docs/listings.md` and
   is no item and no `next`; items are deduplicated within a page and across pages; a load more that only repeats known items but
   moves the cursor on is followed (a few pages at most); a `403` for an owner type reads "Listings are not available for this
   account right now." (the type-based wording is for administrators).
-- **Draft page**: `GET /api/v1/listings/{id}` shown read-only (status, revision, registry version and the three fields, a note
-  that more can be added in later steps, a link back). A `404` (and `400`, `403`, `422`) is one answer for an unknown, someone else's or malformed id and
+- **Draft page**: `GET /api/v1/listings/{id}` shown as a summary (status, revision, registry version, the three fields and the
+  asking price, a link back) above the editor of Story 2.2 (next section). A `404` (and `400`, `403`, `422`) is one answer for an unknown, someone else's or malformed id and
   for an administrator: "We could not find that listing." An id that is not a canonical UUID gets the same copy without a request.
-  A `429` shows the wait with Retry. Nothing editable yet.
+  A `429` shows the wait with Retry.
 - **Privacy**: no listing or registry data goes to storage, the console, the page title or a URL beyond the Draft id in its path.
 - **Playwright stub** (`tests/e2e/stub-backend.mjs`): `GET /api/v1/registry` (the real taxonomy, strong ETag, `304` on
   `If-None-Match`; `/__registry-mode`: `ok`, `flaky`, `flaky_slow`, `gone`, `odd_ids`, `error`, `broken`, `hang`, `malformed`, `empty_choices`, `bad_subtypes`;
@@ -546,7 +546,7 @@ Frontend half of Story 2.1. The contract is the backend's `docs/listings.md` and
   `404` for unknown, malformed, other accounts' and administrators) and `GET /api/v1/me/listings` (`/__listings-mode`: `ok`,
   `flaky`, `flaky_slow`, `inpage_dup`, `repeat_cursor`, `known_advance`, `bad_first`, `forbidden`, `more_forbidden`, `more_rate_limited`, `more_fail`, `more_gone`, `small_pages`, `dup`, `bad_next`, `malformed`, `partial`, `rate_limited`, `session_gone`,
   `error`, `broken`, `hang`; 20 per page with `next` cursors; `403` for administrators). It is stateful: created Drafts appear in
-  the list and the detail. `/__listings-preset?value=` (`empty`, `few`, `many`, `capped`, `unknown`, `foreign`) and
+  the list and the detail. `/__listings-preset?value=` (`empty`, `few`, `many`, `capped`, `unknown`, `foreign`, plus `titled`, `rent`, `rent_filled` for Story 2.2) and
   `/__listings-stats`. Tests: `tests/e2e/listings.spec.ts` (every row of the story's matrix; axe at desktop and mobile on the form,
   its errors, the registry error, the list, the Draft page, the empty, error and administrator states).
 - **Deviations**: the Listing wire shape has no timestamp, so the list shows no created time (the order is the server's, newest
@@ -560,6 +560,62 @@ Frontend half of Story 2.1. The contract is the backend's `docs/listings.md` and
   handle `409` with the current Listing; field labels and the field list will come from the registry's `fields` (the hook already
   carries the full answer's version; extend `readRegistry` rather than adding a second fetch). Labels are derived from ids until the
   registry carries display text.
+
+## Editing a Draft: conflict-safe saving (Story 2.2)
+
+Frontend half of Story 2.2. The contract is the backend's `docs/listings.md` (the PATCH, the `409` body with `current`) and
+`docs/registry.md`; the client was synced with `npm run api:sync`.
+
+- **Where**: the Draft page (`/account/listings/[id]`). `[id]/draft-client.tsx` loads the Draft and keeps the not-found, 401 and
+  bfcache handling of Story 2.1; `[id]/draft-editor.tsx` is the summary plus the form.
+- **Built from the registry** (`useRegistry`, now also exposing the field definitions: id, type, requirement, `min_length`,
+  `max_length`, money `min`/`max`/currency, `allowed_values`, `allowed_values_by_purpose` and applicability): the controls are
+  Title, Description, Asking price (a PKR prefix label, `inputmode="decimal"`), Price basis and, only when the registry says the
+  field applies to the purpose (rent), Rental period. Hints ("Required before you publish", "Recommended", the character limits,
+  the price bounds) and the choices (price basis by purpose, rental period values) come from the definitions; a field the registry
+  does not define (or defines with another type) gets no control. Later stories add a field by registry entry plus a small mapping in
+  `draft-editor.tsx`. Title and Description have a plain-text counter (code points after whitespace collapse, never a live region, an
+  over-limit hint) and no `maxlength`, so a paste is never truncated.
+- **Saving** is explicit ("Save changes", no autosave). `PATCH /api/v1/listings/{id}` through `withCsrf` with exactly
+  `{base_revision, fields}`: `base_revision` is the revision last loaded and `fields` holds only the fields that changed (an emptied
+  field is `null`; no origin, confirmed or status is ever sent). Nothing changed sends nothing and says "No changes to save." The price
+  is sent as the text typed (trimmed) and is never converted to a number: it is shown formatted from the server's string by string
+  work only (`formatPrice`, `priceKey` in `src/lib/listing-labels.ts`; "1500000" and "1500000.00" are the same amount when deciding
+  whether something changed). Commas and currency signs are not valid in the price (the server answers `invalid`); the message says
+  digits only with an optional decimal point, and the bounds hint prints the plain digits so it does not invite commas. Text fields are
+  compared as the server normalises them (NFC, collapsed whitespace, trimmed), so a value the server would collapse is not a difference. On `200` the answer becomes the new baseline (a field typed while the save ran keeps what was typed),
+  "Saved" is announced, focus stays on the button. The button is `aria-disabled` while saving and a double click sends one request.
+- **Validation (400)**: the field codes (`required`, `invalid`, `too_short`, `too_long`, `invalid_price`, `contains_contact_details`,
+  `not_applicable`, `invalid_choice`, `not_editable`) map to text under the right control with the error summary focused and every
+  typed value kept; unknown codes, sentences, prototype keys and unknown field keys are generic, never the server's text; an error on a
+  field with no control on this form goes to the list without a link; an error clears when its field is edited.
+- **Conflict (409 `stale_revision`)**: nothing is overwritten. The `current` Draft becomes the loaded data and the baseline (the revision
+  shown is the new one); what the owner typed stays exactly as typed; a field the owner had not changed simply shows the latest value
+  (it was never the owner's input, and keeping it stale would silently undo the other session). A banner (the one live region, it takes
+  focus; it goes away, with "Your choices are applied. Save to keep them." announced, once every row is resolved) says "This draft was changed in another session...". Each field where the owner's value differs from the latest gets "Latest
+  saved: ..." (price formatted) with "Keep mine" and "Use latest"; the next save sends the new `base_revision` and only the fields that
+  differ from the latest data. A second `409` repeats the flow. A `409` without a usable `current` reads the Draft again through GET and
+  keeps the input. A retry after a lost response is a `409` whose `current` already holds the typed values: the banner reads "Your
+  changes are already saved." only when nothing else changed on the server either (otherwise the normal banner). A `409` whose
+  `current` is not this Draft or has no newer integer revision is unusable (GET fallback); a `200` for another Draft or without a
+  revision is a server error.
+- **Other answers**: `404` shows the Draft not-found copy; `403` says "Your account cannot edit listings right now." only when the
+  session says the account is suspended (the real backend answers a CSRF failure with the same `forbidden` code, so every other persistent
+  403 is the generic message after the one CSRF retry); `401` signs out and goes to sign-in with `next`; 429, 5xx, timeout and network
+  failures show their own generic message with the input kept and Save still available.
+- **Unsaved changes**: a `beforeunload` guard while the form differs from the saved Draft (removed after a save). Leaving through an
+  in-app link is not intercepted. Nothing typed is stored anywhere; a page restored from the back-forward cache checks the session and
+  starts the editor again from the server's data.
+- **Playwright stub**: `PATCH /api/v1/listings/{id}` with the real rules (shape errors first, then the stale check, then value
+  rules, a change bumps the revision and moves the registry version to 2, a no-op keeps the revision; the price pattern is the real
+  one, so commas are `invalid`). Registry version 2 serves the five field definitions
+  (`/__registry-fields?value=default|other|none`: `other` has different limits and values). `/__listing-patch-mode`: `ok`, `slow`,
+  `codes`, `hidden`, `unknown`, `non_field`, `not_editable`, `empty_fields`, `conflict_no_current`, `conflict_bad_current`, `lost_once`
+  (the change lands, the answer is lost), `unreadable`, `not_found`, `forbidden`, `session_gone`, `rate_limited`, `rate_none`,
+  `csrf_once`, `csrf_always`, `error`, `broken`, `hang`. `/__other-session?id=<uuid>&title=...&description=...&asking_price=...&price_basis=...&rental_period=...`
+  simulates another session (changes the fields and bumps the revision); `/__listing-patch-stats` returns the count, bodies and CSRF
+  tokens. Tests: `tests/e2e/listing-edit.spec.ts` (every row of the story's matrix; axe at desktop and mobile on the editor, over the
+  limit, errors, conflict, saved and failure states).
 
 ## Layout
 
