@@ -159,8 +159,8 @@ Story 1.17 (frontend half). The contract is the backend's `docs/sessions.md`.
   `GET /api/v1/me` on the server with the forwarded cookie. `401` redirects to `/sign-in?next=<requested path>`; a backend
   failure renders "Temporarily unavailable" and no protected content. The areas are dynamic and sent `Cache-Control:
   no-store`. `src/proxy.ts` (Next.js 16 name for middleware) copies the requested path into the `x-requested-path` request
-  header, overwriting any client-supplied value, because layouts cannot see the path. Any signed-in account may see the
-  `/admin` placeholder until Story 1.19 adds the role check.
+  header, overwriting any client-supplied value, because layouts cannot see the path. The admin area has its own,
+  stricter guard (see "Admin area").
 - Playwright stub (`tests/e2e/stub-backend.mjs`): `/api/v1/csrf`, `/api/v1/session` (POST, DELETE), `/api/v1/me` with a
   stateful cookie (`me` is `401` before sign-in and after sign-out) and a rotating CSRF token. Modes:
   `/__signin-mode` (`ok`, `unverified`, `suspended`, `wrong_credentials`, `validation`, `csrf_once`, `csrf_always`,
@@ -330,10 +330,68 @@ Story 1.21 (frontend half). The contract is the backend's `docs/profile.md` (Age
 - **Hand-off to Story 1.22**: logo upload is out of scope here (Epic 2) and nothing edits or decides the verification status;
   the page only shows the server's value. Story 1.22 can add verification actions next to that text.
 
+## Admin area (`/admin`, Story 1.23)
+
+The frontend decides nothing about administration: it shows what the backend answers and holds no administration rules.
+
+- **Routes**: `/admin/sign-in` is public (`src/app/admin/sign-in/`); every other admin page lives in the guarded group
+  `src/app/admin/(protected)/` (dashboard `page.tsx`, a `[...rest]` catch-all so unknown deep paths hit the same guard
+  and an administrator gets a plain 404). `src/app/admin/layout.tsx` only forces dynamic rendering; `next.config.ts` sends
+  `Cache-Control: no-store` for `/admin/:path*` (which covers `/admin` and `/admin/sign-in`).
+- **Guard** (`requireAdmin()` in `src/lib/current-account.ts`, memoised per render by `checkAdmin`): server side, calls
+  `GET /api/v1/admin/me` with the forwarded cookie. `200` is an administrator; `401` (Visitor) and `404` (non-administrator,
+  expired or disabled administrator) are one answer and redirect to `/admin/sign-in?next=<requested /admin path>`; any
+  other answer or a failure renders "Temporarily unavailable" and no admin content. The protected layout AND every
+  protected page call it (layouts are not re-run on client navigation). `requireAccount()` is unchanged for the other pages.
+- **`next`**: `safeAdminNext` (`src/lib/next-target.ts`) is `safeNext` plus "normalised path is `/admin` or below, not
+  `/admin/sign-in`"; anything else becomes `/admin`.
+- **Sign-in page**: same accessibility pattern as `/sign-in` (the form is a copy adapted to the admin door), posting
+  `POST /api/v1/admin-session` through `withCsrf` via `useSession().signIn(email, password, "admin")`. One generic message
+  for every `401` ("The email or password is not correct."), never any administrator or lockout wording. A Visitor, an
+  ordinary account and an expired administrator see the form; an administrator already signed in is redirected to the
+  validated target. It is not linked from any public page and links to none.
+- **Shell** (`admin-shell.tsx`): own chrome (skip link, "EstateAI Administration", a named "Administration" navigation, an
+  "Administrator account" navigation with Change password and Sign out, `main`). Only Dashboard is a link
+  (`aria-current="page"`); Listings, Users, Reports and Audit log are inert "Coming soon" items with no routes. The public
+  site header hides itself under `/admin` (`site-header.tsx`). Sign out uses the provider `signOut` then a hard
+  navigation to `/admin/sign-in`.
+- **Session expiry** (`admin-session-watch.tsx`): administrator sessions end after 30 idle minutes or 8 hours (backend).
+  The watcher follows the session provider (re-checks on focus, visibility and route change) and, on signed out or a
+  non-administrator account, replaces the content with a short message and hard-navigates to
+  `/admin/sign-in?next=<current path>`; the server guard does the same on the next guarded navigation.
+- **Password change**: `/account/password` works for administrators; the three administrator policy codes have human
+  text in `src/lib/password-messages.ts`, the page offers "Back to administration", and a lost session returns to the
+  admin sign-in.
+- **Server fetch deadline** (`src/lib/api.ts`): the 5 second server-side timeout is an explicit timer that aborts and
+  rejects with a `TimeoutError` (cleared when the request settles, combined with the request's own signal), because
+  `AbortSignal.timeout` alone was seen to leave a hung backend holding a dev render.
+- **Playwright stub**: `/api/v1/admin-session` (POST) and `/api/v1/admin/me` (`401` for a Visitor, `404` for an ordinary
+  session, `200` for an administrator session). The live session is ordinary or administrator: `/__force-session?kind=admin`
+  starts an administrator one (no `kind` an ordinary one), `/__expire-session` ends either. Modes:
+  `/__admin-signin-mode` (`ok`, `wrong_credentials`, `validation`, `rate_limited`, `csrf_once`, `csrf_always`, `error`,
+  `broken`, `hang`), `/__admin-me-mode` (`up`, `error`, `broken`, `hang`, `slow`, `denied_401`, `denied_403`, `denied_404`, `rate_limited`; the `denied_*` modes keep `/me` an administrator), `/__change-mode?value=admin_weak`;
+  `/__session-stats` adds `adminSignInCount`, `adminMeCount`, `lastAdminSignIn`, `lastAdminSignInToken` and
+  `sessionAdmin`. Tests: `tests/e2e/admin.spec.ts` (passphrases are low-entropy fake words on purpose: the secret
+  scanner flags random-looking literals).
+- **Production check**: `npm run check:prod-admin` (`scripts/check-prod-admin.mjs`) runs `next build`, starts the stub
+  backend on port 4110 and `next start` on port 3200, and asserts that a Visitor and an ordinary-account cookie get `307`
+  to `/admin/sign-in?next=...` for `/admin` and a deep path, with `Cache-Control: no-store` and no admin markup in the body,
+  and that `/admin/sign-in` is `200` with `no-store`. It needs those two extra ports, so it is not part of the default
+  test command; run it before releasing changes to the admin area.
+- **Guard rule**: every page under `src/app/admin/(protected)` must call `requireAdmin()` itself;
+  `tests/e2e/admin-guard-rule.spec.ts` reads the files and fails otherwise.
+- **bfcache**: the shell reloads through the guard when a page is restored from the back/forward cache.
+- **Admin door answers**: on the admin sign-in form `401`, `403` (after the CSRF retry) and `429` all show the one generic
+  message, never any rate-limit or "rejected" wording; `5xx`, timeout and network keep their own messages.
+- **Shared password page**: the shell links to `/account/password?from=admin`; with exactly that marker a lost session goes
+  to the admin sign-in. An administrator there sees the admin chrome (the public header hides itself for them).
+- **Hand-off to later admin screens**: add a route under `src/app/admin/(protected)/`, call `requireAdmin()` in its page,
+  and turn the matching placeholder in `admin-shell.tsx` into a link. Show only what the backend allows.
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages,
-  `src/app/admin` admin area. Placeholders only; no visibility, privacy or quota logic lives here.
+  `src/app/admin` admin area (`sign-in` public, everything else in the guarded `(protected)` group). Shells only; no visibility, privacy or quota logic lives here.
 
-`/dashboard` and `/admin` are placeholders guarded on the server (see above); `/admin` has no role check until Story 1.19.
+`/dashboard` is a placeholder guarded on the server (see above); `/admin` is the administrator area (see "Admin area").
 Both are marked `noindex`.
