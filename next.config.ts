@@ -27,6 +27,13 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "no-store" },
         ],
       },
+      {
+        source: "/confirm-email-change",
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "no-store" },
+        ],
+      },
       // Signed-in areas depend on the session cookie: never cache them.
       { source: "/dashboard/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
       { source: "/account/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
