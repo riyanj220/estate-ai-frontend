@@ -17,12 +17,15 @@ export type SignInResult =
   | { kind: "rate_limited"; message: string }
   | { kind: "forbidden" | "server" | "rejected" | "timeout" | "network" };
 
+/** Which sign-in endpoint to use: the ordinary one or the administrator one (`/api/v1/admin-session`). */
+export type SignInDoor = "ordinary" | "admin";
+
 export type SignOutResult = { kind: "ok" } | { kind: "failed" };
 
 type SessionValue = {
   status: SessionStatus;
   account: Account | null;
-  signIn: (email: string, password: string) => Promise<SignInResult>;
+  signIn: (email: string, password: string, door?: SignInDoor) => Promise<SignInResult>;
   signOut: () => Promise<SignOutResult>;
   refresh: () => Promise<void>;
 };
@@ -30,7 +33,7 @@ type SessionValue = {
 const SessionContext = createContext<SessionValue | null>(null);
 
 function isTimeout(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError";
+  return error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError");
 }
 
 /** Maps a thrown error (a failed CSRF fetch, an abort or a network failure) to a sign-in outcome. */
@@ -121,18 +124,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [check]);
 
   const signIn = useCallback(
-    async (email: string, password: string): Promise<SignInResult> => {
+    async (email: string, password: string, door: SignInDoor = "ordinary"): Promise<SignInResult> => {
       try {
         const api = await getApi();
         const { error, response, data } = await withCsrf((csrf) =>
-          withTimeout((signal) =>
-            api.POST("/api/v1/session", {
+          withTimeout((signal) => {
+            const options = {
               body: { email, password },
               headers: { "X-CSRFToken": csrf },
-              parseAs: "text", // a 200 whose body cannot be read is still a success: the cookie was set
+              parseAs: "text" as const, // a 200 whose body cannot be read is still a success: the cookie was set
               signal,
-            }),
-          ),
+            };
+            return door === "admin" ? api.POST("/api/v1/admin-session", options) : api.POST("/api/v1/session", options);
+          }),
         );
         if (response.ok) {
           clearCsrfToken(); // the backend rotated the CSRF secret with the new session

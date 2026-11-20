@@ -19,7 +19,19 @@ export async function getApi() {
     baseUrl: backendUrl(),
     headers: cookie ? { cookie } : undefined,
     cache: "no-store",
-    // A backend that accepts the connection but never answers must not hang the page.
-    fetch: (request: Request) => fetch(new Request(request, { signal: AbortSignal.timeout(SERVER_TIMEOUT_MS) })),
+    // A backend that accepts the connection but never answers must not hang the page. A hard deadline that does not
+    // depend on the abort being honoured (`AbortSignal.timeout` can be garbage collected before it fires, and an
+    // aborted fetch was seen to stay pending in dev): the timer aborts the request and rejects with a TimeoutError.
+    // The request's own signal is combined with the deadline, and the timer is cleared as soon as the request settles.
+    fetch: (request: Request) =>
+      new Promise<Response>((resolve, reject) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => {
+          controller.abort();
+          reject(new DOMException("The backend did not answer in time.", "TimeoutError"));
+        }, SERVER_TIMEOUT_MS);
+        const signal = AbortSignal.any([request.signal, controller.signal]);
+        fetch(new Request(request, { signal })).then(resolve, reject).finally(() => clearTimeout(timer));
+      }),
   });
 }
