@@ -551,6 +551,70 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/registrations/agencies:
+    post:
+      operationId: register_agency
+      description: The answer is the same whether or not the email is already registered;
+        an existing address receives an 'already registered' notice by email instead.
+        The account starts Email-unverified with agency verification status 'unverified'.
+        All six fields are mandatory; the business phone and office address are private.
+      summary: Register an Agency account
+      tags:
+      - registrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyRegistrationRequest'
+        required: true
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationAccepted'
+          description: Check your email to continue
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/registrations/individuals:
     post:
       operationId: register_individual
@@ -760,17 +824,62 @@ components:
         full_name:
           type: string
           description: Individual profile name; empty when none.
+        agency_name:
+          type: string
+          description: Agency name (public); empty for non-agency accounts.
         capabilities:
           type: array
           items:
             $ref: '#/components/schemas/CapabilitiesEnum'
       required:
       - account_type
+      - agency_name
       - capabilities
       - email
       - full_name
       - id
       - state
+    AgencyRegistrationRequest:
+      type: object
+      description: |-
+        Strict allowlist of the six fields; the account type and verification status are never
+        client-chosen. Rules come from `identity.validation`; every failing field is reported at
+        once.
+      properties:
+        agency_name:
+          type: string
+          minLength: 1
+          description: 2 to 100 letters, digits, spaces and & , . - ' ( ) /. Shown
+            publicly.
+        email:
+          type: string
+          minLength: 1
+          description: The business email. At most 254 characters.
+        phone:
+          type: string
+          minLength: 1
+          description: 'Business phone (private): Pakistani mobile or international
+            number.'
+        office_address:
+          type: string
+          minLength: 1
+          description: 5 to 300 characters. Private.
+        city_id:
+          type: string
+          minLength: 1
+          description: Id of an active city from the City reference list.
+        password:
+          type: string
+          minLength: 1
+          description: 8 to 1024 characters, not a common password, not the email
+            address.
+      required:
+      - agency_name
+      - city_id
+      - email
+      - office_address
+      - password
+      - phone
     CapabilitiesEnum:
       enum:
       - sign_in

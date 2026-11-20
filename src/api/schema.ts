@@ -181,6 +181,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/registrations/agencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register an Agency account
+         * @description The answer is the same whether or not the email is already registered; an existing address receives an 'already registered' notice by email instead. The account starts Email-unverified with agency verification status 'unverified'. All six fields are mandatory; the business phone and office address are private.
+         */
+        post: operations["register_agency"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/registrations/individuals": {
         parameters: {
             query?: never;
@@ -245,7 +265,28 @@ export interface components {
             email: string;
             /** @description Individual profile name; empty when none. */
             full_name: string;
+            /** @description Agency name (public); empty for non-agency accounts. */
+            agency_name: string;
             capabilities: components["schemas"]["CapabilitiesEnum"][];
+        };
+        /**
+         * @description Strict allowlist of the six fields; the account type and verification status are never
+         *     client-chosen. Rules come from `identity.validation`; every failing field is reported at
+         *     once.
+         */
+        AgencyRegistrationRequest: {
+            /** @description 2 to 100 letters, digits, spaces and & , . - ' ( ) /. Shown publicly. */
+            agency_name: string;
+            /** @description The business email. At most 254 characters. */
+            email: string;
+            /** @description Business phone (private): Pakistani mobile or international number. */
+            phone: string;
+            /** @description 5 to 300 characters. Private. */
+            office_address: string;
+            /** @description Id of an active city from the City reference list. */
+            city_id: string;
+            /** @description 8 to 1024 characters, not a common password, not the email address. */
+            password: string;
         };
         /**
          * @description * `sign_in` - sign_in
@@ -1052,6 +1093,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CityList"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    register_agency: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyRegistrationRequest"];
+            };
+        };
+        responses: {
+            /** @description Check your email to continue */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationAccepted"];
                 };
             };
             /** @description Bad request or validation error */
