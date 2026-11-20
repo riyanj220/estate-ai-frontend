@@ -934,15 +934,15 @@ test("the profile re-reads silently on window focus and when the tab becomes vis
   await expect(page.getByRole("main").getByRole("button", { name: "Retry" })).toHaveCount(0);
 });
 
-for (const mode of ["agency", "admin"]) {
-  test(`the Profile link is hidden for ${mode} accounts in the header and on the dashboard`, async ({ page, request }) => {
-    await setMode(request, "me", mode);
-    await signIn(page);
-    await expect(header(page).getByTestId("account-name")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Profile", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("main").getByRole("link", { name: "Change password" })).toBeVisible();
-  });
-}
+// Agency accounts get a "Business profile" link instead (tests/e2e/agency-profile.spec.ts).
+test("the Profile link is hidden for admin accounts in the header and on the dashboard", async ({ page, request }) => {
+  await setMode(request, "me", "admin");
+  await signIn(page);
+  await expect(header(page).getByTestId("account-name")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Profile", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Business profile", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("link", { name: "Change password" })).toBeVisible();
+});
 
 for (const [label, arrange] of [
   ["a 400", (request: APIRequestContext) => setMode(request, "profile-patch", "fields")],

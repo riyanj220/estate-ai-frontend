@@ -67,6 +67,23 @@ let lastEmailChangeToken = null;
 let emailConfirmMode = "ok";
 let emailConfirmCount = 0;
 let lastEmailConfirm = null;
+// Agency business profile stand-in (Story 1.21). Stateful like the individual profile; the email and pending address are
+// shared with it so the email-change stubs work unchanged. The city is Karachi, which is in the active list.
+const AGENCY_PROFILE_START = {
+  agency_name: "Sunrise Estates",
+  description: "Residential sales and rentals.",
+  city_id: "11111111-1111-4111-8111-111111111111",
+  business_phone: "+923211234567",
+  office_address: "Office 12, Blue Plaza, Main Boulevard",
+};
+const INACTIVE_CITY = "77777777-7777-4777-8777-777777777777"; // a stored city that is not in the active list
+let agencyProfile = { ...AGENCY_PROFILE_START };
+let agencyProfileMode = "ok";
+let agencyProfileGets = 0;
+let agencyProfilePatchMode = "ok";
+let agencyProfilePatchCount = 0;
+let lastAgencyProfilePatch = null;
+let lastAgencyProfilePatchToken = null;
 const pending = []; // responses held open by the hang mode
 
 createServer((req, res) => {
@@ -181,7 +198,7 @@ createServer((req, res) => {
     state: signInMode === "unverified" ? "email_unverified" : signInMode === "suspended" ? "suspended" : "active",
     email: profile.email,
     full_name: meMode === "agency" || meMode === "agency_bare" ? "" : signInMode === "no_name" ? "" : profile.full_name,
-    agency_name: meMode === "agency" ? "Sunrise Estates" : "",
+    agency_name: meMode === "agency" ? agencyProfile.agency_name : "",
     capabilities: ["sign_in", "browse"],
   });
   if (url.pathname === "/api/v1/csrf" && req.method === "GET") {
@@ -525,6 +542,91 @@ createServer((req, res) => {
       return serverFailure(emailConfirmMode);
     });
   }
+  if (url.pathname === "/__agency-profile-mode") {
+    return choose("agencyProfileMode", ["ok", "forbidden", "flaky", "session_gone", "malformed", "inactive_city", "verified", "odd_status", "error", "broken", "hang"], (v) => {
+      agencyProfileMode = v;
+      agencyProfileGets = 0;
+      if (v === "inactive_city") agencyProfile = { ...agencyProfile, city_id: INACTIVE_CITY }; // a later save of another city replaces it
+    });
+  }
+  if (url.pathname === "/__agency-profile-patch-mode") {
+    return choose(
+      "agencyProfilePatchMode",
+      ["ok", "fields", "required", "contact", "description_codes", "invalid_city", "sentences", "proto", "empty_ok", "non_field", "unknown_code", "empty_fields", "session_gone", "forbidden", "rate_limited", "csrf_once", "csrf_always", "error", "broken", "hang"],
+      (v) => {
+        agencyProfilePatchMode = v;
+        csrfOnceSpent = false;
+      },
+    );
+  }
+  if (url.pathname === "/__agency-profile-set") {
+    // Test-only: changes the stored profile as if another tab or device had saved it.
+    for (const name of Object.keys(AGENCY_PROFILE_START)) {
+      const value = url.searchParams.get(name);
+      if (value !== null) agencyProfile = { ...agencyProfile, [name]: value };
+    }
+    return json(200, agencyProfile);
+  }
+  if (url.pathname === "/__last-agency-profile") return json(200, { gets: agencyProfileGets, profile: agencyProfile });
+  if (url.pathname === "/__last-agency-profile-patch") {
+    return json(200, { count: agencyProfilePatchCount, body: lastAgencyProfilePatch, token: lastAgencyProfilePatchToken });
+  }
+  const agencyProfileBody = () => ({
+    ...agencyProfile,
+    email: profile.email,
+    pending_email: profile.pending_email,
+    verification_status: agencyProfileMode === "verified" ? "verified" : agencyProfileMode === "odd_status" ? "<b>Odd Status</b>" : "unverified",
+  });
+  if (url.pathname === "/api/v1/me/agency-profile" && req.method === "GET") {
+    agencyProfileGets += 1;
+    res.setHeader("cache-control", "no-store");
+    if (agencyProfileMode === "session_gone") {
+      liveSession = false;
+      return json(401, envelope("unauthenticated", "Authentication is required."));
+    }
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    if (agencyProfileMode === "forbidden") return json(403, envelope("forbidden", "Forbidden."));
+    if (agencyProfileMode === "flaky" && agencyProfileGets === 1) return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (agencyProfileMode === "malformed") return json(200, { agency_name: 7 });
+    if (agencyProfileMode === "error" || agencyProfileMode === "broken" || agencyProfileMode === "hang") return serverFailure(agencyProfileMode);
+    return json(200, agencyProfileBody());
+  }
+  if (url.pathname === "/api/v1/me/agency-profile" && req.method === "PATCH") {
+    return readBody((parsed) => {
+      unsafeCount += 1;
+      agencyProfilePatchCount += 1;
+      lastAgencyProfilePatch = parsed;
+      lastAgencyProfilePatchToken = req.headers["x-csrftoken"] ?? null;
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(agencyProfilePatchMode, lastAgencyProfilePatchToken)) return;
+      const fail = (fields) => json(400, envelope("validation_error", "The request contains invalid values.", fields));
+      const mode = agencyProfilePatchMode;
+      if (mode === "fields") {
+        return fail({ agency_name: ["invalid_name"], business_phone: ["invalid_phone"], office_address: ["invalid_address"], city_id: ["invalid"] });
+      }
+      if (mode === "required") {
+        const required = ["required"];
+        return fail({ agency_name: required, business_phone: required, office_address: required, city_id: required });
+      }
+      if (mode === "contact") return fail({ description: ["contains_contact_details"] });
+      if (mode === "description_codes") return fail({ description: ["invalid_description", "invalid"] });
+      if (mode === "invalid_city") return fail({ city_id: ["invalid_city"] });
+      if (mode === "sentences") return fail({ agency_name: ["Enter a valid name."], description: ["mystery_code"], role: ["Some server sentence."] });
+      if (mode === "proto") return fail({ agency_name: ["constructor"], description: ["__proto__"], non_field_errors: ["toString"] });
+      if (mode === "non_field") return fail({ non_field_errors: ["unknown_field"] });
+      if (mode === "unknown_code") return fail({ business_phone: ["mystery_code"] });
+      if (mode === "empty_fields") return json(400, envelope("bad_request", "The server rejected this request."));
+      if (mode === "error" || mode === "broken" || mode === "hang") return serverFailure(mode);
+      for (const name of Object.keys(AGENCY_PROFILE_START)) {
+        if (parsed && typeof parsed[name] === "string") {
+          // The backend collapses all whitespace in the description.
+          agencyProfile = { ...agencyProfile, [name]: name === "description" ? parsed[name].replace(/\s+/g, " ").trim() : parsed[name] };
+        }
+      }
+      if (mode === "empty_ok") return json(200, {});
+      return json(200, agencyProfileBody());
+    });
+  }
   if (url.pathname === "/__cities-mode") {
     return choose("citiesMode", ["ok", "empty", "error", "flaky", "hang", "slow", "other", "malformed", "partial"], (v) => {
       citiesMode = v;
@@ -641,6 +743,10 @@ createServer((req, res) => {
     profile = { ...PROFILE_START };
     profileMode = profilePatchMode = emailChangeMode = emailConfirmMode = "ok";
     profileGets = profilePatchCount = emailChangeCount = emailConfirmCount = 0;
+    agencyProfile = { ...AGENCY_PROFILE_START };
+    agencyProfileMode = agencyProfilePatchMode = "ok";
+    agencyProfileGets = agencyProfilePatchCount = 0;
+    lastAgencyProfilePatch = lastAgencyProfilePatchToken = null;
     lastProfilePatch = lastProfilePatchToken = lastEmailChange = lastEmailChangeToken = lastEmailConfirm = null;
     while (pending.length) pending.pop().end();
     return json(200, { mode });
