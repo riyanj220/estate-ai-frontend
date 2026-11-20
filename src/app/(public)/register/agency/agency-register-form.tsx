@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckYourEmail } from "@/components/check-your-email";
 import { ErrorSummary } from "@/components/error-summary";
+import { CityField } from "@/components/city-field";
 import { Field, PasswordField } from "@/components/form-field";
 import { getApi } from "@/lib/api";
 import {
@@ -17,15 +18,12 @@ import {
 } from "@/lib/forms";
 import { mapFieldMessages } from "@/lib/password-messages";
 import { AGENCY_FIELD_MESSAGES, GENERAL_FIELD_MESSAGES } from "@/lib/registration-messages";
+import { cityFocusTarget, cityRequiredMessage, useCities } from "@/lib/use-cities";
 import { useFormFeedback } from "@/lib/use-form-feedback";
 
 type FieldName = "agency_name" | "email" | "phone" | "office_address" | "city_id" | "password";
 type Fields = Record<string, string[]>;
 type Status = "idle" | "pending" | "success";
-type City = { id: string; name: string };
-// `result` is null until the first load completes; `loading` is true during any load.
-type Cities = { loading: boolean; result: "ready" | "error" | "empty" | null; items: City[] };
-type CityResult = { result: "ready" | "error" | "empty"; items: City[] };
 
 // The order of the form, and so of the summary.
 const FIELD_ORDER: FieldName[] = ["agency_name", "email", "phone", "office_address", "city_id", "password"];
@@ -38,10 +36,6 @@ const FIELD_LABELS: Record<FieldName, string> = {
   password: "Password",
 };
 const ADDRESS_MAX_LENGTH = 300; // the server limit
-const NO_CITIES = "No cities are available right now.";
-const CITIES_ERROR = "We could not load the list of cities.";
-const CITIES_ERROR_REQUIRED = "Cities could not be loaded. Retry above.";
-const CITIES_LOADING_REQUIRED = "Cities are still loading. Try again in a moment.";
 const SIGNED_IN = "You are already signed in. Sign out to register another account.";
 
 function isFieldName(key: string): key is FieldName {
@@ -62,81 +56,22 @@ export function AgencyRegisterForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [fieldErrors, setFieldErrors] = useState<Fields>({});
   const [formErrors, setFormErrors] = useState<string[]>([]);
-  const [cities, setCities] = useState<Cities>({ loading: true, result: null, items: [] });
   const { announcement, setAnnouncement, resetAnnouncement, announce, notice, setNotice, showNotice, focusSummary, summaryRef, noticeRef } =
     useFormFeedback();
+  const { cities, reload } = useCities({
+    announce,
+    // A choice that is no longer in a freshly loaded list is dropped.
+    onLoaded: (items) =>
+      setValues((current) =>
+        current.city_id !== "" && !items.some((city) => city.id === current.city_id) ? { ...current, city_id: "" } : current,
+      ),
+  });
   const [submittedEmail, setSubmittedEmail] = useState("");
   const submitting = useRef(false);
   const successRef = useRef<HTMLHeadingElement>(null);
   const focusEmail = useRef(false);
-  const citiesRequest = useRef(0);
-  const pendingFocus = useRef<"retry" | "select" | null>(null);
 
   const hasErrors = formErrors.length > 0 || Object.keys(fieldErrors).length > 0;
-
-  // Keeps only well-formed, unique cities; a 200 with items that are all malformed is a failed load.
-  function readCities(data: unknown): CityResult {
-    const raw = typeof data === "object" && data !== null ? (data as { items?: unknown }).items : undefined;
-    if (!Array.isArray(raw)) return { result: "error", items: [] };
-    if (raw.length === 0) return { result: "empty", items: [] };
-    const seen = new Set<string>();
-    const items: City[] = [];
-    for (const item of raw) {
-      const { id, name } = (typeof item === "object" && item !== null ? item : {}) as { id?: unknown; name?: unknown };
-      if (typeof id !== "string" || id === "" || typeof name !== "string" || name.trim() === "" || seen.has(id)) continue;
-      seen.add(id);
-      items.push({ id, name });
-    }
-    return items.length > 0 ? { result: "ready", items } : { result: "error", items: [] };
-  }
-
-  async function requestCities(): Promise<CityResult> {
-    try {
-      const api = await getApi();
-      const { data, response } = await withTimeout((signal) => api.GET("/api/v1/reference/cities", { signal }));
-      return response.ok ? readCities(data) : { result: "error", items: [] };
-    } catch {
-      return { result: "error", items: [] };
-    }
-  }
-
-  // Only the latest request may set the state, so a slow earlier answer cannot overwrite a newer one.
-  function applyCities(ticket: number, next: CityResult, readyMessage?: string) {
-    if (ticket !== citiesRequest.current) return;
-    // A failed load keeps the previous list; any other answer replaces it and drops a choice that is no longer in it.
-    setCities((current) => ({ loading: false, result: next.result, items: next.result === "error" ? current.items : next.items }));
-    if (next.result !== "error") {
-      setValues((current) =>
-        current.city_id !== "" && !next.items.some((city) => city.id === current.city_id) ? { ...current, city_id: "" } : current,
-      );
-    }
-    if (next.result === "error") announce(CITIES_ERROR);
-    else if (next.result === "empty") announce(NO_CITIES);
-    else if (readyMessage) announce(readyMessage);
-  }
-
-  function reloadCities(focus: "retry" | "select", readyMessage: string) {
-    pendingFocus.current = focus;
-    setCities((current) => ({ ...current, loading: true }));
-    announce("Loading cities.");
-    const ticket = ++citiesRequest.current;
-    void requestCities().then((next) => applyCities(ticket, next, readyMessage));
-  }
-
-  useEffect(() => {
-    const ticket = ++citiesRequest.current;
-    void requestCities().then((next) => applyCities(ticket, next));
-    // Runs once on mount; the functions use only state setters and refs, so the first render's copies are fine.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // After a reload the focused Retry button may be gone, so focus moves to the select (or stays on Retry on failure).
-  useEffect(() => {
-    if (cities.loading || !pendingFocus.current) return;
-    const target = pendingFocus.current === "retry" && cities.result === "error" ? "city-retry" : "city_id";
-    pendingFocus.current = null;
-    document.getElementById(target)?.focus();
-  }, [cities]);
 
   useEffect(() => {
     if (status === "idle" && focusEmail.current) {
@@ -161,20 +96,13 @@ export function AgencyRegisterForm() {
     setStatus("idle");
   }
 
-  function cityRequiredMessage() {
-    if (cities.result === "error") return CITIES_ERROR_REQUIRED;
-    if (cities.result === "empty") return NO_CITIES;
-    if (cities.result === null) return CITIES_LOADING_REQUIRED;
-    return AGENCY_FIELD_MESSAGES.city_id.required;
-  }
-
   // Required checks only: the server owns every other rule.
   function requiredErrors(): Fields {
     const errors: Fields = {};
     for (const name of FIELD_ORDER) {
       const empty = name === "password" ? values.password === "" : values[name].trim() === "";
       if (!empty) continue;
-      errors[name] = [name === "city_id" ? cityRequiredMessage() : AGENCY_FIELD_MESSAGES[name].required];
+      errors[name] = [name === "city_id" ? cityRequiredMessage(cities, AGENCY_FIELD_MESSAGES.city_id.required) : AGENCY_FIELD_MESSAGES[name].required];
     }
     return errors;
   }
@@ -241,7 +169,7 @@ export function AgencyRegisterForm() {
         // The likely cause is a city deactivated since the page loaded, so drop the choice and reload the list.
         const cityGone = body.fields.city_id?.includes("invalid_city") ?? false;
         setValues((current) => ({ ...current, password: "", city_id: cityGone ? "" : current.city_id }));
-        if (cityGone) reloadCities("select", "The city list was refreshed. Select a city.");
+        if (cityGone) reload("select", "The city list was refreshed. Select a city.");
         setFieldErrors(fields);
         setFormErrors(general);
         focusSummary();
@@ -279,12 +207,6 @@ export function AgencyRegisterForm() {
   }
 
   const pending = status === "pending";
-  const initialLoad = cities.loading && cities.result === null;
-  const reloading = cities.loading && cities.result !== null;
-  const cityDescribedBy = ["city-status", fieldErrors.city_id?.length ? "city_id-error" : null].filter(Boolean);
-  // The select is the right target unless it is disabled (first load) or the list failed (the Retry button is).
-  const cityTarget = initialLoad ? "city-status" : cities.result === "error" ? "city-retry" : "city_id";
-
   return (
     <>
       {live}
@@ -295,7 +217,7 @@ export function AgencyRegisterForm() {
           labels={FIELD_LABELS}
           fieldErrors={fieldErrors}
           formErrors={formErrors}
-          targets={{ city_id: cityTarget }}
+          targets={{ city_id: cityFocusTarget(cities) }}
         />
       )}
       {notice && (
@@ -367,55 +289,13 @@ export function AgencyRegisterForm() {
             />
           )}
         </Field>
-        <Field name="city_id" label="City" errors={fieldErrors.city_id}>
-          {(props) => (
-            <>
-              {/* Always mounted so a focused Retry button never disappears; announcements use the form's live region. */}
-              <p id="city-status" tabIndex={-1} className="hint">
-                {cities.result === "error" && (
-                  <>
-                    {CITIES_ERROR}{" "}
-                    <button
-                      type="button"
-                      id="city-retry"
-                      className="secondary-button"
-                      aria-disabled={reloading}
-                      onClick={() => {
-                        if (!reloading) reloadCities("retry", "Cities loaded. Select a city.");
-                      }}
-                    >
-                      Retry
-                    </button>
-                  </>
-                )}
-                {cities.result === "empty" && NO_CITIES}
-              </p>
-              <select
-                {...props}
-                aria-describedby={cityDescribedBy.join(" ") || undefined}
-                required
-                disabled={initialLoad}
-                value={values.city_id}
-                onChange={(e) => setValue("city_id", e.target.value)}
-              >
-                {initialLoad ? (
-                  <option value="">Loading cities</option>
-                ) : (
-                  <>
-                    <option value="" disabled>
-                      Select a city
-                    </option>
-                    {cities.items.map((city) => (
-                      <option key={city.id} value={city.id}>
-                        {city.name}
-                      </option>
-                    ))}
-                  </>
-                )}
-              </select>
-            </>
-          )}
-        </Field>
+        <CityField
+          cities={cities}
+          value={values.city_id}
+          onChange={(value) => setValue("city_id", value)}
+          errors={fieldErrors.city_id}
+          onRetry={() => reload("retry", "Cities loaded. Select a city.")}
+        />
         <PasswordField
           value={values.password}
           onChange={(value) => setValue("password", value)}
