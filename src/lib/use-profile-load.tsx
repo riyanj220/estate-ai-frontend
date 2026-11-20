@@ -123,7 +123,9 @@ export function ProfileLoadState({ load, onRetry, noun }: { load: ProfileLoad<un
       <h2 id="load-error-title" className="section-title">
         We could not load your {noun}
       </h2>
-      <p className="muted">{load.message ?? "Check your connection and try again."}</p>
+      <p className="muted" data-testid="load-error-message">
+        {load.message ?? "Check your connection and try again."}
+      </p>
       <p role="status" className={load.retrying ? "muted" : "sr-only"}>
         {load.retrying ? "Retrying…" : ""}
       </p>
@@ -133,3 +135,6 @@ export function ProfileLoadState({ load, onRetry, noun }: { load: ProfileLoad<un
     </section>
   );
 }
+
+/** A neutral name for the same loader: the listing pages use it (the hook is not specific to profiles). */
+export { useProfileLoad as useResourceLoad };

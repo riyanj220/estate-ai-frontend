@@ -40,3 +40,8 @@ export function profileLinkLabel(type: string): string | null {
   if (type === "individual") return "Profile";
   return type === "agency" ? "Business profile" : null;
 }
+
+/** Individuals and agencies own Listings (and see the "My listings" link); administrators never do. */
+export function canOwnListings(type: string): boolean {
+  return type === "individual" || type === "agency";
+}
