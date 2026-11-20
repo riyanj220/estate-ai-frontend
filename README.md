@@ -327,6 +327,17 @@ Story 1.21 (frontend half). The contract is the backend's `docs/profile.md` (Age
   stateful (a save shows on the next read and in `/api/v1/me` for the header), and its email and pending address are shared
   with the Individual profile stub so the email-change stubs work unchanged; `/__me-mode?value=agency` selects an agency
   session. Tests: `tests/e2e/agency-profile.spec.ts`.
+- **Testing note, the agency-profile flake (Epic 1 retro finding 9)**: the file failed once per full-suite run on a different
+  cities test. Reproduction in about two minutes: busy-loop every core (`for i in $(seq $(nproc)); do (yes > /dev/null &); done`),
+  run `npx playwright test tests/e2e/agency-profile.spec.ts` (`PW_CHANNEL=chrome` if Chromium is not downloaded), then stop the
+  loops with `pgrep -x yes | xargs -r kill`. Root cause: not hydration, not stub state and not a double mount, but a locator
+  that was ambiguous only after a delay. `page.getByText("We could not load the list of cities.")` matched the visible
+  `#city-status` hint, and 50 ms later (the `announce` timer in `use-form-feedback.ts`) also the sr-only live region, which
+  carries the same words. On a fast machine the assertion ran inside that 50 ms window and passed; under load the timer had
+  already fired and Playwright raised a strict-mode violation (2 elements). The tests now scope to `#city-status` (as
+  `agency-register.spec.ts` already did). Serial mode is removed from this file: the stub is reset in `beforeEach`, there is
+  one worker, and a failure no longer skips the remaining tests. When a text is also announced, assert on the element that
+  owns it, never on a page-wide `getByText`.
 - **Hand-off to Story 1.22**: logo upload is out of scope here (Epic 2) and nothing edits or decides the verification status;
   the page only shows the server's value. Story 1.22 can add verification actions next to that text.
 
