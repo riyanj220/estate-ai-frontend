@@ -19,3 +19,25 @@ export function safeNext(value: string | string[] | null | undefined): string {
   }
   return value;
 }
+
+export const ADMIN_DEFAULT_TARGET = "/admin";
+
+/**
+ * The post-sign-in target of the administrator door: `safeNext` plus "must be /admin or below it, and not the admin
+ * sign-in page itself". The path is compared after normalisation, so "/admin/../dashboard" is refused. Anything else
+ * becomes "/admin".
+ */
+export function safeAdminNext(value: string | string[] | null | undefined): string {
+  const target = safeNext(value);
+  let normalised: string;
+  try {
+    normalised = new URL(target, "http://placeholder.invalid").pathname.replace(/\/+$/, "") || "/";
+  } catch {
+    return ADMIN_DEFAULT_TARGET;
+  }
+  const rawPath = target.split(/[?#]/)[0];
+  if (rawPath !== normalised && rawPath.replace(/\/+$/, "") !== normalised) return ADMIN_DEFAULT_TARGET;
+  const inside = normalised === "/admin" || normalised.startsWith("/admin/");
+  if (!inside || normalised === "/admin/sign-in" || normalised.startsWith("/admin/sign-in/")) return ADMIN_DEFAULT_TARGET;
+  return target;
+}
