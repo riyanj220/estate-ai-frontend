@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { STATE_NOTES, displayName, profileLinkLabel } from "@/lib/account";
 import { useSession } from "@/lib/session";
@@ -9,6 +10,7 @@ export function SiteHeader() {
   const { status, account, signOut, refresh } = useSession();
   const [signingOut, setSigningOut] = useState(false);
   const [failure, setFailure] = useState("");
+  const pathname = usePathname();
 
   async function onSignOut() {
     if (signingOut) return;
@@ -24,6 +26,11 @@ export function SiteHeader() {
     setFailure("We could not sign you out. Please try again.");
     setSigningOut(false);
   }
+
+  // The admin area has its own chrome (src/app/admin/(protected)/admin-shell.tsx).
+  // The shared password page shows the admin chrome to an administrator (it is outside /admin).
+  const adminOnSharedPage = account?.account_type === "admin" && pathname === "/account/password";
+  if (pathname === "/admin" || pathname.startsWith("/admin/") || adminOnSharedPage) return null;
 
   const note = account ? STATE_NOTES[account.state] : undefined;
 

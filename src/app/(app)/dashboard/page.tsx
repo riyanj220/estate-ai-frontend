@@ -19,7 +19,7 @@ export default async function DashboardPage() {
         Account type: {typeLabel(account.account_type)}
       </p>
       <p className="muted" data-testid="dashboard-state">
-        Account state: {STATE_LABELS[account.state]}
+        Account state: {STATE_LABELS[account.state] ?? account.state}
       </p>
       {profileLinkLabel(account.account_type) && (
         <p>

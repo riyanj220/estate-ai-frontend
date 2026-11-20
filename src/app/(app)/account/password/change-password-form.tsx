@@ -30,7 +30,18 @@ const FIELD_MAPS: Record<FieldName, Record<string, string>> = {
 const MAYBE_CHANGED = " If this keeps failing, your password may already have changed; try signing in again.";
 const SUCCESS = "Your password was changed. Your other devices were signed out.";
 
-export function ChangePasswordForm() {
+/**
+ * `signInPath` is where a lost session goes (the administrator door for an administrator, else the ordinary one) and
+ * `returnTo` the place to come back to afterwards (an administrator returns to the admin area, the only place the
+ * admin sign-in honours).
+ */
+export function ChangePasswordForm({
+  signInPath = "/sign-in",
+  returnTo = "/account/password",
+}: {
+  signInPath?: string;
+  returnTo?: string;
+}) {
   const { refresh } = useSession();
   const router = useRouter();
   const [values, setValues] = useState<Record<FieldName, string>>({ current_password: "", new_password: "" });
@@ -100,7 +111,7 @@ export function ChangePasswordForm() {
       if (response.status === 401) {
         // The session is gone: flip to signed out, then sign in again and come back here.
         await refresh();
-        router.replace(`/sign-in?next=${encodeURIComponent("/account/password")}`);
+        router.replace(`${signInPath}?next=${encodeURIComponent(returnTo)}`);
         return;
       }
       const body = response.status === 400 ? readErrorBody(error) : null;

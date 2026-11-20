@@ -11,6 +11,10 @@ export const POLICY_MESSAGES: Record<string, string> = {
   password_matches_email: "The password must not be the same as your email address.",
   password_too_common: "This password is too common. Choose a less guessable one.",
   invalid: "Enter a valid password.",
+  // Administrator policy (the backend picks the rule by account type; these are only its texts).
+  admin_password_too_short: "Administrator passwords need at least 12 characters.",
+  admin_password_weak: "Administrator passwords need at least one letter and one digit.",
+  admin_password_whitespace: "Administrator passwords cannot start or end with a space.",
 };
 
 /** Messages for the new password on the change page (policy plus "same as current"). */
