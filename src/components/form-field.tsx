@@ -50,19 +50,21 @@ export function Field({
   );
 }
 
-/** The new-password field with the show/hide control. The visibility state resets when the field unmounts. */
+/** A password field (new by default; pass `autoComplete="current-password"` for the current one) with the show/hide control. The visibility state resets when the field unmounts. */
 export function PasswordField({
   name = "password",
   label = "Password",
   value,
   onChange,
   errors,
+  autoComplete = "new-password",
 }: {
   name?: string;
   label?: string;
   value: string;
   onChange: (value: string) => void;
   errors?: string[];
+  autoComplete?: "new-password" | "current-password";
 }) {
   const [shown, setShown] = useState(false);
   return (
@@ -72,7 +74,7 @@ export function PasswordField({
           <input
             {...props}
             type={shown ? "text" : "password"}
-            autoComplete="new-password"
+            autoComplete={autoComplete}
             required
             value={value}
             onChange={(e) => onChange(e.target.value)}

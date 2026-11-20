@@ -42,6 +42,14 @@ export const EMAIL_MESSAGES: Record<string, string> = {
  * static sentences (never echoing input), so a value that is not a code is shown as sent; anything else is generic.
  */
 export function mapFieldMessages(values: string[], map: Record<string, string>): string[] {
-  const out = values.map((value) => map[value] ?? (/\s/.test(value) ? value : GENERIC_FIELD_MESSAGE));
+  const out = values.map((value) => (Object.hasOwn(map, value) ? map[value] : /\s/.test(value) ? value : GENERIC_FIELD_MESSAGE));
   return [...new Set(out)];
+}
+
+/**
+ * Like `mapFieldMessages` but allow-lists known codes only: anything else (a sentence, an unknown code, a prototype
+ * key such as "constructor") becomes `fallback`, never the server's text. Used where a sentence could hint at account data.
+ */
+export function mapKnownCodes(values: string[], map: Record<string, string>, fallback = GENERIC_FIELD_MESSAGE): string[] {
+  return [...new Set(values.map((value) => (Object.hasOwn(map, value) ? map[value] : fallback)))];
 }
