@@ -61,6 +61,71 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/email-changes/confirm:
+    post:
+      operationId: confirm_email_change
+      description: 'POST, not GET, so link prefetchers cannot consume the single-use
+        token. Public: no session or CSRF token needed, so the link works in any browser.
+        Errors: `link_invalid` (also when the address was taken meanwhile), `link_expired`
+        (410), `link_used` (409). On success the sign-in address is replaced and verified;
+        sessions stay open. Limited per client (429 with `Retry-After`).'
+      summary: Confirm an email-change link
+      tags:
+      - email-changes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailChangeConfirmRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailChanged'
+          description: Email changed
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/email-verification-requests:
     post:
       operationId: request_email_verification
@@ -302,6 +367,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/email-change:
+    post:
+      operationId: request_email_change
+      description: 'Needs `X-CSRFToken`; not available to administrators. A wrong
+        current password is `validation_error` with `fields.current_password = incorrect`
+        (shared with the password change: after repeated failures the same answer
+        returns without checking; never 429). A malformed address is `fields.new_email
+        = invalid_email`. Otherwise ALWAYS the same `202`, whether the address is
+        free, registered, the current one or unusable. A single-use link goes only
+        to a free new address, after commit; the current address keeps signing in
+        until it is used. Every accepted request also sends a heads-up to the current
+        address. Only requests with the right password count against the per-account
+        hourly limit (429 with `Retry-After`).'
+      summary: Ask to change the sign-in email
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailChangeRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationAccepted'
+          description: Check your email
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/me/password:
     post:
       operationId: change_password
@@ -327,6 +464,130 @@ paths:
               schema:
                 $ref: '#/components/schemas/PasswordChanged'
           description: Password changed
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/profile:
+    get:
+      operationId: get_profile
+      description: Individual accounts only (any other type is `403 forbidden`). The
+        phone is private and appears only in this route's answers, to its owner. Never
+        cached.
+      summary: The signed-in Individual's profile
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: The profile
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    patch:
+      operationId: update_profile
+      description: 'Needs `X-CSRFToken`. Only `full_name` and `phone` are accepted,
+        at least one; any other field (the email included) is `validation_error` (`unknown_field`).
+        The phone stays mandatory: blank or null is `fields.phone = required`. All
+        failing fields are reported at once. An unchanged submission succeeds and
+        records nothing.'
+      summary: Change the signed-in Individual's name and/or phone
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: The updated profile
         '400':
           description: Bad request or validation error
           content:
@@ -957,6 +1218,41 @@ components:
           type: string
       required:
       - csrf_token
+    EmailChangeConfirmRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+          description: The token from the email-change link.
+      required:
+      - token
+    EmailChangeRequest:
+      type: object
+      properties:
+        new_email:
+          type: string
+          minLength: 1
+          description: The address to sign in with after confirming.
+        current_password:
+          type: string
+          minLength: 1
+          description: The password in use now.
+      required:
+      - current_password
+      - new_email
+    EmailChanged:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/EmailChangedStatusEnum'
+      required:
+      - status
+    EmailChangedStatusEnum:
+      enum:
+      - email_changed
+      type: string
+      description: '* `email_changed` - email_changed'
     EmailVerifiedStatusEnum:
       enum:
       - verified
@@ -1063,6 +1359,41 @@ components:
           description: The address to send a reset link to.
       required:
       - email
+    PatchedProfileUpdateRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          description: 2 to 80 characters.
+        phone:
+          type: string
+          nullable: true
+          minLength: 1
+          description: 'Pakistani mobile or international number. Mandatory: blank
+            or null is refused.'
+    Profile:
+      type: object
+      properties:
+        full_name:
+          type: string
+        phone:
+          type: string
+          description: 'The owner''s own phone number in E.164. Private: returned
+            only here.'
+        email:
+          type: string
+          description: The current sign-in address.
+        pending_email:
+          type: string
+          nullable: true
+          description: The address of the newest unused, unexpired email-change request,
+            or null.
+      required:
+      - email
+      - full_name
+      - pending_email
+      - phone
     RegistrationAccepted:
       type: object
       properties:
