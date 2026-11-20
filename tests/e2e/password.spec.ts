@@ -224,6 +224,8 @@ for (const path of ["/reset-password", "/reset-password?token=", "/reset-passwor
 test("reset ok: the body is exactly token and password, success links to sign-in, header refreshed", async ({ page, request }) => {
   await page.goto(LINK);
   await newPassword(page).fill(NEW_PASSWORD);
+  await expect(header(page).getByRole("link", { name: "Sign in" })).toBeVisible();
+  await page.waitForTimeout(500); // let the page's own session checks settle before counting
   const before = (await stats(request)).meCount;
   await changeButton(page).click();
   const heading = page.getByRole("heading", { name: "Password changed" });
@@ -437,6 +439,8 @@ test("change ok: CSRF token sent, success text, fields cleared, session kept", a
   await page.getByRole("button", { name: "Show current password" }).click();
   await expect(current(page)).toHaveAttribute("type", "text");
   await fillChange(page);
+  await expect(header(page).getByTestId("account-name")).toBeVisible();
+  await page.waitForTimeout(500); // let the page's own session checks settle before counting
   const meBefore = (await stats(request)).meCount;
   await changeSubmit(page).click();
   const success = page.getByTestId("form-success");
@@ -742,3 +746,24 @@ for (const viewport of viewports) {
     });
   }
 }
+
+test("Back and Forward never bring the token back: not in the URL, not in history.state", async ({ page }) => {
+  await page.goto(LINK);
+  await expect(page.getByRole("heading", { name: "Request a new link" })).toHaveCount(0);
+  await page.getByLabel("New password", { exact: true }).fill(NEW_PASSWORD);
+  await page.getByRole("button", { name: /^(Change password|Saving…)$/ }).click();
+  await expect(page.getByRole("heading", { name: "Password changed" })).toBeVisible();
+  await page.getByRole("main").getByRole("link", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/sign-in/);
+  expect(page.url()).not.toContain(TOKEN);
+  await page.goBack();
+  await expect(page).toHaveURL(/reset-password/);
+  await page.waitForTimeout(400);
+  expect(page.url()).not.toContain(TOKEN);
+  expect(await page.evaluate(() => JSON.stringify(history.state))).not.toContain(TOKEN);
+  await page.goForward();
+  await page.goBack();
+  await page.waitForTimeout(300);
+  expect(page.url()).not.toContain(TOKEN);
+  expect(await page.evaluate(() => JSON.stringify(history.state))).not.toContain(TOKEN);
+});

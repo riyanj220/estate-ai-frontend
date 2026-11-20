@@ -360,3 +360,21 @@ for (const viewport of viewports) {
     });
   }
 }
+
+test("Back and Forward never bring the token back: not in the URL, not in history.state", async ({ page }) => {
+  await page.goto(LINK);
+  await expect(page.getByRole("heading", { name: "Email verified" })).toBeVisible();
+  await page.getByRole("main").getByRole("link", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/sign-in/);
+  expect(page.url()).not.toContain(TOKEN);
+  await page.goBack();
+  await expect(page).toHaveURL(/verify-email/);
+  await page.waitForTimeout(400);
+  expect(page.url()).not.toContain(TOKEN);
+  expect(await page.evaluate(() => JSON.stringify(history.state))).not.toContain(TOKEN);
+  await page.goForward();
+  await page.goBack();
+  await page.waitForTimeout(300);
+  expect(page.url()).not.toContain(TOKEN);
+  expect(await page.evaluate(() => JSON.stringify(history.state))).not.toContain(TOKEN);
+});

@@ -51,6 +51,22 @@ const CITIES = [
   { id: "22222222-2222-4222-8222-222222222222", name: "Lahore" },
   { id: "33333333-3333-4333-8333-333333333333", name: "Islamabad" },
 ];
+// Profile and email change stand-ins (Story 1.20). The profile is stateful so a save shows on the next read.
+const PROFILE_START = { full_name: "Ayesha Khan", phone: "+923001234567", email: "ayesha@example.com", pending_email: null };
+let profile = { ...PROFILE_START };
+let profileMode = "ok";
+let profileGets = 0;
+let profilePatchMode = "ok";
+let profilePatchCount = 0;
+let lastProfilePatch = null;
+let lastProfilePatchToken = null;
+let emailChangeMode = "ok";
+let emailChangeCount = 0;
+let lastEmailChange = null;
+let lastEmailChangeToken = null;
+let emailConfirmMode = "ok";
+let emailConfirmCount = 0;
+let lastEmailConfirm = null;
 const pending = []; // responses held open by the hang mode
 
 createServer((req, res) => {
@@ -163,8 +179,8 @@ createServer((req, res) => {
     id: "00000000-0000-4000-8000-000000000001",
     account_type: meMode.startsWith("agency") ? "agency" : meMode === "admin" ? "admin" : "individual",
     state: signInMode === "unverified" ? "email_unverified" : signInMode === "suspended" ? "suspended" : "active",
-    email: "ayesha@example.com",
-    full_name: meMode === "agency" || meMode === "agency_bare" ? "" : signInMode === "no_name" ? "" : "Ayesha Khan",
+    email: profile.email,
+    full_name: meMode === "agency" || meMode === "agency_bare" ? "" : signInMode === "no_name" ? "" : profile.full_name,
     agency_name: meMode === "agency" ? "Sunrise Estates" : "",
     capabilities: ["sign_in", "browse"],
   });
@@ -359,6 +375,156 @@ createServer((req, res) => {
       return json(200, { status: "password_changed" });
     });
   }
+  if (url.pathname === "/__profile-mode") {
+    return choose("profileMode", ["ok", "forbidden", "flaky", "session_gone", "malformed", "error", "broken", "hang"], (v) => {
+      profileMode = v;
+      profileGets = 0;
+    });
+  }
+  if (url.pathname === "/__profile-patch-mode") {
+    return choose(
+      "profilePatchMode",
+      ["ok", "fields", "required", "sentences", "proto", "empty_ok", "non_field", "unknown_code", "empty_fields", "session_gone", "forbidden", "rate_limited", "csrf_once", "csrf_always", "error", "broken", "hang"],
+      (v) => {
+        profilePatchMode = v;
+        csrfOnceSpent = false;
+      },
+    );
+  }
+  if (url.pathname === "/__email-change-mode") {
+    return choose(
+      "emailChangeMode",
+      ["ok", "wrong_password", "invalid_email", "required", "sentences", "proto", "non_field", "unknown_code", "session_gone", "forbidden", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
+      (v) => {
+        emailChangeMode = v;
+        csrfOnceSpent = false;
+      },
+    );
+  }
+  if (url.pathname === "/__email-confirm-mode") {
+    return choose(
+      "emailConfirmMode",
+      ["ok", "expired", "used", "invalid", "other_400", "unknown_code", "rate_limited", "flaky", "error", "broken", "hang"],
+      (v) => (emailConfirmMode = v),
+    );
+  }
+  if (url.pathname === "/__last-profile") return json(200, { gets: profileGets, profile });
+  if (url.pathname === "/__last-profile-patch") return json(200, { count: profilePatchCount, body: lastProfilePatch, token: lastProfilePatchToken });
+  if (url.pathname === "/__last-email-change") return json(200, { count: emailChangeCount, body: lastEmailChange, token: lastEmailChangeToken });
+  if (url.pathname === "/__last-email-confirm") return json(200, { count: emailConfirmCount, body: lastEmailConfirm });
+  if (url.pathname === "/api/v1/me/profile" && req.method === "GET") {
+    profileGets += 1;
+    res.setHeader("cache-control", "no-store");
+    if (profileMode === "session_gone") {
+      liveSession = false;
+      return json(401, envelope("unauthenticated", "Authentication is required."));
+    }
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    if (profileMode === "forbidden") return json(403, envelope("forbidden", "Forbidden."));
+    if (profileMode === "flaky" && profileGets === 1) return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (profileMode === "malformed") return json(200, { full_name: 7 });
+    if (profileMode === "error" || profileMode === "broken" || profileMode === "hang") return serverFailure(profileMode);
+    return json(200, profile);
+  }
+  // Signed-in unsafe calls share the session, CSRF self-heal and session-gone behaviour.
+  // Answers the shared failures and returns true when it has already sent the response.
+  const signedInUnsafe = (mode, sentToken) => {
+    const reply = (status, body) => {
+      json(status, body);
+      return true;
+    };
+    if (mode === "session_gone") {
+      liveSession = false;
+      return reply(401, envelope("unauthenticated", "Authentication is required."));
+    }
+    if (!hasSession()) return reply(401, envelope("unauthenticated", "Authentication is required."));
+    if (mode === "csrf_always") return reply(403, envelope("forbidden", "CSRF check failed."));
+    if (mode === "csrf_once" && !csrfOnceSpent) {
+      csrfOnceSpent = true;
+      csrfSeed += 1;
+      return reply(403, envelope("forbidden", "CSRF check failed."));
+    }
+    if (sentToken !== `csrf-${csrfSeed}`) return reply(403, envelope("forbidden", "CSRF check failed."));
+    if (mode === "forbidden") return reply(403, envelope("forbidden", "Forbidden."));
+    if (mode === "rate_limited") {
+      throttled();
+      return true;
+    }
+    if (mode === "rate_none") {
+      res.writeHead(429, { "content-type": "application/json" });
+      res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+      return true;
+    }
+    return false;
+  };
+  if (url.pathname === "/api/v1/me/profile" && req.method === "PATCH") {
+    return readBody((parsed) => {
+      unsafeCount += 1;
+      profilePatchCount += 1;
+      lastProfilePatch = parsed;
+      lastProfilePatchToken = req.headers["x-csrftoken"] ?? null;
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(profilePatchMode, lastProfilePatchToken)) return;
+      const fail = (fields) => json(400, envelope("validation_error", "The request contains invalid values.", fields));
+      if (profilePatchMode === "fields") return fail({ full_name: ["invalid_name"], phone: ["invalid_phone"] });
+      if (profilePatchMode === "required") return fail({ full_name: ["required"], phone: ["required"] });
+      if (profilePatchMode === "sentences") return fail({ full_name: ["Enter a valid name."], phone: ["mystery_code"], role: ["Some server sentence."] });
+      if (profilePatchMode === "proto") return fail({ full_name: ["constructor"], phone: ["__proto__"], non_field_errors: ["toString"] });
+      if (profilePatchMode === "empty_ok") {
+        if (parsed && typeof parsed.full_name === "string") profile = { ...profile, full_name: parsed.full_name };
+        if (parsed && typeof parsed.phone === "string") profile = { ...profile, phone: parsed.phone };
+        return json(200, {});
+      }
+      if (profilePatchMode === "non_field") return fail({ non_field_errors: ["unknown_field"] });
+      if (profilePatchMode === "unknown_code") return fail({ phone: ["mystery_code"] });
+      if (profilePatchMode === "empty_fields") return json(400, envelope("bad_request", "The server rejected this request."));
+      if (profilePatchMode === "error" || profilePatchMode === "broken" || profilePatchMode === "hang") return serverFailure(profilePatchMode);
+      if (parsed && typeof parsed.full_name === "string") profile = { ...profile, full_name: parsed.full_name };
+      if (parsed && typeof parsed.phone === "string") profile = { ...profile, phone: parsed.phone };
+      return json(200, profile);
+    });
+  }
+  if (url.pathname === "/api/v1/me/email-change" && req.method === "POST") {
+    return readBody((parsed) => {
+      unsafeCount += 1;
+      emailChangeCount += 1;
+      lastEmailChange = parsed;
+      lastEmailChangeToken = req.headers["x-csrftoken"] ?? null;
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(emailChangeMode, lastEmailChangeToken)) return;
+      const fail = (fields) => json(400, envelope("validation_error", "The request contains invalid values.", fields));
+      if (emailChangeMode === "wrong_password") return fail({ current_password: ["incorrect"] });
+      if (emailChangeMode === "invalid_email") return fail({ new_email: ["invalid_email"] });
+      if (emailChangeMode === "required") return fail({ new_email: ["required"], current_password: ["required"] });
+      if (emailChangeMode === "sentences") return fail({ new_email: ["This address is already registered."], current_password: ["The current password is incorrect."], role: ["Some server sentence."] });
+      if (emailChangeMode === "proto") return fail({ new_email: ["__proto__"], current_password: ["constructor"] });
+      if (emailChangeMode === "non_field") return fail({ non_field_errors: ["unknown_field"] });
+      if (emailChangeMode === "unknown_code") return fail({ current_password: ["mystery_code"] });
+      if (emailChangeMode === "error" || emailChangeMode === "broken" || emailChangeMode === "hang") return serverFailure(emailChangeMode);
+      // Free, taken and unchanged addresses all answer alike, and the profile shows the pending address for every one.
+      if (parsed && typeof parsed.new_email === "string") profile = { ...profile, pending_email: parsed.new_email };
+      return json(202, { status: "check_your_email" });
+    });
+  }
+  if (url.pathname === "/api/v1/email-changes/confirm" && req.method === "POST") {
+    return readBody((parsed) => {
+      emailConfirmCount += 1;
+      lastEmailConfirm = parsed;
+      res.setHeader("cache-control", "no-store");
+      if (emailConfirmMode === "ok" || (emailConfirmMode === "flaky" && emailConfirmCount > 1)) {
+        profile = { ...profile, email: profile.pending_email ?? "ayesha.new@example.com", pending_email: null };
+        return json(200, { status: "email_changed" });
+      }
+      if (emailConfirmMode === "flaky") return json(500, envelope("server_error", "Internal detail that must not show."));
+      if (emailConfirmMode === "expired") return json(410, envelope("link_expired", "This link has expired."));
+      if (emailConfirmMode === "used") return json(409, envelope("link_used", "This link was already used."));
+      if (emailConfirmMode === "invalid") return json(400, envelope("link_invalid", "This link is not valid."));
+      if (emailConfirmMode === "other_400") return json(400, envelope("validation_error", "Raw server text that must not show.", { token: ["invalid"] }));
+      if (emailConfirmMode === "unknown_code") return json(410, envelope("something_else", "Raw server text that must not show."));
+      if (emailConfirmMode === "rate_limited") return throttled();
+      return serverFailure(emailConfirmMode);
+    });
+  }
   if (url.pathname === "/__cities-mode") {
     return choose("citiesMode", ["ok", "empty", "error", "flaky", "hang", "slow", "other", "malformed", "partial"], (v) => {
       citiesMode = v;
@@ -472,6 +638,10 @@ createServer((req, res) => {
     lastAgency = null;
     citiesMode = "ok";
     citiesCount = 0;
+    profile = { ...PROFILE_START };
+    profileMode = profilePatchMode = emailChangeMode = emailConfirmMode = "ok";
+    profileGets = profilePatchCount = emailChangeCount = emailConfirmCount = 0;
+    lastProfilePatch = lastProfilePatchToken = lastEmailChange = lastEmailChangeToken = lastEmailConfirm = null;
     while (pending.length) pending.pop().end();
     return json(200, { mode });
   }
