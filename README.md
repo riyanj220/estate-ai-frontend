@@ -277,9 +277,58 @@ Story 1.20 (frontend half). The contract is the backend's `docs/profile.md`.
   `broken`, `hang`), with `/__last-profile`, `/__last-profile-patch`, `/__last-email-change` and `/__last-email-confirm`. The
   profile is stateful (a save shows on the next read, any accepted email request sets `pending_email`, a confirm moves it
   into `email`). Tests: `tests/e2e/profile.spec.ts`.
-- Hand-off to Story 1.21 (Agency profile management): the profile routes answer `403` for an Agency, so the page shows the
-  "individual accounts" message; 1.21 adds the Agency view (and can reuse `EmailChangeForm`, which the backend already allows
-  for Agencies) behind the same route.
+- Hand-off to Story 1.21 (Agency profile management): done, see "Agency business profile" below. The Individual routes still
+  answer `403` for an Agency, so the one page picks its body by account type.
+
+## Agency business profile
+
+Story 1.21 (frontend half). The contract is the backend's `docs/profile.md` (Agency section).
+
+- **One route, two bodies**: `/account/profile` keeps its guard (`requireAccount`) and `no-store`. `page.tsx` switches on the
+  session's `account_type`: `individual` renders the Story 1.20 `ProfileClient` unchanged, `agency` renders
+  `agency-profile-client.tsx` ("Business profile"), anything else (admin, unknown) shows "Profile editing is available for
+  individual and agency accounts." with no form. The header and dashboard link ("Profile" for individuals, "Business profile"
+  for agencies) come from `profileLinkLabel` in `src/lib/account.ts`; admins get none.
+- `agency-profile-client.tsx` loads `GET /api/v1/me/agency-profile` (`{agency_name, description, city_id, business_phone,
+  office_address, email, pending_email, verification_status}`) with the same loading, Retry, silent re-read on focus and
+  visibility, `403` ("Business profile editing is available for agency accounts.") and `401` (sign in again, back to the page)
+  handling as the Individual page. The verification status is plain read-only text ("Agency verification: Unverified")
+  driven only by the server value (a value that is not a plain lower-case token shows "Unknown").
+- `agency-details-form.tsx`: agency name, description (textarea, 1000 characters, a plain-text live count that is not a live
+  region), city (select), business phone and office address (textarea, 300 characters, newlines collapse to a space as typed).
+  All but the description are required (client check sends nothing). Submit sends `PATCH /api/v1/me/agency-profile` through
+  `withCsrf` with only the fields that changed (nothing changed: no request and "No changes to save."; an emptied description
+  sends `""`). `200` shows "Your business profile was saved.", refreshes the baseline from the answer for untouched fields
+  only and refreshes the session provider (the header agency name). `400` maps the codes through `AGENCY_PROFILE_MESSAGES`
+  (`src/lib/registration-messages.ts`) with `mapKnownCodes` (unknown codes, prototype keys and unknown field keys are generic
+  text, never the server's); `contains_contact_details` explains that descriptions cannot contain phone numbers, email
+  addresses or street addresses and that the phone and address are kept private; `invalid_city` clears the selection and
+  re-fetches the cities. 429, 5xx, timeout, network and a second 403 each have a generic message; a 2xx with an unreadable
+  body shows a polite "saved, reload to see" note and triggers a re-read.
+- **Stored city**: the select is filled from the active cities. If the stored city is not in the list it stays selected as a
+  disabled "Current city (no longer available)" option (just "Current city" when the list failed to load), so the other
+  edits still save; `city_id` is only sent when the person picks another city.
+- **Privacy**: a static note says "Your business phone and office address are private. Only your agency name, description and
+  city are shown publicly." The phone and address appear only inside the form inputs: not in the header, the dashboard, storage,
+  console output or the address bar.
+- **Email**: `EmailChangeForm` is reused unchanged (it already posts `{new_email, current_password}`); the client passes it
+  `email` and `pending_email` and re-reads the business profile after an accepted request. The emailed
+  `/confirm-email-change` page already works for agencies.
+- **Shared code** (the Individual page behaviour and tests are unchanged): `src/lib/use-cities.ts` (the cities loader hook, the
+  required-city text and the focus target) and `src/components/city-field.tsx` (the City select with its loading, empty and
+  failed states), both now also used by `register/agency`; `src/lib/use-profile-load.tsx` (initial read, quiet re-reads,
+  Retry that stays mounted, focus to the heading after Retry, session-gone redirect, and the loading and error states) used by
+  both profile clients.
+- Playwright stub: `/__agency-profile-mode` (`ok`, `forbidden`, `flaky`, `session_gone`, `malformed`, `inactive_city`,
+  `verified`, `odd_status`, `error`, `broken`, `hang`), `/__agency-profile-patch-mode` (`ok`, `fields`, `required`, `contact`,
+  `description_codes`, `invalid_city`, `sentences`, `proto`, `empty_ok`, `non_field`, `unknown_code`, `empty_fields`,
+  `session_gone`, `forbidden`, `rate_limited`, `csrf_once`, `csrf_always`, `error`, `broken`, `hang`), with
+  `/__last-agency-profile` (read count and state) and `/__last-agency-profile-patch` (count, body, CSRF token). The profile is
+  stateful (a save shows on the next read and in `/api/v1/me` for the header), and its email and pending address are shared
+  with the Individual profile stub so the email-change stubs work unchanged; `/__me-mode?value=agency` selects an agency
+  session. Tests: `tests/e2e/agency-profile.spec.ts`.
+- **Hand-off to Story 1.22**: logo upload is out of scope here (Epic 2) and nothing edits or decides the verification status;
+  the page only shows the server's value. Story 1.22 can add verification actions next to that text.
 
 ## Layout
 
