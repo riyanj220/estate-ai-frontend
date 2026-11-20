@@ -31,9 +31,8 @@ const CONTACT_TEXT = "Descriptions cannot contain phone numbers, email addresses
 const pendingNote = (address: string) =>
   `We received a request to change to ${address}. If that address can be used, we sent it a confirmation link. Your sign-in address stays ${EMAIL} until you open the link.`;
 
-// The stub backend holds module-level state, so these tests must not interleave.
-test.describe.configure({ mode: "serial" });
-
+// The stub backend holds module-level state: the config runs one worker (so tests never interleave) and every test
+// starts from a reset stub, so the tests are independent and one failure does not skip the rest of the file.
 test.beforeEach(async ({ request }) => {
   await request.get(`${STUB}/__reset`);
 });
@@ -48,6 +47,9 @@ const emailSection = (page: Page) => page.getByRole("region", { name: "Sign-in e
 const summary = (section: ReturnType<typeof details>) => section.getByRole("group", { name: "There is a problem" });
 const agencyName = (page: Page) => page.getByLabel("Agency name", { exact: true });
 const description = (page: Page) => page.getByLabel("Description (optional)", { exact: true });
+// The cities message. Scoped to its own element: the same words are also announced in the sr-only live region
+// (set 50 ms after the load), so a page-wide getByText matches one element before that and two after it.
+const cityStatus = (page: Page) => page.locator("#city-status");
 const city = (page: Page) => page.getByLabel("City", { exact: true });
 const phone = (page: Page) => page.getByLabel("Business phone", { exact: true });
 const address = (page: Page) => page.getByLabel("Office address", { exact: true });
@@ -293,7 +295,7 @@ test("cities: the select lists the server cities and preselects the stored one",
 test("cities: a failed load shows a message with Retry, keeps the stored city and the other edits saveable, Retry fills the list", async ({ page, request }) => {
   await setMode(request, "cities", "error");
   await openProfile(page, request);
-  await expect(page.getByText("We could not load the list of cities.")).toBeVisible();
+  await expect(cityStatus(page)).toContainText("We could not load the list of cities.");
   await expect(city(page).locator("option:checked")).toHaveText("Current city");
   await agencyName(page).fill(NEW_NAME);
   await saveButton(page).click();
@@ -304,13 +306,13 @@ test("cities: a failed load shows a message with Retry, keeps the stored city an
   await expect(city(page).locator("option")).toHaveText(["Select a city", "Karachi", "Lahore", "Islamabad"]);
   await expect(city(page)).toHaveValue(KARACHI);
   await expect(city(page)).toBeFocused();
-  await expect(page.getByText("We could not load the list of cities.")).toHaveCount(0);
+  await expect(cityStatus(page)).not.toContainText("We could not load the list of cities.");
 });
 
 test("cities: an empty list says so and the stored city stays as the current one", async ({ page, request }) => {
   await setMode(request, "cities", "empty");
   await openProfile(page, request);
-  await expect(page.getByText("No cities are available right now.")).toBeVisible();
+  await expect(cityStatus(page)).toHaveText("No cities are available right now.");
   await expect(city(page)).toHaveValue(KARACHI);
   await expect(city(page).locator("option:checked")).toHaveText("Current city (no longer available)");
 });
