@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { STATE_LABELS, displayName, typeLabel } from "@/lib/account";
+import { STATE_LABELS, displayName, profileLinkLabel, typeLabel } from "@/lib/account";
 import { requireAccount } from "@/lib/current-account";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -21,10 +21,10 @@ export default async function DashboardPage() {
       <p className="muted" data-testid="dashboard-state">
         Account state: {STATE_LABELS[account.state]}
       </p>
-      {account.account_type === "individual" && (
+      {profileLinkLabel(account.account_type) && (
         <p>
           <Link href="/account/profile" className="text-link">
-            Profile
+            {profileLinkLabel(account.account_type)}
           </Link>
         </p>
       )}

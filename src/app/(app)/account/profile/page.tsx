@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireAccount } from "@/lib/current-account";
+import { AgencyProfileClient } from "./agency-profile-client";
 import { ProfileClient } from "./profile-client";
 
 export const metadata: Metadata = { title: "Profile | EstateAI", robots: { index: false, follow: false } };
@@ -7,10 +8,30 @@ export const metadata: Metadata = { title: "Profile | EstateAI", robots: { index
 export default async function ProfilePage() {
   const result = await requireAccount();
   if (result.kind === "unavailable") return null; // the layout shows the unavailable state
+  const type = result.account.account_type;
+  // One route, two bodies: the page decides by the session's account type. Admins (and any unknown type) get a polite note.
+  if (type === "individual") {
+    return (
+      <>
+        <h1 className="page-title">Profile</h1>
+        <ProfileClient />
+      </>
+    );
+  }
+  if (type === "agency") {
+    return (
+      <>
+        <h1 className="page-title">Business profile</h1>
+        <AgencyProfileClient />
+      </>
+    );
+  }
   return (
     <>
       <h1 className="page-title">Profile</h1>
-      <ProfileClient />
+      <p className="card" data-testid="profile-unavailable">
+        Profile editing is available for individual and agency accounts.
+      </p>
     </>
   );
 }

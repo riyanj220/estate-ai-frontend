@@ -10,6 +10,8 @@ export const AGENCY_FIELD_MESSAGES: Record<string, Record<string, string>> = {
     required: "Enter the agency name.",
     invalid: "Enter a valid agency name.",
     invalid_name: "Enter a valid agency name. It is shown publicly, so it cannot contain contact details.",
+    // The shared contact-detail check may report this code for the name in future.
+    contains_contact_details: "The agency name is shown publicly, so it cannot contain phone numbers, email addresses or street addresses.",
   },
   email: {
     required: "Enter the business email address.",
@@ -59,4 +61,26 @@ export const PROFILE_MESSAGES: Record<string, Record<string, string>> = {
     invalid: "Enter a valid email address.",
     invalid_email: "Enter a valid email address.",
   },
+};
+
+/**
+ * Human text for the codes the agency business profile endpoint reports in `error.fields`, per field (Story 1.21). The
+ * backend owns the rules; this only presents them. Reuses the registration text where the rule is the same.
+ */
+export const AGENCY_PROFILE_MESSAGES: Record<string, Record<string, string>> = {
+  agency_name: AGENCY_FIELD_MESSAGES.agency_name,
+  description: {
+    invalid: "Enter a valid description.",
+    invalid_description:
+      "Enter a valid description (up to 1000 characters, with at least one letter or number and no unusual characters).",
+    contains_contact_details:
+      "Descriptions cannot contain phone numbers, email addresses or street addresses. Your business phone and office address are kept private.",
+  },
+  city_id: AGENCY_FIELD_MESSAGES.city_id,
+  business_phone: {
+    required: "Enter the business phone number.",
+    invalid: "Enter a valid phone number.",
+    invalid_phone: "Enter a valid Pakistani mobile or international number.",
+  },
+  office_address: AGENCY_FIELD_MESSAGES.office_address,
 };

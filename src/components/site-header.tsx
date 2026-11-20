@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { STATE_NOTES, displayName } from "@/lib/account";
+import { STATE_NOTES, displayName, profileLinkLabel } from "@/lib/account";
 import { useSession } from "@/lib/session";
 
 export function SiteHeader() {
@@ -53,9 +53,9 @@ export function SiteHeader() {
                   {note}
                 </span>
               )}
-              {account.account_type === "individual" && (
+              {profileLinkLabel(account.account_type) && (
                 <Link href="/account/profile" className="text-link">
-                  Profile
+                  {profileLinkLabel(account.account_type)}
                 </Link>
               )}
               <Link href="/account/password" className="text-link">

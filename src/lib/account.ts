@@ -34,3 +34,9 @@ const TYPE_LABELS: Record<string, string> = {
 export function typeLabel(type: string): string {
   return TYPE_LABELS[type] ?? type;
 }
+
+/** The label of the profile link for an account type: individuals and agencies have a profile page, anyone else none. */
+export function profileLinkLabel(type: string): string | null {
+  if (type === "individual") return "Profile";
+  return type === "agency" ? "Business profile" : null;
+}
