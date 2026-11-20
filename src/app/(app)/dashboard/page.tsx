@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { STATE_LABELS, displayName, profileLinkLabel, typeLabel } from "@/lib/account";
+import { STATE_LABELS, canOwnListings, displayName, profileLinkLabel, typeLabel } from "@/lib/account";
+import { LISTINGS_PATH } from "@/lib/listing-messages";
 import { requireAccount } from "@/lib/current-account";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -25,6 +26,13 @@ export default async function DashboardPage() {
         <p>
           <Link href="/account/profile" className="text-link">
             {profileLinkLabel(account.account_type)}
+          </Link>
+        </p>
+      )}
+      {canOwnListings(account.account_type) && (
+        <p>
+          <Link href={LISTINGS_PATH} className="text-link">
+            My listings
           </Link>
         </p>
       )}
