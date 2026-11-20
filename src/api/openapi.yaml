@@ -569,6 +569,94 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+    patch:
+      operationId: update_listing
+      description: 'Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing
+        else (any other key, `origin` and `confirmed` included, is `validation_error`
+        `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price`
+        (a decimal string in PKR, at most two decimals), `price_basis` and `rental_period`;
+        `null` clears a field. Saving never needs complete data. Every saved field
+        is recorded as `manual` and confirmed; the client never chooses provenance.
+        A `base_revision` that is not the current `revision` is `409 stale_revision`
+        with the current Listing under `current` and nothing written (a retried PATCH
+        after it succeeded is also a 409: reload). An edit that changes nothing is
+        `200` and keeps the revision. `400` carries codes keyed by registry field
+        id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_choice`,
+        `not_applicable`, `contains_contact_details`, `not_editable`; unknown ids
+        are `unknown_field` under `non_field_errors`) and never echoes a value. Another
+        account''s, an unknown or a malformed id is `404 not_found`; an account that
+        may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.'
+      summary: Edit one of the signed-in account's own Listings
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListingUpdateRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+          description: The updated Listing
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingConflict'
+          description: 'Stale revision: the Listing changed; `current` holds it'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/me:
     get:
       operationId: get_me
@@ -2070,6 +2158,42 @@ components:
             $ref: '#/components/schemas/City'
       required:
       - items
+    CodeEnum:
+      enum:
+      - bad_request
+      - validation_error
+      - link_invalid
+      - unauthenticated
+      - invalid_credentials
+      - forbidden
+      - not_found
+      - method_not_allowed
+      - not_acceptable
+      - stale_revision
+      - link_used
+      - link_expired
+      - unsupported_media_type
+      - idempotency_key_reused
+      - throttled
+      - server_error
+      type: string
+      description: |-
+        * `bad_request` - bad_request
+        * `validation_error` - validation_error
+        * `link_invalid` - link_invalid
+        * `unauthenticated` - unauthenticated
+        * `invalid_credentials` - invalid_credentials
+        * `forbidden` - forbidden
+        * `not_found` - not_found
+        * `method_not_allowed` - method_not_allowed
+        * `not_acceptable` - not_acceptable
+        * `stale_revision` - stale_revision
+        * `link_used` - link_used
+        * `link_expired` - link_expired
+        * `unsupported_media_type` - unsupported_media_type
+        * `idempotency_key_reused` - idempotency_key_reused
+        * `throttled` - throttled
+        * `server_error` - server_error
     ConfirmEmailRequest:
       type: object
       properties:
@@ -2164,6 +2288,26 @@ components:
       - verified
       type: string
       description: '* `verified` - verified'
+    ErrorBody:
+      type: object
+      properties:
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+        fields:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        request_id:
+          type: string
+      required:
+      - code
+      - message
+      - fields
+      - request_id
     FieldClassEnum:
       enum:
       - public
@@ -2269,6 +2413,12 @@ components:
           minimum: 1
         fields:
           $ref: '#/components/schemas/ListingFields'
+        provenance:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ProvenanceEntry'
+          description: Registry field id -> where the value came from; set fields
+            only.
         media:
           type: array
           items:
@@ -2285,10 +2435,25 @@ components:
       - fields
       - id
       - media
+      - provenance
       - registry_version
       - revision
       - status
       - visibility
+    ListingConflict:
+      type: object
+      description: '`409 stale_revision`: the error envelope plus the Listing as it
+        is now.'
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+        current:
+          allOf:
+          - $ref: '#/components/schemas/Listing'
+          description: The current Listing, to reload and reapply the edit.
+      required:
+      - current
+      - error
     ListingFields:
       type: object
       description: Flat registry ids. Null means unknown.
@@ -2308,10 +2473,67 @@ components:
           oneOf:
           - $ref: '#/components/schemas/SubtypeEnum'
           - $ref: '#/components/schemas/NullEnum'
+        title:
+          type: string
+          nullable: true
+          description: 10 to 100 characters.
+        description:
+          type: string
+          nullable: true
+          description: Up to 5000 characters.
+        asking_price:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        price_basis:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PriceBasisEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        rental_period:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RentalPeriodEnum'
+          - $ref: '#/components/schemas/NullEnum'
       required:
+      - asking_price
       - category
+      - description
+      - price_basis
       - purpose
+      - rental_period
       - subtype
+      - title
+    ListingFieldsUpdateRequest:
+      type: object
+      description: The editable fields; the service judges every value (null clears
+        a field).
+      properties:
+        title:
+          type: string
+          nullable: true
+          minLength: 1
+          description: 10 to 100 characters.
+        description:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Up to 5000 characters.
+        asking_price:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        price_basis:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PriceBasisEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        rental_period:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RentalPeriodEnum'
+          - $ref: '#/components/schemas/NullEnum'
     ListingPage:
       type: object
       properties:
@@ -2334,6 +2556,18 @@ components:
       - draft
       type: string
       description: '* `draft` - draft'
+    ListingUpdateRequest:
+      type: object
+      properties:
+        base_revision:
+          type: integer
+          minimum: 1
+          description: The `revision` of the Listing the client last read.
+        fields:
+          $ref: '#/components/schemas/ListingFieldsUpdateRequest'
+      required:
+      - base_revision
+      - fields
     Marked:
       type: object
       properties:
@@ -2386,6 +2620,14 @@ components:
     NullEnum:
       enum:
       - null
+    OriginEnum:
+      enum:
+      - manual
+      - ai
+      type: string
+      description: |-
+        * `manual` - manual
+        * `ai` - ai
     PasswordChanged:
       type: object
       properties:
@@ -2472,6 +2714,16 @@ components:
           minLength: 1
           description: 'Pakistani mobile or international number. Mandatory: blank
             or null is refused.'
+    PriceBasisEnum:
+      enum:
+      - total
+      - per_unit
+      - rental_period
+      type: string
+      description: |-
+        * `total` - total
+        * `per_unit` - per_unit
+        * `rental_period` - rental_period
     Profile:
       type: object
       properties:
@@ -2494,6 +2746,16 @@ components:
       - full_name
       - pending_email
       - phone
+    ProvenanceEntry:
+      type: object
+      properties:
+        origin:
+          $ref: '#/components/schemas/OriginEnum'
+        confirmed:
+          type: boolean
+      required:
+      - confirmed
+      - origin
     PurposeEnum:
       enum:
       - sale
@@ -2550,6 +2812,35 @@ components:
             type: string
           nullable: true
           description: Enums only; null otherwise.
+        allowed_values_by_purpose:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          nullable: true
+          description: Enums narrowed by Listing purpose (purpose -> allowed values);
+            else null.
+        min_length:
+          type: integer
+          nullable: true
+          description: 'Text only: minimum characters after normalisation.'
+        max_length:
+          type: integer
+          nullable: true
+          description: 'Text only: maximum characters after normalisation.'
+        min:
+          type: string
+          nullable: true
+          description: 'Money only: smallest amount, a decimal string.'
+        max:
+          type: string
+          nullable: true
+          description: 'Money only: largest amount, a decimal string.'
+        currency:
+          type: string
+          nullable: true
+          description: 'Money only: `PKR`.'
         class_:
           allOf:
           - $ref: '#/components/schemas/FieldClassEnum'
@@ -2567,15 +2858,33 @@ components:
       required:
       - ai_extractable
       - allowed_values
+      - allowed_values_by_purpose
       - applicability
       - class_
+      - currency
       - id
+      - max
+      - max_length
+      - min
+      - min_length
       - quota_identity
       - requirement
       - searchable
       - sortable
       - type
       - valuation_input
+    RentalPeriodEnum:
+      enum:
+      - day
+      - week
+      - month
+      - year
+      type: string
+      description: |-
+        * `day` - day
+        * `week` - week
+        * `month` - month
+        * `year` - year
     SignInRequest:
       type: object
       description: Exactly `email` and `password`, both strings. Nothing else is accepted.
@@ -2696,26 +3005,6 @@ components:
       - throttled
       - server_error
       description: Stable error code catalogue.
-    ErrorBody:
-      type: object
-      properties:
-        code:
-          $ref: '#/components/schemas/ErrorCode'
-        message:
-          type: string
-        fields:
-          type: object
-          additionalProperties:
-            type: array
-            items:
-              type: string
-        request_id:
-          type: string
-      required:
-      - code
-      - message
-      - fields
-      - request_id
     ErrorEnvelope:
       type: object
       properties:

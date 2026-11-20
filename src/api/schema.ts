@@ -181,7 +181,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Edit one of the signed-in account's own Listings
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis` and `rental_period`; `null` clears a field. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_choice`, `not_applicable`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
+         */
+        patch: operations["update_listing"];
         trace?: never;
     };
     "/api/v1/me": {
@@ -650,6 +654,26 @@ export interface components {
         CityList: {
             items: components["schemas"]["City"][];
         };
+        /**
+         * @description * `bad_request` - bad_request
+         *     * `validation_error` - validation_error
+         *     * `link_invalid` - link_invalid
+         *     * `unauthenticated` - unauthenticated
+         *     * `invalid_credentials` - invalid_credentials
+         *     * `forbidden` - forbidden
+         *     * `not_found` - not_found
+         *     * `method_not_allowed` - method_not_allowed
+         *     * `not_acceptable` - not_acceptable
+         *     * `stale_revision` - stale_revision
+         *     * `link_used` - link_used
+         *     * `link_expired` - link_expired
+         *     * `unsupported_media_type` - unsupported_media_type
+         *     * `idempotency_key_reused` - idempotency_key_reused
+         *     * `throttled` - throttled
+         *     * `server_error` - server_error
+         * @enum {string}
+         */
+        CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error";
         ConfirmEmailRequest: {
             /** @description The token from the verification link. */
             token: string;
@@ -710,6 +734,14 @@ export interface components {
          * @enum {string}
          */
         EmailVerifiedStatusEnum: "verified";
+        ErrorBody: {
+            code: components["schemas"]["ErrorCode"];
+            message: string;
+            fields: {
+                [key: string]: string[];
+            };
+            request_id: string;
+        };
         /**
          * @description * `public` - public
          *     * `private` - private
@@ -771,6 +803,10 @@ export interface components {
             revision: number;
             registry_version: number;
             fields: components["schemas"]["ListingFields"];
+            /** @description Registry field id -> where the value came from; set fields only. */
+            provenance: {
+                [key: string]: components["schemas"]["ProvenanceEntry"];
+            };
             /** @description Empty until Story 2.10. */
             media: {
                 [key: string]: unknown;
@@ -778,11 +814,36 @@ export interface components {
             /** @description Empty until Story 2.8. */
             amenities: string[];
         };
+        /** @description `409 stale_revision`: the error envelope plus the Listing as it is now. */
+        ListingConflict: {
+            error: components["schemas"]["ErrorBody"];
+            /** @description The current Listing, to reload and reapply the edit. */
+            current: components["schemas"]["Listing"];
+        };
         /** @description Flat registry ids. Null means unknown. */
         ListingFields: {
             purpose: (components["schemas"]["PurposeEnum"] | components["schemas"]["NullEnum"]) | null;
             category: (components["schemas"]["CategoryEnum"] | components["schemas"]["NullEnum"]) | null;
             subtype: (components["schemas"]["SubtypeEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description 10 to 100 characters. */
+            title: string | null;
+            /** @description Up to 5000 characters. */
+            description: string | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            asking_price: string | null;
+            price_basis: (components["schemas"]["PriceBasisEnum"] | components["schemas"]["NullEnum"]) | null;
+            rental_period: (components["schemas"]["RentalPeriodEnum"] | components["schemas"]["NullEnum"]) | null;
+        };
+        /** @description The editable fields; the service judges every value (null clears a field). */
+        ListingFieldsUpdateRequest: {
+            /** @description 10 to 100 characters. */
+            title?: string | null;
+            /** @description Up to 5000 characters. */
+            description?: string | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            asking_price?: string | null;
+            price_basis?: (components["schemas"]["PriceBasisEnum"] | components["schemas"]["NullEnum"]) | null;
+            rental_period?: (components["schemas"]["RentalPeriodEnum"] | components["schemas"]["NullEnum"]) | null;
         };
         ListingPage: {
             next: string | null;
@@ -794,6 +855,11 @@ export interface components {
          * @enum {string}
          */
         ListingStatusEnum: "draft";
+        ListingUpdateRequest: {
+            /** @description The `revision` of the Listing the client last read. */
+            base_revision: number;
+            fields: components["schemas"]["ListingFieldsUpdateRequest"];
+        };
         Marked: {
             marked: number;
         };
@@ -817,6 +883,12 @@ export interface components {
         };
         /** @enum {unknown} */
         NullEnum: null;
+        /**
+         * @description * `manual` - manual
+         *     * `ai` - ai
+         * @enum {string}
+         */
+        OriginEnum: "manual" | "ai";
         PasswordChanged: {
             status: components["schemas"]["PasswordChangedStatusEnum"];
         };
@@ -864,6 +936,13 @@ export interface components {
             /** @description Pakistani mobile or international number. Mandatory: blank or null is refused. */
             phone?: string;
         };
+        /**
+         * @description * `total` - total
+         *     * `per_unit` - per_unit
+         *     * `rental_period` - rental_period
+         * @enum {string}
+         */
+        PriceBasisEnum: "total" | "per_unit" | "rental_period";
         Profile: {
             full_name: string;
             /** @description The owner's own phone number in E.164. Private: returned only here. */
@@ -872,6 +951,10 @@ export interface components {
             email: string;
             /** @description The address of the newest unused, unexpired email-change request, or null. */
             pending_email: string | null;
+        };
+        ProvenanceEntry: {
+            origin: components["schemas"]["OriginEnum"];
+            confirmed: boolean;
         };
         /**
          * @description * `sale` - sale
@@ -901,6 +984,20 @@ export interface components {
             applicability: components["schemas"]["Applicability"];
             /** @description Enums only; null otherwise. */
             allowed_values: string[] | null;
+            /** @description Enums narrowed by Listing purpose (purpose -> allowed values); else null. */
+            allowed_values_by_purpose: {
+                [key: string]: string[];
+            } | null;
+            /** @description Text only: minimum characters after normalisation. */
+            min_length: number | null;
+            /** @description Text only: maximum characters after normalisation. */
+            max_length: number | null;
+            /** @description Money only: smallest amount, a decimal string. */
+            min: string | null;
+            /** @description Money only: largest amount, a decimal string. */
+            max: string | null;
+            /** @description Money only: `PKR`. */
+            currency: string | null;
             /** Class */
             class_: components["schemas"]["FieldClassEnum"];
             searchable: boolean;
@@ -909,6 +1006,14 @@ export interface components {
             valuation_input: boolean;
             quota_identity: boolean;
         };
+        /**
+         * @description * `day` - day
+         *     * `week` - week
+         *     * `month` - month
+         *     * `year` - year
+         * @enum {string}
+         */
+        RentalPeriodEnum: "day" | "week" | "month" | "year";
         /** @description Exactly `email` and `password`, both strings. Nothing else is accepted. */
         SignInRequest: {
             /** @description The account email; matched case-insensitively. */
@@ -963,14 +1068,6 @@ export interface components {
          * @enum {string}
          */
         ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error";
-        ErrorBody: {
-            code: components["schemas"]["ErrorCode"];
-            message: string;
-            fields: {
-                [key: string]: string[];
-            };
-            request_id: string;
-        };
         ErrorEnvelope: {
             error: components["schemas"]["ErrorBody"];
         };
@@ -1674,6 +1771,97 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    update_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ListingUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated Listing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Listing"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stale revision: the Listing changed; `current` holds it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingConflict"];
                 };
             };
             /** @description Too many requests */
