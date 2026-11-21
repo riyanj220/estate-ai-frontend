@@ -183,7 +183,7 @@ export interface paths {
         head?: never;
         /**
          * Edit one of the signed-in account's own Listings
-         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_choice`, `not_applicable`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)). Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_choice`, `not_applicable`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
          */
         patch: operations["update_listing"];
         trace?: never;
@@ -683,10 +683,25 @@ export interface components {
          * @enum {string}
          */
         CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error";
+        /**
+         * @description * `new` - new
+         *     * `excellent` - excellent
+         *     * `good` - good
+         *     * `needs_renovation` - needs_renovation
+         * @enum {string}
+         */
+        ConditionEnum: "new" | "excellent" | "good" | "needs_renovation";
         ConfirmEmailRequest: {
             /** @description The token from the verification link. */
             token: string;
         };
+        /**
+         * @description * `completed` - completed
+         *     * `under_construction` - under_construction
+         *     * `grey_structure` - grey_structure
+         * @enum {string}
+         */
+        ConstructionStatusEnum: "completed" | "under_construction" | "grey_structure";
         CsrfToken: {
             csrf_token: string;
         };
@@ -774,6 +789,13 @@ export interface components {
          * @enum {string}
          */
         FieldTypeEnum: "enum" | "text" | "money" | "integer" | "decimal" | "boolean";
+        /**
+         * @description * `unfurnished` - unfurnished
+         *     * `semi_furnished` - semi_furnished
+         *     * `furnished` - furnished
+         * @enum {string}
+         */
+        FurnishingEnum: "unfurnished" | "semi_furnished" | "furnished";
         Health: {
             status: components["schemas"]["HealthStatusEnum"];
         };
@@ -846,6 +868,62 @@ export interface components {
             area_value: string | null;
             area_unit: (components["schemas"]["AreaUnitEnum"] | components["schemas"]["NullEnum"]) | null;
             marla_basis: (components["schemas"]["MarlaBasisEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            bedrooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            bathrooms: number | null;
+            /** @description Whole number from 1900 to 2100, a JSON integer (never text). Null clears it. */
+            construction_year: number | null;
+            condition: (components["schemas"]["ConditionEnum"] | components["schemas"]["NullEnum"]) | null;
+            furnishing: (components["schemas"]["FurnishingEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            parking_spaces: number | null;
+            occupancy_status: (components["schemas"]["OccupancyStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only. */
+            covered_area_sqft: string | null;
+            /** @description Whole number from 1 to 200, a JSON integer (never text). Null clears it. */
+            total_floors: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            kitchens: number | null;
+            construction_status: (components["schemas"]["ConstructionStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            drawing_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            dining_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            tv_lounges: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            study_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            prayer_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            store_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            laundry_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            powder_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            servant_quarters: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            basement: boolean | null;
+            /** @description Whole number from 0 to 200, a JSON integer (never text). Null clears it. */
+            floor_number: number | null;
+            /** @description Whole number from 1 to 200, a JSON integer (never text). Null clears it. */
+            building_floors: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            lift: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            backup_electricity: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            building_security: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            balcony_or_terrace: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            building_lobby: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            intercom: boolean | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            maintenance_charges: string | null;
             /** @description Decimal string with 4 decimals (`0.0001` to `9999999999999999.9999`), digits and a point only. Computed by the server; read-only. */
             area_sqft: string | null;
         };
@@ -863,6 +941,62 @@ export interface components {
             area_value?: string | null;
             area_unit?: (components["schemas"]["AreaUnitEnum"] | components["schemas"]["NullEnum"]) | null;
             marla_basis?: (components["schemas"]["MarlaBasisEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            bedrooms?: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            bathrooms?: number | null;
+            /** @description Whole number from 1900 to 2100, a JSON integer (never text). Null clears it. */
+            construction_year?: number | null;
+            condition?: (components["schemas"]["ConditionEnum"] | components["schemas"]["NullEnum"]) | null;
+            furnishing?: (components["schemas"]["FurnishingEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            parking_spaces?: number | null;
+            occupancy_status?: (components["schemas"]["OccupancyStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only. */
+            covered_area_sqft?: string | null;
+            /** @description Whole number from 1 to 200, a JSON integer (never text). Null clears it. */
+            total_floors?: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            kitchens?: number | null;
+            construction_status?: (components["schemas"]["ConstructionStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            drawing_rooms?: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            dining_rooms?: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            tv_lounges?: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            study_rooms?: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            prayer_rooms?: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            store_rooms?: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            laundry_rooms?: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            powder_rooms?: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            servant_quarters?: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            basement?: boolean | null;
+            /** @description Whole number from 0 to 200, a JSON integer (never text). Null clears it. */
+            floor_number?: number | null;
+            /** @description Whole number from 1 to 200, a JSON integer (never text). Null clears it. */
+            building_floors?: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            lift?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            backup_electricity?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            building_security?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            balcony_or_terrace?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            building_lobby?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            intercom?: boolean | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            maintenance_charges?: string | null;
         };
         ListingPage: {
             next: string | null;
@@ -909,6 +1043,13 @@ export interface components {
         };
         /** @enum {unknown} */
         NullEnum: null;
+        /**
+         * @description * `owner_occupied` - owner_occupied
+         *     * `tenant_occupied` - tenant_occupied
+         *     * `vacant` - vacant
+         * @enum {string}
+         */
+        OccupancyStatusEnum: "owner_occupied" | "tenant_occupied" | "vacant";
         /**
          * @description * `manual` - manual
          *     * `ai` - ai
@@ -1018,9 +1159,9 @@ export interface components {
             min_length: number | null;
             /** @description Text only: maximum characters after normalisation. */
             max_length: number | null;
-            /** @description Money and decimal only: smallest value, a decimal string. */
+            /** @description Money, decimal and integer: smallest value, a decimal string. */
             min: string | null;
-            /** @description Money and decimal only: largest value, a decimal string. */
+            /** @description Money, decimal and integer: largest value, a decimal string. */
             max: string | null;
             /** @description Money only: `PKR`. */
             currency: string | null;

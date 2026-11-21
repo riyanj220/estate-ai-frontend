@@ -578,18 +578,27 @@ paths:
         `area_value` (a decimal string, at most four decimals, above zero; never a
         JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"`
         square feet per marla, only while the unit is marla or kanal; changing the
-        unit away clears it); `null` clears a field. `area_sqft` is computed by the
-        server and is `not_editable` as input. Saving never needs complete data. Every
-        saved field is recorded as `manual` and confirmed; the client never chooses
-        provenance. A `base_revision` that is not the current `revision` is `409 stale_revision`
-        with the current Listing under `current` and nothing written (a retried PATCH
-        after it succeeded is also a 409: reload). An edit that changes nothing is
-        `200` and keeps the revision. `400` carries codes keyed by registry field
-        id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_choice`,
-        `not_applicable`, `contains_contact_details`, `not_editable`; unknown ids
-        are `unknown_field` under `non_field_errors`) and never echoes a value. Another
-        account''s, an unknown or a malformed id is `404 not_found`; an account that
-        may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.'
+        unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`,
+        `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`,
+        `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`,
+        `kitchens`, `construction_status`, room counts and `basement`, and the Apartment
+        set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`,
+        `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges`
+        (PKR per month)). Counts are JSON integers and yes/no answers are JSON `true`/`false`,
+        never text; unanswered is `null`, never 0 or false. The registry says which
+        apply to which Subtype (`not_applicable` otherwise); `null` clears a field.
+        `area_sqft` is computed by the server and is `not_editable` as input. Saving
+        never needs complete data. Every saved field is recorded as `manual` and confirmed;
+        the client never chooses provenance. A `base_revision` that is not the current
+        `revision` is `409 stale_revision` with the current Listing under `current`
+        and nothing written (a retried PATCH after it succeeded is also a 409: reload).
+        An edit that changes nothing is `200` and keeps the revision. `400` carries
+        codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`,
+        `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_choice`, `not_applicable`,
+        `contains_contact_details`, `not_editable`; unknown ids are `unknown_field`
+        under `non_field_errors`) and never echoes a value. Another account''s, an
+        unknown or a malformed id is `404 not_found`; an account that may not edit
+        (Suspended, Deactivated) is `403 forbidden`. Never cached.'
       summary: Edit one of the signed-in account's own Listings
       parameters:
       - in: path
@@ -2212,6 +2221,18 @@ components:
         * `idempotency_key_reused` - idempotency_key_reused
         * `throttled` - throttled
         * `server_error` - server_error
+    ConditionEnum:
+      enum:
+      - new
+      - excellent
+      - good
+      - needs_renovation
+      type: string
+      description: |-
+        * `new` - new
+        * `excellent` - excellent
+        * `good` - good
+        * `needs_renovation` - needs_renovation
     ConfirmEmailRequest:
       type: object
       properties:
@@ -2221,6 +2242,16 @@ components:
           description: The token from the verification link.
       required:
       - token
+    ConstructionStatusEnum:
+      enum:
+      - completed
+      - under_construction
+      - grey_structure
+      type: string
+      description: |-
+        * `completed` - completed
+        * `under_construction` - under_construction
+        * `grey_structure` - grey_structure
     CsrfToken:
       type: object
       properties:
@@ -2360,6 +2391,16 @@ components:
         * `integer` - integer
         * `decimal` - decimal
         * `boolean` - boolean
+    FurnishingEnum:
+      enum:
+      - unfurnished
+      - semi_furnished
+      - furnished
+      type: string
+      description: |-
+        * `unfurnished` - unfurnished
+        * `semi_furnished` - semi_furnished
+        * `furnished` - furnished
     Health:
       type: object
       properties:
@@ -2528,6 +2569,189 @@ components:
           oneOf:
           - $ref: '#/components/schemas/MarlaBasisEnum'
           - $ref: '#/components/schemas/NullEnum'
+        bedrooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        bathrooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        construction_year:
+          type: integer
+          maximum: 2100
+          minimum: 1900
+          nullable: true
+          description: Whole number from 1900 to 2100, a JSON integer (never text).
+            Null clears it.
+        condition:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/ConditionEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        furnishing:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/FurnishingEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        parking_spaces:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        occupancy_status:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/OccupancyStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        covered_area_sqft:
+          type: string
+          nullable: true
+          description: Decimal string with 4 decimals (`0.0001` to `9999999999.9999`),
+            digits and a point only.
+        total_floors:
+          type: integer
+          maximum: 200
+          minimum: 1
+          nullable: true
+          description: Whole number from 1 to 200, a JSON integer (never text). Null
+            clears it.
+        kitchens:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        construction_status:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/ConstructionStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        drawing_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        dining_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        tv_lounges:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        study_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        prayer_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        store_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        laundry_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        powder_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        servant_quarters:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        basement:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        floor_number:
+          type: integer
+          maximum: 200
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 200, a JSON integer (never text). Null
+            clears it.
+        building_floors:
+          type: integer
+          maximum: 200
+          minimum: 1
+          nullable: true
+          description: Whole number from 1 to 200, a JSON integer (never text). Null
+            clears it.
+        lift:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        backup_electricity:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        building_security:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        balcony_or_terrace:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        building_lobby:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        intercom:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        maintenance_charges:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
         area_sqft:
           type: string
           nullable: true
@@ -2538,14 +2762,44 @@ components:
       - area_unit
       - area_value
       - asking_price
+      - backup_electricity
+      - balcony_or_terrace
+      - basement
+      - bathrooms
+      - bedrooms
+      - building_floors
+      - building_lobby
+      - building_security
       - category
+      - condition
+      - construction_status
+      - construction_year
+      - covered_area_sqft
       - description
+      - dining_rooms
+      - drawing_rooms
+      - floor_number
+      - furnishing
+      - intercom
+      - kitchens
+      - laundry_rooms
+      - lift
+      - maintenance_charges
       - marla_basis
+      - occupancy_status
+      - parking_spaces
+      - powder_rooms
+      - prayer_rooms
       - price_basis
       - purpose
       - rental_period
+      - servant_quarters
+      - store_rooms
+      - study_rooms
       - subtype
       - title
+      - total_floors
+      - tv_lounges
     ListingFieldsUpdateRequest:
       type: object
       description: The editable fields; the service judges every value (null clears
@@ -2592,6 +2846,191 @@ components:
           oneOf:
           - $ref: '#/components/schemas/MarlaBasisEnum'
           - $ref: '#/components/schemas/NullEnum'
+        bedrooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        bathrooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        construction_year:
+          type: integer
+          maximum: 2100
+          minimum: 1900
+          nullable: true
+          description: Whole number from 1900 to 2100, a JSON integer (never text).
+            Null clears it.
+        condition:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/ConditionEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        furnishing:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/FurnishingEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        parking_spaces:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        occupancy_status:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/OccupancyStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        covered_area_sqft:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string with 4 decimals (`0.0001` to `9999999999.9999`),
+            digits and a point only.
+        total_floors:
+          type: integer
+          maximum: 200
+          minimum: 1
+          nullable: true
+          description: Whole number from 1 to 200, a JSON integer (never text). Null
+            clears it.
+        kitchens:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        construction_status:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/ConstructionStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        drawing_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        dining_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        tv_lounges:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        study_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        prayer_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        store_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        laundry_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        powder_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        servant_quarters:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        basement:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        floor_number:
+          type: integer
+          maximum: 200
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 200, a JSON integer (never text). Null
+            clears it.
+        building_floors:
+          type: integer
+          maximum: 200
+          minimum: 1
+          nullable: true
+          description: Whole number from 1 to 200, a JSON integer (never text). Null
+            clears it.
+        lift:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        backup_electricity:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        building_security:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        balcony_or_terrace:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        building_lobby:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        intercom:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        maintenance_charges:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
     ListingPage:
       type: object
       properties:
@@ -2688,6 +3127,16 @@ components:
     NullEnum:
       enum:
       - null
+    OccupancyStatusEnum:
+      enum:
+      - owner_occupied
+      - tenant_occupied
+      - vacant
+      type: string
+      description: |-
+        * `owner_occupied` - owner_occupied
+        * `tenant_occupied` - tenant_occupied
+        * `vacant` - vacant
     OriginEnum:
       enum:
       - manual
@@ -2900,11 +3349,11 @@ components:
         min:
           type: string
           nullable: true
-          description: 'Money and decimal only: smallest value, a decimal string.'
+          description: 'Money, decimal and integer: smallest value, a decimal string.'
         max:
           type: string
           nullable: true
-          description: 'Money and decimal only: largest value, a decimal string.'
+          description: 'Money, decimal and integer: largest value, a decimal string.'
         currency:
           type: string
           nullable: true
