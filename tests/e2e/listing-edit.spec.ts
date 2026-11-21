@@ -196,7 +196,7 @@ test("save: only the changed field is sent with the base revision; the revision 
   await saveButton(page).click();
   await expect(live(page)).toHaveText("Saved");
   await expect(revision(page)).toHaveText("4");
-  await expect(page.getByTestId("draft-registry-version")).toHaveText("3");
+  await expect(page.getByTestId("draft-registry-version")).toHaveText("4");
   const sent = await patches(request);
   expect(sent.count).toBe(1);
   expect(sent.bodies[0]).toEqual({ base_revision: 3, fields: { title: "Corner house with a big garden" } });
@@ -907,7 +907,12 @@ test("area: the block is built from the registry, with the hint, the unit choice
   await expect(derived(page)).toHaveCount(0); // nothing saved: nothing derived
   await expect(areaSummary(page)).toHaveText("Not set");
   // The derived square feet are not an input: the form's controls are exactly the existing ones plus the area controls.
-  const controlIds = () => page.locator("form").locator("input, select, textarea").evaluateAll((nodes) => nodes.map((node) => node.id));
+  // (The Details section of Story 2.4 has its own tests: it is left out here.)
+  const controlIds = () =>
+    page
+      .locator("form")
+      .locator("input, select, textarea")
+      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"]')).map((node) => node.id));
   expect(await controlIds()).toEqual(["title", "description", "asking_price", "price_basis", "area_value", "area_unit"]);
   await unitSelect(page).selectOption("marla");
   expect(await controlIds()).toEqual(["title", "description", "asking_price", "price_basis", "area_value", "area_unit", "marla_basis"]);
@@ -964,7 +969,12 @@ test("area: a registry that gives the value another type, or marks the unit deri
   await expect(areaInput(page)).toHaveCount(0);
   await expect(unitSelect(page)).toHaveCount(0);
   await expect(page.getByTestId("area-block")).toHaveCount(0);
-  expect(await page.locator("form").locator("input, select, textarea").evaluateAll((nodes) => nodes.map((node) => node.id))).toEqual(["title", "description", "asking_price", "price_basis"]);
+  expect(
+    await page
+      .locator("form")
+      .locator("input, select, textarea")
+      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"]')).map((node) => node.id)),
+  ).toEqual(["title", "description", "asking_price", "price_basis"]);
 });
 
 test("area: square feet are saved as typed text; only the changed fields are sent and the derived figure is shown from the server's text", async ({ page, request }) => {
@@ -1457,6 +1467,757 @@ test("area: the area fields carry no listing data into storage, the console, the
   expect(logs.join("\n")).not.toContain("7777");
 });
 
+// ---------------------------------------------------------------- details (Story 2.4)
+
+const detail = (page: Page, name: string) => page.getByLabel(name, { exact: true });
+const detailGroup = (page: Page, key: "required" | "recommended" | "more") => page.getByTestId(`details-${key}`);
+const detailLabels = (page: Page, key: "required" | "recommended" | "more") => detailGroup(page, key).locator("label");
+const summaryItem = (page: Page, id: string) => page.getByTestId(`draft-detail-${id}`);
+const INTEGER_INVALID = "Enter a whole number, digits only, for example 3.";
+const INTEGER_RANGE = "Enter a whole number within the allowed range.";
+const FLOOR = "The floor cannot be above the number of floors in the building. Check both numbers.";
+const BOOLEAN_INVALID = "Choose Yes, No or Not answered.";
+const CHOICE_INVALID = "Choose an option from the list.";
+const COVERED_INVALID = "Enter digits only, with an optional decimal point. Do not use commas, signs or units, for example 1200 or 10.5.";
+const COVERED_LIMITS = "Enter an amount above zero within the allowed range, with no more decimal places than allowed.";
+const CHARGES_INVALID = "Enter digits only, with an optional decimal point. Do not use commas or currency signs, for example 2500 or 2500.50.";
+const CHARGES_LIMITS = "Enter an amount within the allowed range, with at most two decimal places.";
+const NOT_APPLICABLE = "This detail does not apply to this listing.";
+const storedFields = async (request: APIRequestContext) => (await stats(request)).listings[0].fields;
+
+const HOUSE_REQUIRED = ["Bedrooms", "Bathrooms"];
+const HOUSE_RECOMMENDED = ["Year built", "Condition", "Furnishing", "Parking spaces", "Occupancy status", "Covered area (sq ft)", "Total floors", "Kitchens", "Construction status"];
+const HOUSE_MORE = ["Drawing rooms", "Dining rooms", "TV lounges", "Study rooms", "Prayer rooms", "Store rooms", "Laundry rooms", "Powder rooms", "Servant quarters", "Basement"];
+const APARTMENT_RECOMMENDED = ["Year built", "Condition", "Furnishing", "Parking spaces", "Occupancy status", "Covered area (sq ft)", "Floor number", "Floors in the building", "Lift", "Backup electricity", "Building security"];
+const APARTMENT_MORE = ["Balcony or terrace", "Building lobby", "Intercom", "Maintenance charges (PKR per month)"];
+
+test("details: a House shows its own applicable fields grouped by requirement, in registry order, each group a fieldset with a legend", async ({ page, request }) => {
+  await openDraft(page, request, "house_blank");
+  await expect(page.getByRole("heading", { level: 3, name: "Details" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Required before you publish" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Recommended" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "More details" })).toBeVisible();
+  await expect(page.locator("fieldset.detail-group")).toHaveCount(3);
+  await expect(detailLabels(page, "required")).toHaveText(HOUSE_REQUIRED);
+  await expect(detailLabels(page, "recommended")).toHaveText(HOUSE_RECOMMENDED);
+  await expect(detailLabels(page, "more")).toHaveText(HOUSE_MORE);
+  for (const apartmentOnly of ["Floor number", "Floors in the building", "Lift", "Backup electricity", "Building security", "Balcony or terrace", "Building lobby", "Intercom", "Maintenance charges (PKR per month)"]) {
+    await expect(detail(page, apartmentOnly)).toHaveCount(0);
+  }
+  // Nothing is preselected: every detail is unanswered.
+  await expect(detail(page, "Bedrooms")).toHaveValue("");
+  await expect(detail(page, "Condition")).toHaveValue("");
+  await expect(detail(page, "Basement")).toHaveValue("");
+});
+
+test("details: an Apartment shows its own set, and a Plot shows no Details at all", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_blank");
+  await expect(detailLabels(page, "required")).toHaveText(HOUSE_REQUIRED);
+  await expect(detailLabels(page, "recommended")).toHaveText(APARTMENT_RECOMMENDED);
+  await expect(detailLabels(page, "more")).toHaveText(APARTMENT_MORE);
+  for (const houseOnly of ["Total floors", "Kitchens", "Construction status", "Drawing rooms", "Servant quarters", "Basement"]) {
+    await expect(detail(page, houseOnly)).toHaveCount(0);
+  }
+  await openDraft(page, request, "plot_blank");
+  await expect(page.getByTestId("details-block")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 3, name: "Details" })).toHaveCount(0);
+  await expect(page.locator("fieldset")).toHaveCount(0);
+  await expect(areaInput(page)).toBeVisible(); // the hand-built fields are still there
+});
+
+test("details: the control follows the registry type, with Not answered first and the hints from the registry's limits", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_blank");
+  // integer: a text input for digits, never a number input
+  await expect(detail(page, "Bedrooms")).toHaveAttribute("inputmode", "numeric");
+  await expect(detail(page, "Bedrooms")).toHaveAttribute("type", "text");
+  await expect(page.locator("#bedrooms-hint")).toHaveText("Number of bedrooms. 0 for a studio. Whole number from 0 to 50.");
+  await expect(page.locator("#bathrooms-hint")).toHaveText("Whole number from 0 to 50.");
+  await expect(page.locator("#construction_year-hint")).toHaveText("Year the building was built. Whole number from 1900 to 2100.");
+  await expect(page.locator("#floor_number-hint")).toHaveText("Floor of the apartment. 0 is the ground floor. Whole number from 0 to 200.");
+  await expect(page.locator("#building_floors-hint")).toHaveText("Number of floors in the building. Whole number from 1 to 200.");
+  // boolean: Not answered, Yes, No
+  await expect(detail(page, "Lift").locator("option")).toHaveText(["Not answered", "Yes", "No"]);
+  await expect(detail(page, "Lift").locator("option").nth(1)).toHaveAttribute("value", "true");
+  await expect(detail(page, "Lift").locator("option").nth(2)).toHaveAttribute("value", "false");
+  await expect(page.locator("#lift-hint")).toHaveCount(0);
+  // enum: Not answered first, then the registry's choices
+  await expect(detail(page, "Condition").locator("option")).toHaveText(["Not answered", "New", "Excellent", "Good", "Needs renovation"]);
+  await expect(detail(page, "Furnishing").locator("option")).toHaveText(["Not answered", "Unfurnished", "Semi furnished", "Furnished"]);
+  await expect(detail(page, "Occupancy status").locator("option")).toHaveText(["Not answered", "Owner occupied", "Tenant occupied", "Vacant"]);
+  await expect(page.locator("#condition-hint")).toHaveCount(0);
+  // decimal and money: text inputs with the 2.2 and 2.3 string rules
+  await expect(detail(page, "Covered area (sq ft)")).toHaveAttribute("inputmode", "decimal");
+  await expect(page.locator("#covered_area_sqft-hint")).toHaveText(
+    "Covered area in square feet, whatever unit the area uses. Digits with an optional decimal point, up to 4 decimal places. Between 0.0001 and 9999999999.9999.",
+  );
+  await expect(detail(page, "Maintenance charges (PKR per month)")).toHaveAttribute("inputmode", "decimal");
+  await expect(page.locator("#maintenance_charges-hint")).toHaveText("Maintenance charges in PKR per month. Amount in PKR. Between 0 and 999999999999.99.");
+  await expect(page.getByTestId("details-more").locator(".money-prefix")).toHaveText("PKR");
+  // the requirement is the group's, not repeated in the hint
+  await expect(page.locator("#bedrooms-hint")).not.toContainText("Required");
+});
+
+test("details: the Draft's saved answers fill the controls, zero and No are answers, and the summary lists answered details only", async ({ page, request }) => {
+  await openDraft(page, request, "house_details");
+  await expect(detail(page, "Bedrooms")).toHaveValue("4");
+  await expect(detail(page, "Bathrooms")).toHaveValue("3");
+  await expect(detail(page, "Total floors")).toHaveValue("2");
+  await expect(detail(page, "Condition")).toHaveValue("good");
+  await expect(detail(page, "Basement")).toHaveValue("true");
+  await expect(detail(page, "Covered area (sq ft)")).toHaveValue("2400.5000");
+  await expect(detail(page, "Kitchens")).toHaveValue("1");
+  await expect(detail(page, "Parking spaces")).toHaveValue("");
+  await expect(summaryItem(page, "bedrooms")).toHaveText("4");
+  await expect(summaryItem(page, "bathrooms")).toHaveText("3");
+  await expect(summaryItem(page, "condition")).toHaveText("Good");
+  await expect(summaryItem(page, "basement")).toHaveText("Yes");
+  await expect(summaryItem(page, "covered_area_sqft")).toHaveText("2,400.5");
+  await expect(page.locator('[data-testid^="draft-detail-"]')).toHaveCount(7); // bedrooms, bathrooms, total floors, kitchens, condition, basement, covered
+});
+
+test("details: zero and No are answers shown as such, while an unanswered detail stays empty and is not listed", async ({ page, request }) => {
+  await openDraft(page, request, "house_zero");
+  await expect(detail(page, "Bedrooms")).toHaveValue("0");
+  await expect(detail(page, "Kitchens")).toHaveValue("0");
+  await expect(detail(page, "Basement")).toHaveValue("false");
+  await expect(detail(page, "Bathrooms")).toHaveValue("");
+  await expect(summaryItem(page, "bedrooms")).toHaveText("0");
+  await expect(summaryItem(page, "basement")).toHaveText("No");
+  await expect(summaryItem(page, "bathrooms")).toHaveCount(0);
+  await expect(page.locator('[data-testid^="draft-detail-"]')).toHaveCount(3);
+});
+
+test("details: untouched or equivalent text sends nothing and says there are no changes", async ({ page, request }) => {
+  await openDraft(page, request, "house_details");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("No changes to save.");
+  await detail(page, "Covered area (sq ft)").fill("2400.50"); // the same amount written another way
+  await detail(page, "Bedrooms").fill(" 4 "); // a trim-only difference
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("No changes to save.");
+  await detail(page, "Parking spaces").fill("   "); // blank stays unanswered
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("No changes to save.");
+  await settle();
+  expect((await patches(request)).count).toBe(0);
+});
+
+test("details: a House's answers are sent as JSON integers, booleans and text; only the changed fields, and the stored values keep their types", async ({ page, request }) => {
+  await openDraft(page, request, "house_blank");
+  await detail(page, "Bedrooms").fill("3");
+  await detail(page, "Bathrooms").fill("2");
+  await detail(page, "Kitchens").fill("0"); // zero is an answer
+  await detail(page, "Condition").selectOption("good");
+  await detail(page, "Basement").selectOption("false"); // No is an answer, not "unanswered"
+  await detail(page, "Covered area (sq ft)").fill(" 1200.5 ");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  const sent = await patches(request);
+  expect(sent.count).toBe(1);
+  expect(sent.bodies[0]).toEqual({
+    base_revision: 1,
+    fields: { bedrooms: 3, bathrooms: 2, kitchens: 0, condition: "good", basement: false, covered_area_sqft: "1200.5" },
+  });
+  expect(typeof sent.bodies[0].fields.bedrooms).toBe("number");
+  expect(typeof sent.bodies[0].fields.covered_area_sqft).toBe("string");
+  const stored = await storedFields(request);
+  expect(stored).toMatchObject({ bedrooms: 3, bathrooms: 2, kitchens: 0, condition: "good", basement: false, covered_area_sqft: "1200.5000", lift: null, parking_spaces: null });
+  await expect(revision(page)).toHaveText("2");
+  await expect(detail(page, "Covered area (sq ft)")).toHaveValue("1200.5000"); // shown as the server wrote it
+  await expect(detail(page, "Bedrooms")).toHaveValue("3");
+  await expect(summaryItem(page, "covered_area_sqft")).toHaveText("1,200.5");
+  await expect(summaryItem(page, "basement")).toHaveText("No");
+  // The next save sends only what changed since.
+  await detail(page, "Furnishing").selectOption("furnished");
+  await saveButton(page).click();
+  await expect(revision(page)).toHaveText("3");
+  expect((await patches(request)).bodies[1]).toEqual({ base_revision: 2, fields: { furnishing: "furnished" } });
+});
+
+test("details: an Apartment's answers include a floor of zero, No, an amount of money and a number of floors", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_blank");
+  await detail(page, "Floor number").fill("0");
+  await detail(page, "Floors in the building").fill("12");
+  await detail(page, "Lift").selectOption("true");
+  await detail(page, "Backup electricity").selectOption("false");
+  await detail(page, "Maintenance charges (PKR per month)").fill("2500");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[0]).toEqual({
+    base_revision: 1,
+    fields: { floor_number: 0, building_floors: 12, lift: true, backup_electricity: false, maintenance_charges: "2500" },
+  });
+  expect(await storedFields(request)).toMatchObject({ floor_number: 0, building_floors: 12, lift: true, backup_electricity: false, maintenance_charges: "2500.00", building_security: null });
+  await expect(detail(page, "Maintenance charges (PKR per month)")).toHaveValue("2500.00");
+  await expect(summaryItem(page, "maintenance_charges")).toHaveText("PKR 2,500.00");
+  await expect(summaryItem(page, "floor_number")).toHaveText("0");
+  await expect(summaryItem(page, "building_security")).toHaveCount(0);
+});
+
+test("details: clearing an answer sends null, and the summary drops it", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details");
+  await detail(page, "Lift").selectOption(""); // Not answered
+  await detail(page, "Bedrooms").fill("");
+  await detail(page, "Maintenance charges (PKR per month)").fill("");
+  await detail(page, "Furnishing").selectOption("");
+  await detail(page, "Backup electricity").selectOption(""); // was No: also an answer that can be withdrawn
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[0]).toEqual({
+    base_revision: 2,
+    fields: { lift: null, bedrooms: null, maintenance_charges: null, furnishing: null, backup_electricity: null },
+  });
+  expect(await storedFields(request)).toMatchObject({ lift: null, bedrooms: null, maintenance_charges: null, furnishing: null, backup_electricity: null, bathrooms: 2 });
+  await expect(summaryItem(page, "bedrooms")).toHaveCount(0);
+  await expect(summaryItem(page, "lift")).toHaveCount(0);
+  await expect(summaryItem(page, "bathrooms")).toHaveText("2");
+});
+
+test("details: integer text is sent as a JSON integer only in the exact shape; any other text goes as typed for the server to refuse, never through Number", async ({ page, request }) => {
+  await openDraft(page, request, "house_blank");
+  // Number("1e2") would be 100 and Number("0x10") 16; non-ASCII digits are not digits here.
+  const attempts = ["007", "05", "-1", "1.5", "5.0", "1e2", "0x10", "abc", "١٢", "1234567890"];
+  let count = 0;
+  for (const typed of attempts) {
+    await detail(page, "Bedrooms").fill(typed);
+    await saveButton(page).click();
+    await expect(page.locator("#bedrooms-error")).toHaveText(`Error: ${INTEGER_INVALID}`);
+    count += 1;
+    const sent = await patches(request);
+    expect(sent.count).toBe(count);
+    expect(sent.bodies[count - 1]).toEqual({ base_revision: 1, fields: { bedrooms: typed } });
+    await expect(detail(page, "Bedrooms")).toHaveValue(typed); // what was typed is kept
+    await expect(detail(page, "Bedrooms")).toHaveAttribute("aria-invalid", "true");
+  }
+  await expect(summary(page).getByRole("link", { name: /^Bedrooms:/ })).toBeVisible();
+  // The exact shape: 0, or digits without a leading zero, with surrounding spaces trimmed.
+  // Up to nine ASCII digits without a leading zero are sent as integers (exact), so the server judges the range, not the shape.
+  for (const typed of ["99999", "123456789"]) {
+    await detail(page, "Bedrooms").fill(typed);
+    await saveButton(page).click();
+    await expect(page.locator("#bedrooms-error")).toHaveText(`Error: ${INTEGER_RANGE}`);
+    count += 1;
+    expect((await patches(request)).bodies[count - 1]).toEqual({ base_revision: 1, fields: { bedrooms: Number(typed) } });
+  }
+  await detail(page, "Bedrooms").fill(" 7 ");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[count]).toEqual({ base_revision: 1, fields: { bedrooms: 7 } });
+  expect((await storedFields(request)).bedrooms).toBe(7);
+});
+
+test("details: a number outside the registry's limits is invalid_range under its own control, and the input stays", async ({ page, request }) => {
+  await openDraft(page, request, "house_blank");
+  await detail(page, "Bedrooms").fill("51");
+  await detail(page, "Year built").fill("1899");
+  await detail(page, "Total floors").fill("0");
+  await saveButton(page).click();
+  await expect(summary(page)).toBeFocused();
+  await expect(page.locator("#bedrooms-error")).toHaveText(`Error: ${INTEGER_RANGE}`);
+  await expect(page.locator("#construction_year-error")).toHaveText(`Error: ${INTEGER_RANGE}`);
+  await expect(page.locator("#total_floors-error")).toHaveText(`Error: ${INTEGER_RANGE}`);
+  await expect(summary(page).getByRole("link")).toHaveCount(3);
+  await expect(detail(page, "Bedrooms")).toHaveValue("51");
+  await expect(detail(page, "Bedrooms")).toHaveAttribute("aria-describedby", /bedrooms-hint bedrooms-error/);
+  expect((await patches(request)).bodies[0].fields).toEqual({ bedrooms: 51, construction_year: 1899, total_floors: 0 });
+  await summary(page).getByRole("link", { name: /^Year built:/ }).click();
+  await expect(detail(page, "Year built")).toBeFocused();
+  await detail(page, "Year built").fill("2001");
+  await expect(page.locator("#construction_year-error")).toHaveCount(0);
+  await expect(page.locator("#bedrooms-error")).toBeVisible();
+  await expect(revision(page)).toHaveText("1");
+});
+
+test("details: covered area and maintenance charges follow the decimal and money rules (invalid, invalid_area, invalid_price)", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_blank");
+  const covered = detail(page, "Covered area (sq ft)");
+  const charges = detail(page, "Maintenance charges (PKR per month)");
+  await covered.fill("1,200");
+  await charges.fill("2,500");
+  await saveButton(page).click();
+  await expect(page.locator("#covered_area_sqft-error")).toHaveText(`Error: ${COVERED_INVALID}`);
+  await expect(page.locator("#maintenance_charges-error")).toHaveText(`Error: ${CHARGES_INVALID}`);
+  expect((await patches(request)).bodies[0].fields).toEqual({ covered_area_sqft: "1,200", maintenance_charges: "2,500" }); // text as typed
+  await covered.fill("0");
+  await charges.fill("2500.555");
+  await saveButton(page).click();
+  await expect(page.locator("#covered_area_sqft-error")).toHaveText(`Error: ${COVERED_LIMITS}`);
+  await expect(page.locator("#maintenance_charges-error")).toHaveText(`Error: ${CHARGES_LIMITS}`);
+  await covered.fill("12345678901");
+  await charges.fill("-1");
+  await saveButton(page).click();
+  await expect(page.locator("#covered_area_sqft-error")).toHaveText(`Error: ${COVERED_LIMITS}`);
+  await expect(page.locator("#maintenance_charges-error")).toHaveText(`Error: ${CHARGES_LIMITS}`);
+  await expect(covered).toHaveValue("12345678901");
+  // Zero charges are allowed (the registry's minimum is 0), and no float is ever formed.
+  await covered.fill("1200.25");
+  await charges.fill("0");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect(await storedFields(request)).toMatchObject({ covered_area_sqft: "1200.2500", maintenance_charges: "0.00" });
+  expect((await patches(request)).bodies[3].fields).toEqual({ covered_area_sqft: "1200.25", maintenance_charges: "0" });
+});
+
+test("details: the floor rule shows under both floor fields, even the one the owner did not edit, and any edit clears it", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details"); // floor 5 of 12
+  const floor = detail(page, "Floor number");
+  const building = detail(page, "Floors in the building");
+  await building.fill("3");
+  await saveButton(page).click();
+  await expect(summary(page)).toBeFocused();
+  // The owner edited only the building; the code is also reported on the floor, whose control shows it.
+  await expect(page.locator("#building_floors-error")).toHaveText(`Error: ${FLOOR}`);
+  await expect(page.locator("#floor_number-error")).toHaveText(`Error: ${FLOOR}`);
+  await expect(floor).toHaveAttribute("aria-invalid", "true");
+  await expect(summary(page).getByRole("link", { name: /^Floor number:/ })).toBeVisible();
+  expect((await patches(request)).bodies[0]).toEqual({ base_revision: 2, fields: { building_floors: 3 } });
+  await summary(page).getByRole("link", { name: /^Floor number:/ }).click();
+  await expect(floor).toBeFocused();
+  // Fixing one field clears the problem on both.
+  await floor.fill("2");
+  await expect(page.locator("#floor_number-error")).toHaveCount(0);
+  await expect(page.locator("#building_floors-error")).toHaveCount(0);
+  await expect(summary(page)).toHaveCount(0);
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[1]).toEqual({ base_revision: 2, fields: { floor_number: 2, building_floors: 3 } });
+  expect(await storedFields(request)).toMatchObject({ floor_number: 2, building_floors: 3 });
+});
+
+test("details: a floor above the stored building is invalid_floor on the floor alone, and editing the building clears it", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details");
+  await detail(page, "Floor number").fill("20");
+  await saveButton(page).click();
+  await expect(page.locator("#floor_number-error")).toHaveText(`Error: ${FLOOR}`);
+  await expect(page.locator("#building_floors-error")).toHaveCount(0);
+  await expect(summary(page).getByRole("link")).toHaveCount(1);
+  await detail(page, "Floors in the building").fill("30"); // the other field of the rule
+  await expect(page.locator("#floor_number-error")).toHaveCount(0);
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect(await storedFields(request)).toMatchObject({ floor_number: 20, building_floors: 30 });
+});
+
+test("details: every code maps to text under its control, with the summary focused and the values kept", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details");
+  await setMode(request, "listing-patch", "detail_codes");
+  await detail(page, "Bedrooms").fill("99");
+  await detail(page, "Lift").selectOption("false");
+  await saveButton(page).click();
+  await expect(summary(page)).toBeFocused();
+  await expect(page.locator("#bedrooms-error")).toHaveText(`Error: ${INTEGER_RANGE}`);
+  await expect(page.locator("#condition-error")).toHaveText(`Error: ${CHOICE_INVALID}`);
+  await expect(page.locator("#lift-error")).toHaveText(`Error: ${BOOLEAN_INVALID}`);
+  await expect(page.locator("#covered_area_sqft-error")).toHaveText(`Error: ${COVERED_LIMITS}`);
+  await expect(page.locator("#maintenance_charges-error")).toHaveText(`Error: ${CHARGES_LIMITS}`);
+  await expect(page.locator("#floor_number-error")).toHaveText(`Error: ${FLOOR}`);
+  await expect(summary(page).getByRole("link")).toHaveCount(6);
+  await expect(live(page)).toHaveText(ERRORS_ANNOUNCED);
+  await expect(detail(page, "Bedrooms")).toHaveValue("99");
+  await expect(detail(page, "Lift")).toHaveValue("false");
+  await expect(detail(page, "Lift")).toHaveAttribute("aria-invalid", "true");
+  await expect(revision(page)).toHaveText("2");
+  // An error clears when its own field is edited; the floor problem (between fields) stays until one of the floor fields is edited.
+  await detail(page, "Condition").selectOption("good");
+  await expect(page.locator("#condition-error")).toHaveCount(0);
+  await expect(page.locator("#floor_number-error")).toBeVisible();
+  await expect(page.locator("#bedrooms-error")).toBeVisible();
+  await expect(page.locator("#lift-error")).toBeVisible();
+  await detail(page, "Floors in the building").fill("20");
+  await expect(page.locator("#floor_number-error")).toHaveCount(0);
+  await expect(page.locator("#bedrooms-error")).toBeVisible();
+  await expect(page.locator("#lift-error")).toBeVisible();
+});
+
+test("details: a code for a detail with no control goes to the list, never to a link, and the control is not there", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details"); // an apartment has no kitchens
+  await setMode(request, "listing-patch", "detail_hidden");
+  await detail(page, "Bedrooms").fill("3");
+  await saveButton(page).click();
+  await expect(summary(page)).toBeFocused();
+  await expect(summary(page).getByRole("link")).toHaveCount(0);
+  await expect(summary(page).getByRole("listitem")).toHaveText([NOT_APPLICABLE]);
+  await expect(detail(page, "Kitchens")).toHaveCount(0);
+  await expect(detail(page, "Bedrooms")).toHaveValue("3");
+});
+
+test("details: unknown codes, sentences, prototype keys and unknown fields are generic, never the server's text", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details");
+  await setMode(request, "listing-patch", "detail_unknown");
+  await detail(page, "Bedrooms").fill("3");
+  await saveButton(page).click();
+  await expect(summary(page)).toBeFocused();
+  await expect(page.locator("#bedrooms-error")).toHaveText(`Error: ${GENERIC}`);
+  await expect(page.locator("#condition-error")).toHaveText(`Error: ${GENERIC}`);
+  await expect(page.locator("#lift-error")).toHaveText(`Error: ${GENERIC} ${BOOLEAN_INVALID}`);
+  await expect(summary(page).getByRole("link")).toHaveCount(3);
+  await expect(summary(page).getByRole("listitem").last()).toHaveText(REJECTED);
+  await expect(page.locator("body")).not.toContainText("Some server sentence");
+  await expect(page.locator("body")).not.toContainText("constructor");
+});
+
+test("details: what was typed survives an error, a conflict and a failed save, and a restored page loads the saved answers again", async ({ page, request }) => {
+  await openDraft(page, request, "house_details");
+  await setMode(request, "listing-patch", "error");
+  await detail(page, "Bedrooms").fill("9");
+  await detail(page, "Basement").selectOption("false");
+  await saveButton(page).click();
+  await expect(notice(page)).toHaveText(SERVER);
+  await expect(detail(page, "Bedrooms")).toHaveValue("9");
+  await expect(detail(page, "Basement")).toHaveValue("false");
+  page.on("dialog", (dialog) => void dialog.accept());
+  await setMode(request, "listing-patch", "ok");
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+  await expect(detail(page, "Bedrooms")).toHaveValue("4"); // a restored page starts again from the server
+  await expect(detail(page, "Basement")).toHaveValue("true");
+});
+
+test("details conflict: the latest values are formatted per type, Use latest and Keep mine apply per field, and the banner clears when all rows are resolved", async ({ page, request }) => {
+  await openDraft(page, request, "house_details");
+  await otherSession(request, id(1), { bedrooms: "6", condition: "excellent", basement: "false", covered_area_sqft: "3000.1000", kitchens: "", bathrooms: "5" });
+  await detail(page, "Bedrooms").fill("5");
+  await detail(page, "Condition").selectOption("needs_renovation");
+  await detail(page, "Basement").selectOption(""); // Not answered
+  await detail(page, "Covered area (sq ft)").fill("2500");
+  await detail(page, "Kitchens").fill("2");
+  await saveButton(page).click();
+  await expect(conflictBanner(page)).toHaveText(CONFLICT);
+  await expect(conflictBanner(page)).toBeFocused();
+  await expect(revision(page)).toHaveText("3");
+  await expect(page.getByTestId("conflict-bedrooms")).toContainText("Latest saved: 6");
+  await expect(page.getByTestId("conflict-condition")).toContainText("Latest saved: Excellent");
+  await expect(page.getByTestId("conflict-basement")).toContainText("Latest saved: No");
+  await expect(page.getByTestId("conflict-covered_area_sqft")).toContainText("Latest saved: 3,000.1");
+  await expect(page.getByTestId("conflict-kitchens")).toContainText("Latest saved: Not answered");
+  await expect(page.getByTestId("conflict-bathrooms")).toHaveCount(0); // the owner did not edit it: it takes the latest, with no row
+  await expect(detail(page, "Bathrooms")).toHaveValue("5");
+  await expect(page.locator('[data-testid^="conflict-"]')).toHaveCount(5);
+  // The owner's input stays as typed.
+  await expect(detail(page, "Bedrooms")).toHaveValue("5");
+  await expect(detail(page, "Condition")).toHaveValue("needs_renovation");
+  await expect(detail(page, "Covered area (sq ft)")).toHaveValue("2500");
+  await expect(liveRegions(page)).toHaveCount(1);
+  await expect(detail(page, "Bedrooms")).toHaveAttribute("aria-describedby", /bedrooms-hint bedrooms-latest/);
+  await page.getByRole("button", { name: "Use latest for Bedrooms" }).click();
+  await expect(detail(page, "Bedrooms")).toHaveValue("6");
+  await expect(detail(page, "Bedrooms")).toBeFocused();
+  await page.getByRole("button", { name: "Keep mine for Condition" }).click();
+  await expect(detail(page, "Condition")).toHaveValue("needs_renovation");
+  await page.getByRole("button", { name: "Use latest for Basement" }).click();
+  await expect(detail(page, "Basement")).toHaveValue("false");
+  await page.getByRole("button", { name: "Keep mine for Covered area (sq ft)" }).click();
+  await expect(conflictBanner(page)).toHaveText(CONFLICT); // one row is still open
+  await page.getByRole("button", { name: "Use latest for Kitchens" }).click();
+  await expect(detail(page, "Kitchens")).toHaveValue("");
+  await expect(conflictBanner(page)).toHaveCount(0); // every row resolved: the banner goes
+  await expect(live(page)).toHaveText("Your choices are applied. Save to keep them.");
+  await expect(page.locator('[data-testid^="conflict-"]')).toHaveCount(0);
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[1]).toEqual({
+    base_revision: 3,
+    fields: { condition: "needs_renovation", covered_area_sqft: "2500" },
+  });
+  expect(await storedFields(request)).toMatchObject({ bedrooms: 6, condition: "needs_renovation", basement: false, covered_area_sqft: "2500.0000", kitchens: null, bathrooms: 5 });
+});
+
+test("details conflict: money, yes/no and floors are formatted, and a value another session left equal to the owner's is already saved", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details");
+  await otherSession(request, id(1), { maintenance_charges: "3000", lift: "true", floor_number: "6" });
+  await detail(page, "Maintenance charges (PKR per month)").fill("2600");
+  await detail(page, "Lift").selectOption("false");
+  await detail(page, "Floor number").fill("7");
+  await saveButton(page).click();
+  await expect(conflictBanner(page)).toHaveText(CONFLICT);
+  await expect(page.getByTestId("conflict-maintenance_charges")).toContainText("Latest saved: PKR 3,000");
+  await expect(page.getByTestId("conflict-lift")).toContainText("Latest saved: Yes");
+  await expect(page.getByTestId("conflict-floor_number")).toContainText("Latest saved: 6");
+  await page.getByRole("button", { name: "Use latest for Lift" }).click();
+  await expect(detail(page, "Lift")).toHaveValue("true");
+  await page.getByRole("button", { name: "Keep mine for Maintenance charges (PKR per month)" }).click();
+  await expect(conflictBanner(page)).toHaveText(CONFLICT); // the floor row is still open
+  // Hiding the last row by typing the latest value by hand also resolves it, and the banner goes.
+  await detail(page, "Floor number").fill("6");
+  await expect(page.getByTestId("conflict-floor_number")).toHaveCount(0);
+  await expect(conflictBanner(page)).toHaveCount(0);
+  await expect(live(page)).toHaveText("Your choices are applied. Save to keep them.");
+  page.on("dialog", (dialog) => void dialog.accept()); // the next Draft is opened with unsaved changes in this one
+  // A retry after a lost response: every typed value equals the latest (an amount in another notation counts as equal).
+  await openDraft(page, request, "house_details");
+  await otherSession(request, id(1), { bedrooms: "5", covered_area_sqft: "2500.5000", basement: "false" });
+  await detail(page, "Bedrooms").fill("5");
+  await detail(page, "Covered area (sq ft)").fill("2500.5");
+  await detail(page, "Basement").selectOption("false");
+  await saveButton(page).click();
+  await expect(conflictBanner(page)).toHaveText(ALREADY_SAVED);
+  await expect(page.locator('[data-testid^="conflict-"]')).toHaveCount(0);
+});
+
+test("details conflict: a change elsewhere to a detail the owner did not touch is a normal conflict, and a second conflict keeps the input", async ({ page, request }) => {
+  await openDraft(page, request, "house_details");
+  await otherSession(request, id(1), { bathrooms: "5" });
+  await detail(page, "Bedrooms").fill("8");
+  await saveButton(page).click();
+  await expect(conflictBanner(page)).toHaveText(CONFLICT); // not "already saved"
+  await expect(detail(page, "Bathrooms")).toHaveValue("5"); // untouched by the owner: takes the latest
+  await expect(page.getByTestId("conflict-bathrooms")).toHaveCount(0); // and no row for it: only the owner's own change has one
+  await expect(page.locator('[data-testid^="conflict-"]')).toHaveCount(1);
+  await otherSession(request, id(1), { bedrooms: "9" });
+  await saveButton(page).click();
+  await expect(page.getByTestId("conflict-bedrooms")).toContainText("Latest saved: 9");
+  await expect(detail(page, "Bedrooms")).toHaveValue("8");
+});
+
+test("details: the form follows the registry (other limits, requirements and choices), and a field it does not define gets no control", async ({ page, request }) => {
+  await registryFields(request, "other");
+  await openDraft(page, request, "house_blank");
+  await expect(page.getByRole("group", { name: "Required before you publish" })).toHaveCount(0); // nothing is required in this registry for a house
+  await expect(detailLabels(page, "recommended")).toHaveText(["Bedrooms"]);
+  await expect(detailLabels(page, "more")).toHaveText(["Condition", "Kitchens"]);
+  await expect(page.locator("#bedrooms-hint")).toHaveText("Number of bedrooms. Whole number from 1 to 9.");
+  await expect(page.locator("#kitchens-hint")).toHaveText("Whole number from 1 to 3.");
+  await expect(detail(page, "Condition").locator("option")).toHaveText(["Not answered", "New", "Used"]);
+  await expect(detail(page, "Bathrooms")).toHaveCount(0); // not defined by this registry
+  await expect(detail(page, "Basement")).toHaveCount(0);
+  await openDraft(page, request, "apartment_blank");
+  await expect(detailLabels(page, "required")).toHaveText(["Lift"]);
+  await expect(detailLabels(page, "recommended")).toHaveText(["Bedrooms"]);
+  await expect(detail(page, "Kitchens")).toHaveCount(0);
+});
+
+test("details: a registry field with no label of its own still gets its control, hint, group and saving (the humanised id is its label)", async ({ page, request }) => {
+  await registryFields(request, "extra");
+  await openDraft(page, request, "house_blank");
+  await expect(detailLabels(page, "required")).toHaveText(["Bedrooms", "Bathrooms", "Solar panels"]);
+  await expect(detailLabels(page, "recommended")).toHaveText([...HOUSE_RECOMMENDED, "Roof type"]);
+  await expect(detailLabels(page, "more")).toHaveText([...HOUSE_MORE, "Swimming pool", "Garden area sqft", "Garage slots"]);
+  await expect(page.locator("#garage_slots-hint")).toHaveText("Whole number. At least 1."); // one bound: only that one is claimed
+  await expect(page.locator("#solar_panels-hint")).toHaveText("Whole number from 0 to 99.");
+  await expect(page.locator("#garden_area_sqft-hint")).toHaveText("Digits with an optional decimal point, up to 2 decimal places. Between 1 and 99999.");
+  await expect(detail(page, "Roof type").locator("option")).toHaveText(["Not answered", "Flat", "Sloped"]);
+  await expect(detail(page, "Swimming pool").locator("option")).toHaveText(["Not answered", "Yes", "No"]);
+  await expect(detail(page, "Agent notes")).toHaveCount(0); // a text field has no control here
+  await expect(detail(page, "Roof geometry")).toHaveCount(0); // neither does a type the editor does not know
+  await detail(page, "Solar panels").fill("4");
+  await detail(page, "Swimming pool").selectOption("true");
+  await detail(page, "Roof type").selectOption("sloped");
+  await detail(page, "Garden area sqft").fill("120.5");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[0]).toEqual({
+    base_revision: 1,
+    fields: { solar_panels: 4, swimming_pool: true, roof_type: "sloped", garden_area_sqft: "120.5" },
+  });
+  await expect(detail(page, "Garden area sqft")).toHaveValue("120.50");
+  await expect(summaryItem(page, "swimming_pool")).toHaveText("Yes");
+  await expect(summaryItem(page, "roof_type")).toHaveText("Sloped");
+  await expect(detailLabels(page, "required")).toHaveCount(3);
+});
+
+test("details: another area scale changes only the area hint, and a registry without editable fields shows no Details section", async ({ page, request }) => {
+  await registryFields(request, "scale6"); // the same details with another area scale
+  await openDraft(page, request, "house_blank");
+  await expect(detail(page, "Bedrooms")).toBeVisible();
+  await expect(page.locator("#area_value-hint")).toContainText("up to 6 decimal places");
+  await registryFields(request, "none");
+  await page.reload();
+  await expect(page.getByTestId("draft-nothing-editable")).toBeVisible();
+  await expect(page.getByTestId("details-block")).toHaveCount(0);
+});
+
+test("details: the answers carry no listing data into storage, the console, the title or the address bar", async ({ page, request }) => {
+  const logs: string[] = [];
+  page.on("console", (message) => logs.push(message.text()));
+  page.on("dialog", (dialog) => void dialog.accept());
+  await openDraft(page, request, "apartment_blank");
+  await detail(page, "Bedrooms").fill("7");
+  await detail(page, "Covered area (sq ft)").fill("7777.7777");
+  await detail(page, "Maintenance charges (PKR per month)").fill("3333.33");
+  await detail(page, "Lift").selectOption("true");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  await setMode(request, "listing-patch", "detail_codes");
+  await detail(page, "Covered area (sq ft)").fill("0");
+  await saveButton(page).click();
+  await expect(summary(page)).toBeVisible();
+  await expect(page).toHaveTitle("Draft | EstateAI");
+  expect(new URL(page.url()).search + new URL(page.url()).hash).toBe("");
+  const stored = await page.evaluate(() => JSON.stringify([{ ...localStorage }, { ...sessionStorage }, document.cookie]));
+  for (const secret of ["7777", "3333", id(1)]) expect(stored).not.toContain(secret);
+  expect(await page.evaluate(() => JSON.stringify([{ ...localStorage }, { ...sessionStorage }]))).toBe("[{},{}]");
+  for (const secret of ["7777", "3333", id(1)]) expect(logs.join("\n")).not.toContain(secret);
+});
+
+test("details: Save stays aria-disabled while saving and a double click sends one request", async ({ page, request }) => {
+  await openDraft(page, request, "house_blank");
+  await setMode(request, "listing-patch", "slow");
+  await detail(page, "Bedrooms").fill("3");
+  await saveButton(page).dblclick();
+  await expect(saveButton(page)).toHaveAttribute("aria-disabled", "true");
+  await expect(saveButton(page)).not.toBeDisabled();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).count).toBe(1);
+});
+
+test("details: a 400 for a value typed after the request went out is dropped, and so is a floor problem that touches it", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details");
+  await setMode(request, "listing-patch", "detail_codes_slow");
+  // 1. Bedrooms retyped during the save: its error is dropped, the untouched floor error stays.
+  await detail(page, "Bedrooms").fill("99");
+  await saveButton(page).click();
+  await expect.poll(async () => (await patches(request)).count).toBe(1);
+  await detail(page, "Bedrooms").fill("3");
+  await expect(page.locator("#floor_number-error")).toHaveText(`Error: ${FLOOR}`);
+  await expect(page.locator("#bedrooms-error")).toHaveCount(0);
+  await expect(summary(page).getByRole("link")).toHaveCount(1);
+  await expect(detail(page, "Bedrooms")).toHaveValue("3");
+  // 2. A floor field retyped during the save: the whole floor problem is dropped, the bedrooms error stays.
+  await detail(page, "Bedrooms").fill("98");
+  await saveButton(page).click();
+  await expect.poll(async () => (await patches(request)).count).toBe(2);
+  await detail(page, "Floors in the building").fill("20");
+  await expect(page.locator("#bedrooms-error")).toHaveText(`Error: ${INTEGER_RANGE}`);
+  await expect(page.locator("#floor_number-error")).toHaveCount(0);
+  await expect(summary(page).getByRole("link")).toHaveCount(1);
+  // 3. Everything judged was retyped: no error and no summary at all.
+  await detail(page, "Bedrooms").fill("97");
+  await saveButton(page).click();
+  await expect.poll(async () => (await patches(request)).count).toBe(3);
+  await detail(page, "Bedrooms").fill("4");
+  await detail(page, "Floor number").fill("6");
+  await expect(saveButton(page)).not.toHaveAttribute("aria-disabled");
+  await expect(summary(page)).toHaveCount(0);
+  await expect(page.locator(".field-error")).toHaveCount(0);
+});
+
+test("details: the floor problem clears when either floor field is edited, and Use latest clears the field's own error", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details");
+  await setMode(request, "listing-patch", "detail_floor"); // the server names only the floor
+  await detail(page, "Floor number").fill("7");
+  await saveButton(page).click();
+  await expect(page.locator("#floor_number-error")).toHaveText(`Error: ${FLOOR}`);
+  await detail(page, "Bedrooms").fill("3"); // an unrelated edit leaves it
+  await expect(page.locator("#floor_number-error")).toBeVisible();
+  await detail(page, "Floors in the building").fill("11"); // the other field of the rule clears it
+  await expect(page.locator("#floor_number-error")).toHaveCount(0);
+  // After a conflict a row can stay while a new error shows: Use latest replaces the value the error was about.
+  await setMode(request, "listing-patch", "ok");
+  await otherSession(request, id(1), { floor_number: "6" });
+  await saveButton(page).click();
+  await expect(page.getByTestId("conflict-floor_number")).toContainText("Latest saved: 6");
+  await setMode(request, "listing-patch", "detail_floor");
+  await saveButton(page).click();
+  await expect(page.locator("#floor_number-error")).toHaveText(`Error: ${FLOOR}`);
+  await page.getByRole("button", { name: "Use latest for Floor number" }).click();
+  await expect(detail(page, "Floor number")).toHaveValue("6");
+  await expect(page.locator("#floor_number-error")).toHaveCount(0);
+  await expect(summary(page).getByRole("link", { name: /^Floor number:/ })).toHaveCount(0);
+});
+
+test("details: not_editable and not_applicable on a field that has a control map to their texts under it", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details");
+  await setMode(request, "listing-patch", "detail_not_editable");
+  await detail(page, "Bedrooms").fill("3");
+  await saveButton(page).click();
+  await expect(page.locator("#bedrooms-error")).toHaveText("Error: This detail cannot be changed here.");
+  await setMode(request, "listing-patch", "detail_not_applicable");
+  await detail(page, "Lift").selectOption("false");
+  await saveButton(page).click();
+  await expect(page.locator("#lift-error")).toHaveText(`Error: ${NOT_APPLICABLE}`);
+  await expect(summary(page).getByRole("link", { name: /^Lift:/ })).toBeVisible();
+  await expect(detail(page, "Lift")).toHaveValue("false");
+});
+
+test("details: values the form cannot represent are shown as the server holds them and can be restored; a poisoned key is ignored", async ({ page, request }) => {
+  await openDraft(page, request, "house_odd");
+  await expect(detail(page, "Bedrooms")).toHaveValue("3.5"); // a float for an integer
+  await expect(detail(page, "Kitchens")).toHaveValue("1e+21"); // an unsafe integer
+  await expect(detail(page, "Covered area (sq ft)")).toHaveValue("1200.5"); // a JSON number for a decimal
+  await expect(summaryItem(page, "bedrooms")).toHaveText("3.5");
+  await expect(summaryItem(page, "covered_area_sqft")).toHaveText("1,200.5");
+  await expect(page.locator("#__proto__")).toHaveCount(0); // no control for a poisoned key, and the page works
+  await expect(page.locator('[data-testid="draft-detail-__proto__"]')).toHaveCount(0);
+  // A yes/no that is not true or false stays selectable.
+  await expect(detail(page, "Basement")).toHaveValue("maybe");
+  await expect(detail(page, "Basement").locator("option")).toHaveText(["Not answered", "Yes", "No", "maybe (stored value)"]);
+  // A choice outside the registry stays offered, marked, even after another option is picked.
+  await expect(detail(page, "Condition")).toHaveValue("mint");
+  await expect(detail(page, "Condition").locator("option").last()).toHaveText("Mint (no longer offered)");
+  await detail(page, "Condition").selectOption("good");
+  await expect(detail(page, "Condition").locator("option").last()).toHaveText("Mint (no longer offered)");
+  await detail(page, "Condition").selectOption("mint"); // restored: no change
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("No changes to save.");
+  await settle();
+  expect((await patches(request)).count).toBe(0);
+  // Saved as another choice, the old one is no longer the saved value and goes from the list.
+  await detail(page, "Condition").selectOption("good");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[0]).toEqual({ base_revision: 2, fields: { condition: "good" } });
+  await expect(detail(page, "Condition").locator("option")).toHaveText(["Not answered", "New", "Excellent", "Good", "Needs renovation"]);
+  await expect(detail(page, "Bedrooms")).toHaveValue("3.5"); // still held as it was
+});
+
+test("details: money is compared at the registry's scale, leading-zero text is a change that is sent, and the latest value is padded", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details"); // charges "2500.00"
+  const charges = detail(page, "Maintenance charges (PKR per month)");
+  await charges.fill("2500");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("No changes to save.");
+  await charges.fill("02500"); // not the same text as the saved amount: sent for the server to judge
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[0]).toEqual({ base_revision: 2, fields: { maintenance_charges: "02500" } });
+  // Another session writes "3000"; the row pads it to the scale.
+  await otherSession(request, id(1), { maintenance_charges: "3000" });
+  await charges.fill("2600");
+  await saveButton(page).click();
+  await expect(page.getByTestId("conflict-maintenance_charges")).toContainText("Latest saved: PKR 3,000.00");
+});
+
+test("details conflict: a detail the owner changed that no longer applies is reset to the latest and the banner says so", async ({ page, request }) => {
+  await openDraft(page, request, "apartment_details");
+  await detail(page, "Lift").selectOption("false");
+  await detail(page, "Bedrooms").fill("3");
+  await otherSession(request, id(1), { category: "house", subtype: "house" });
+  await saveButton(page).click();
+  await expect(conflictBanner(page)).toHaveText(`${CONFLICT} Some details no longer apply to this draft, so your changes to them were dropped.`);
+  await expect(detail(page, "Lift")).toHaveCount(0);
+  await expect(detail(page, "Kitchens")).toBeVisible();
+  await expect(detail(page, "Bedrooms")).toHaveValue("3"); // an applicable detail keeps what was typed
+  await expect(page.getByTestId("conflict-bedrooms")).toContainText("Latest saved: 2");
+  await page.getByRole("button", { name: "Keep mine for Bedrooms" }).click();
+  await expect(conflictBanner(page)).toHaveCount(0);
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[1]).toEqual({ base_revision: 3, fields: { bedrooms: 3 } }); // never the dropped lift
+});
+
+test("details: a label-less registry field gets a humanised label in its error and its conflict row", async ({ page, request }) => {
+  await registryFields(request, "extra");
+  await openDraft(page, request, "house_blank");
+  await detail(page, "Solar panels").fill("abc");
+  await saveButton(page).click();
+  await expect(page.locator("#solar_panels-error")).toHaveText(`Error: ${INTEGER_INVALID}`);
+  await expect(summary(page).getByRole("link", { name: /^Solar panels:/ })).toBeVisible();
+  await otherSession(request, id(1), { solar_panels: "7" });
+  await detail(page, "Solar panels").fill("9");
+  await saveButton(page).click();
+  await expect(conflictBanner(page)).toHaveText(CONFLICT);
+  await expect(page.getByTestId("conflict-solar_panels")).toContainText("Latest saved: 7");
+  await page.getByRole("button", { name: "Keep mine for Solar panels" }).waitFor();
+  await page.getByRole("button", { name: "Use latest for Solar panels" }).click();
+  await expect(detail(page, "Solar panels")).toHaveValue("7");
+  await expect(conflictBanner(page)).toHaveCount(0);
+});
+
+test("details: the three lists of hand-built ids agree (the client's two and the stub's)", async ({ request }) => {
+  const { HAND_BUILT_KEYS } = await import("../../src/lib/listing-labels");
+  const stub = (await (await request.get(`${STUB}/__hand-ids`)).json()).ids as string[];
+  expect([...HAND_BUILT_KEYS].sort()).toEqual([...stub].sort());
+});
+
 // ---------------------------------------------------------------- accessibility
 
 for (const viewport of viewports) {
@@ -1528,5 +2289,44 @@ for (const viewport of viewports) {
     await expect(page.getByTestId("conflict-area_value")).toBeVisible();
     await expect(page.getByTestId("conflict-area_unit")).toBeVisible();
     await expectNoViolations(page, "area conflict");
+  });
+}
+
+for (const viewport of viewports) {
+  test(`accessibility (${viewport.name}): the Details section in its states has no axe violations`, async ({ page, request }) => {
+    page.on("dialog", (dialog) => void dialog.accept()); // the page is left with unsaved changes on purpose
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await openDraft(page, request, "house_blank");
+    await expectNoViolations(page, "empty house details");
+    await openDraft(page, request, "house_details");
+    await expectNoViolations(page, "house with answers");
+    await openDraft(page, request, "apartment_blank");
+    await expectNoViolations(page, "empty apartment details");
+    await openDraft(page, request, "apartment_details");
+    await expectNoViolations(page, "apartment with answers");
+    await detail(page, "Bedrooms").fill("abc");
+    await detail(page, "Lift").selectOption("false");
+    await setMode(request, "listing-patch", "detail_codes");
+    await saveButton(page).click();
+    await expect(summary(page)).toBeVisible();
+    await expect(page.locator("#floor_number-error")).toBeVisible();
+    await expectNoViolations(page, "apartment with detail errors");
+    await setMode(request, "listing-patch", "ok");
+    await detail(page, "Bedrooms").fill("3");
+    await detail(page, "Maintenance charges (PKR per month)").fill("2600");
+    await detail(page, "Lift").selectOption("false");
+    await otherSession(request, id(1), { maintenance_charges: "3000", lift: "true", bedrooms: "4" });
+    await saveButton(page).click();
+    await expect(conflictBanner(page)).toBeVisible();
+    await expect(page.getByTestId("conflict-bedrooms")).toBeVisible();
+    await expect(page.getByTestId("conflict-lift")).toBeVisible();
+    await expect(page.getByTestId("conflict-maintenance_charges")).toBeVisible();
+    await expectNoViolations(page, "apartment details conflict");
+    await openDraft(page, request, "house_details");
+    await otherSession(request, id(1), { bedrooms: "6", condition: "excellent", basement: "false" });
+    await detail(page, "Bedrooms").fill("5");
+    await saveButton(page).click();
+    await expect(page.getByTestId("conflict-bedrooms")).toBeVisible();
+    await expectNoViolations(page, "house details conflict");
   });
 }

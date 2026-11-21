@@ -243,6 +243,83 @@ const REGISTRY_FIELDS = {
   },
   none: [],
 };
+// Story 2.4: the thirty House and Apartment details of registry version 4, exactly as the backend defines them (bounds, choices,
+// requirements, applicability by Subtype). Integer bounds are served as text, like the real registry.
+const BOTH = { purposes: [], categories: [], subtypes: ["house", "apartment"] };
+const HOUSE = { purposes: [], categories: [], subtypes: ["house"] };
+const APARTMENT = { purposes: [], categories: [], subtypes: ["apartment"] };
+const intDef = (id, requirement, applicability, min, max, extra = {}) =>
+  fieldDef(id, "integer", requirement, { applicability, min: min === null ? null : String(min), max: max === null ? null : String(max), ai_extractable: true, ...extra });
+const boolDef = (id, requirement, applicability) => fieldDef(id, "boolean", requirement, { applicability, ai_extractable: true });
+const enumDef = (id, requirement, applicability, allowed_values, extra = {}) =>
+  fieldDef(id, "enum", requirement, { applicability, allowed_values, ai_extractable: true, ...extra });
+const ROOM_COUNTS = ["drawing_rooms", "dining_rooms", "tv_lounges", "study_rooms", "prayer_rooms", "store_rooms", "laundry_rooms", "powder_rooms", "servant_quarters"];
+const RESIDENTIAL_DEFS = [
+  intDef("bedrooms", "required_for_publication", BOTH, 0, 50, { description: "Number of bedrooms. 0 for a studio.", searchable: true, valuation_input: true }),
+  intDef("bathrooms", "required_for_publication", BOTH, 0, 50, { searchable: true, valuation_input: true }),
+  intDef("construction_year", "recommended", BOTH, 1900, 2100, { description: "Year the building was built.", valuation_input: true }),
+  enumDef("condition", "recommended", BOTH, ["new", "excellent", "good", "needs_renovation"], { valuation_input: true }),
+  enumDef("furnishing", "recommended", BOTH, ["unfurnished", "semi_furnished", "furnished"], { searchable: true }),
+  intDef("parking_spaces", "recommended", BOTH, 0, 50, { searchable: true }),
+  enumDef("occupancy_status", "recommended", BOTH, ["owner_occupied", "tenant_occupied", "vacant"]),
+  fieldDef("covered_area_sqft", "decimal", "recommended", {
+    applicability: BOTH,
+    description: "Covered area in square feet, whatever unit the area uses.",
+    min: "0.0001",
+    max: "9999999999.9999",
+    scale: 4,
+    ai_extractable: true,
+    valuation_input: true,
+  }),
+  intDef("total_floors", "recommended", HOUSE, 1, 200),
+  intDef("kitchens", "recommended", HOUSE, 0, 50),
+  enumDef("construction_status", "recommended", HOUSE, ["completed", "under_construction", "grey_structure"]),
+  ...ROOM_COUNTS.map((id) => intDef(id, "optional", HOUSE, 0, 50)),
+  boolDef("basement", "optional", HOUSE),
+  intDef("floor_number", "recommended", APARTMENT, 0, 200, { description: "Floor of the apartment. 0 is the ground floor." }),
+  intDef("building_floors", "recommended", APARTMENT, 1, 200, { description: "Number of floors in the building." }),
+  boolDef("lift", "recommended", APARTMENT),
+  boolDef("backup_electricity", "recommended", APARTMENT),
+  boolDef("building_security", "recommended", APARTMENT),
+  boolDef("balcony_or_terrace", "optional", APARTMENT),
+  boolDef("building_lobby", "optional", APARTMENT),
+  boolDef("intercom", "optional", APARTMENT),
+  fieldDef("maintenance_charges", "money", "optional", {
+    applicability: APARTMENT,
+    description: "Maintenance charges in PKR per month.",
+    min: "0",
+    max: "999999999999.99",
+    currency: "PKR",
+    ai_extractable: true,
+  }),
+];
+const RESIDENTIAL_IDS = RESIDENTIAL_DEFS.map((entry) => entry.id);
+REGISTRY_FIELDS.default.push(...RESIDENTIAL_DEFS);
+// Other limits, requirements and choices for a few of them (and none of the rest): the section follows the registry. `extra` adds
+// fields no label knows (a yes/no, a choice, a count, a covered-area-like decimal with another scale, a field of a type with no control)
+// to prove that a registry field needs no code of its own.
+REGISTRY_FIELDS.other.push(
+  intDef("bedrooms", "recommended", BOTH, 1, 9, { description: "Number of bedrooms." }),
+  enumDef("condition", "optional", BOTH, ["new", "used"]),
+  boolDef("lift", "required_for_publication", APARTMENT),
+  intDef("kitchens", "optional", HOUSE, 1, 3),
+);
+Object.defineProperty(REGISTRY_FIELDS, "extra", {
+  enumerable: true,
+  get() {
+    return [
+      ...this.default,
+      boolDef("swimming_pool", "optional", HOUSE),
+      enumDef("roof_type", "recommended", BOTH, ["flat", "sloped"]),
+      intDef("solar_panels", "required_for_publication", BOTH, 0, 99),
+      fieldDef("garden_area_sqft", "decimal", "optional", { applicability: HOUSE, min: "1", max: "99999", scale: 2 }),
+      intDef("garage_slots", "optional", HOUSE, 1, null), // one bound only
+
+      fieldDef("agent_notes", "text", "optional", { applicability: BOTH, min_length: 0, max_length: 100 }),
+      fieldDef("roof_geometry", "geometry", "optional", { applicability: BOTH }),
+    ];
+  },
+});
 let fieldsName = "default";
 let taxonomyName = "default";
 let registryMode = "ok";
@@ -250,7 +327,18 @@ let registryGets = 0;
 let registryNotModified = 0;
 let lastRegistryConditional = null;
 const listingId = (seq) => `00000000-0000-4000-9000-${String(seq).padStart(12, "0")}`;
-const EMPTY_EDITABLE = { title: null, description: null, asking_price: null, price_basis: null, rental_period: null, area_value: null, area_unit: null, marla_basis: null, area_sqft: null };
+const EMPTY_EDITABLE = {
+  title: null,
+  description: null,
+  asking_price: null,
+  price_basis: null,
+  rental_period: null,
+  area_value: null,
+  area_unit: null,
+  marla_basis: null,
+  area_sqft: null,
+  ...Object.fromEntries(RESIDENTIAL_IDS.map((id) => [id, null])),
+};
 // What a client may send (the derived square feet never): the real service answers `not_editable` for `area_sqft`.
 const INPUT_FIELDS = Object.keys(EMPTY_EDITABLE).filter((key) => key !== "area_sqft");
 // Area rules, exact like the real service: text only, no floats. Units measured in marla need the basis.
@@ -282,6 +370,46 @@ const normalisedSqft = (value, unit, basis) => {
   return fromScaled((2n * numerator + denominator) / (2n * denominator), 4);
 };
 /** Keeps a stub Listing consistent after any area change: the basis only for marla and kanal, the square feet always derived. */
+// A registry detail the editor builds generically: any non-derived field of a type with a control that is not hand-built.
+const HAND_IDS = ["purpose", "category", "subtype", "title", "description", "asking_price", "price_basis", "rental_period", "area_value", "area_unit", "marla_basis", "area_sqft"];
+const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money"];
+const currentDef = (id) => REGISTRY_FIELDS[fieldsName].find((entry) => entry.id === id);
+const isInput = (key) => INPUT_FIELDS.includes(key) || (!HAND_IDS.includes(key) && DETAIL_TYPES.includes(currentDef(key)?.type) && !currentDef(key).derived);
+/** Whether a field applies to a Listing, from the registry's applicability (an empty list means all). */
+const applies = (rule, fields) =>
+  [["purposes", fields.purpose], ["categories", fields.category], ["subtypes", fields.subtype]].every(([key, value]) => rule.applicability[key].length === 0 || rule.applicability[key].includes(value));
+/** The real rules for a registry detail: [value, code]. Integers and yes/no only as JSON numbers and booleans; decimals and money as text. */
+// A null is judged before this (it clears or is a no-op, even for a field that does not apply). The applicability rules themselves are
+// owned and tested by the backend; the stub only mirrors them so the form can be exercised.
+const checkDetail = (rule, value, fields) => {
+  if (!applies(rule, fields)) return { code: "not_applicable" };
+  if (rule.type === "integer") {
+    if (typeof value !== "number" || !Number.isInteger(value)) return { code: "invalid" };
+    return value < Number(rule.min) || value > Number(rule.max) ? { code: "invalid_range" } : { value };
+  }
+  if (rule.type === "boolean") return typeof value === "boolean" ? { value } : { code: "invalid" };
+  if (rule.type === "enum") {
+    if (typeof value !== "string") return { code: "invalid" };
+    const allowed = rule.allowed_values_by_purpose?.[fields.purpose] ?? rule.allowed_values ?? [];
+    return allowed.includes(value) ? { value } : { code: "invalid_choice" };
+  }
+  if (rule.type === "decimal") {
+    const match = typeof value === "string" && value.length <= 40 ? AREA_TEXT.exec(value) : null;
+    if (!match || (match[2].length > 1 && match[2].startsWith("0"))) return { code: "invalid" };
+    const scale = rule.scale ?? 4;
+    if (match[1] || (match[3] ?? "").length > scale) return { code: "invalid_area" };
+    const scaled = toScaled(value, scale);
+    return scaled < toScaled(rule.min, scale) || scaled > toScaled(rule.max, scale) ? { code: "invalid_area" } : { value: fromScaled(scaled, scale) };
+  }
+  if (rule.type === "money") {
+    const match = typeof value === "string" && value.length <= 40 ? AREA_TEXT.exec(value) : null;
+    if (!match) return { code: "invalid" };
+    if (match[1] || (match[3] ?? "").length > 2) return { code: "invalid_price" };
+    const cents = toScaled(value, 2);
+    return cents < toScaled(rule.min, 2) || cents > toScaled(rule.max, 2) ? { code: "invalid_price" } : { value: fromScaled(cents, 2) };
+  }
+  return { code: "invalid" }; // a type with no editor
+};
 const settleArea = (fields) => {
   if (!MARLA_UNITS.includes(fields.area_unit)) fields.marla_basis = null;
   fields.area_sqft = normalisedSqft(fields.area_value, fields.area_unit, fields.marla_basis);
@@ -333,6 +461,28 @@ const LISTING_PRESETS = {
   area_marla: () => [makeListing(1, "mine", { area_value: "10.0000", area_unit: "marla", marla_basis: "272.25", area_sqft: "2722.5000" }, 2)],
   area_unknown: () => [makeListing(1, "mine", { area_value: "5.0000", area_unit: "marla" }, 2)],
   area_sqft: () => [makeListing(1, "mine", { area_value: "1200.0000", area_unit: "sqft", area_sqft: "1200.0000" }, 2)],
+  // Story 2.4: Drafts with no details, and with details (revision 2); zero is an answer, unanswered stays null.
+  house_blank: () => [makeListing(1, "mine", {})],
+  apartment_blank: () => [makeListing(1, "mine", { category: "apartment", subtype: "apartment" })],
+  house_details: () => [
+    makeListing(1, "mine", { bedrooms: 4, bathrooms: 3, total_floors: 2, kitchens: 1, condition: "good", basement: true, covered_area_sqft: "2400.5000" }, 2),
+  ],
+  apartment_details: () => [
+    makeListing(
+      1,
+      "mine",
+      { category: "apartment", subtype: "apartment", bedrooms: 2, bathrooms: 2, floor_number: 5, building_floors: 12, lift: true, backup_electricity: false, furnishing: "semi_furnished", maintenance_charges: "2500.00" },
+      2,
+    ),
+  ],
+  house_zero: () => [makeListing(1, "mine", { bedrooms: 0, kitchens: 0, basement: false }, 2)],
+  // Stored values the form cannot represent: a float for an integer, a JSON number for a decimal, a text for a yes/no, a choice outside the
+  // registry, an unsafe integer, and a poisoned key.
+  house_odd: () => [
+    makeListing(1, "mine", { ...JSON.parse('{"__proto__": 7}'), bedrooms: 3.5, kitchens: 1e21, condition: "mint", basement: "maybe", covered_area_sqft: 1200.5 }, 2),
+  ],
+  // A Plot has none of the residential details: the Details section does not show at all.
+  plot_blank: () => [makeListing(1, "mine", { category: "plot", subtype: "residential_plot" })],
   rent: () => [makeListing(1, "mine", { purpose: "rent", category: "apartment", subtype: "apartment" })],
   rent_filled: () => [
     makeListing(
@@ -825,7 +975,7 @@ createServer((req, res) => {
   if (url.pathname === "/__listing-patch-mode") {
     return choose(
       "patchMode",
-      ["ok", "slow", "codes", "hidden", "area_codes", "area_hidden", "area_other_codes", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
+      ["ok", "slow", "codes", "hidden", "area_codes", "area_hidden", "area_other_codes", "detail_codes", "detail_floor", "detail_codes_slow", "detail_not_editable", "detail_not_applicable", "detail_hidden", "detail_unknown", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
       (v) => {
         patchMode = v;
         patchLostSpent = false;
@@ -838,13 +988,25 @@ createServer((req, res) => {
     const target = listings.find((item) => item.id === url.searchParams.get("id"));
     if (!target) return json(404, { error: "unknown listing" });
     for (const name of INPUT_FIELDS) {
-      if (url.searchParams.has(name)) target.fields[name] = url.searchParams.get(name) || null;
+      if (!url.searchParams.has(name)) continue;
+      const raw = url.searchParams.get(name);
+      const type = currentDef(name)?.type;
+      // A detail keeps its wire type: integers as numbers, yes/no as booleans, "" is not answered.
+      target.fields[name] = raw === "" ? null : !HAND_IDS.includes(name) && type === "integer" ? Number(raw) : !HAND_IDS.includes(name) && type === "boolean" ? raw === "true" : raw;
+    }
+    // Identity changes (a Subtype never changes in the real service; this simulates a registry or taxonomy change that hides details).
+    for (const name of ["purpose", "category", "subtype"]) if (url.searchParams.has(name)) target.fields[name] = url.searchParams.get(name);
+    for (const [name, raw] of url.searchParams) {
+      if (["id", "purpose", "category", "subtype"].includes(name) || INPUT_FIELDS.includes(name) || !isInput(name)) continue;
+      const type = currentDef(name).type;
+      target.fields[name] = raw === "" ? null : type === "integer" ? Number(raw) : type === "boolean" ? raw === "true" : raw;
     }
     settleArea(target.fields);
     target.revision += 1;
-    target.registryVersion = 3;
+    target.registryVersion = 4;
     return json(200, { revision: target.revision });
   }
+  if (url.pathname === "/__hand-ids") return json(200, { ids: HAND_IDS });
   if (url.pathname === "/__listing-patch-stats") {
     return json(200, { count: patchCount, bodies: patchBodies, tokens: patchTokens });
   }
@@ -921,7 +1083,7 @@ createServer((req, res) => {
     }
     const send = () => {
       res.writeHead(200, headers);
-      res.end(JSON.stringify({ version: 3, taxonomy, fields: REGISTRY_FIELDS[fieldsName] }));
+      res.end(JSON.stringify({ version: 4, taxonomy, fields: REGISTRY_FIELDS[fieldsName] }));
     };
     if (registryMode === "flaky_slow") return void setTimeout(send, 1500);
     return send();
@@ -1006,7 +1168,7 @@ createServer((req, res) => {
       else if (Object.keys(sent).length === 0) shape.fields = ["empty"];
       else {
         for (const key of Object.keys(sent)) {
-          if (INPUT_FIELDS.includes(key)) continue;
+          if (isInput(key)) continue;
           if (["purpose", "category", "subtype", "area_sqft"].includes(key)) shape[key] = ["not_editable"];
           else shape.non_field_errors = ["unknown_field"];
         }
@@ -1027,6 +1189,13 @@ createServer((req, res) => {
       if (patchMode === "unknown") return fail({ title: ["Some server sentence."], description: ["mystery_code"], asking_price: ["constructor"], role: ["constructor"], non_field_errors: ["Some other sentence."] });
       if (patchMode === "non_field") return fail({ non_field_errors: ["unknown_field"] });
       if (patchMode === "not_editable") return fail({ title: ["not_editable"] });
+      if (patchMode === "detail_codes") return fail({ bedrooms: ["invalid_range"], condition: ["invalid_choice"], lift: ["invalid"], covered_area_sqft: ["invalid_area"], maintenance_charges: ["invalid_price"], floor_number: ["invalid_floor"] });
+      if (patchMode === "detail_codes_slow") return void setTimeout(() => fail({ bedrooms: ["invalid_range"], floor_number: ["invalid_floor"] }), 600);
+      if (patchMode === "detail_not_editable") return fail({ bedrooms: ["not_editable"] });
+      if (patchMode === "detail_not_applicable") return fail({ lift: ["not_applicable"] });
+      if (patchMode === "detail_floor") return fail({ floor_number: ["invalid_floor"] });
+      if (patchMode === "detail_hidden") return fail({ kitchens: ["not_applicable"] });
+      if (patchMode === "detail_unknown") return fail({ bedrooms: ["constructor"], condition: ["Some server sentence."], lift: ["invalid_range", "invalid"], nonsense_field: ["invalid"] });
       if (patchMode === "empty_fields") return json(400, envelope("validation_error", "The request contains invalid values."));
       const defs = REGISTRY_FIELDS[fieldsName];
       const def = (id) => defs.find((entry) => entry.id === id);
@@ -1093,6 +1262,23 @@ createServer((req, res) => {
         } else if (key === "marla_basis") {
           if (typeof value === "string" && (rule?.allowed_values ?? []).includes(value)) next[key] = value;
           else problems[key] = ["invalid_choice"];
+        } else if (!rule) {
+          problems.non_field_errors = ["unknown_field"]; // a detail the current registry does not define
+        } else {
+          const result = checkDetail(rule, value, target.fields);
+          if (result.code) problems[key] = [result.code];
+          else next[key] = result.value;
+        }
+      }
+      // An apartment's floor cannot be above its building's floors, judged on the resulting state; the code is on the floor, and
+      // on the building too when it was sent.
+      const floorRule = currentDef("floor_number");
+      if (floorRule && applies(floorRule, target.fields) && !problems.floor_number && !problems.building_floors && (Object.hasOwn(next, "floor_number") || Object.hasOwn(next, "building_floors"))) {
+        const floor = Object.hasOwn(next, "floor_number") ? next.floor_number : (target.fields.floor_number ?? null);
+        const building = Object.hasOwn(next, "building_floors") ? next.building_floors : (target.fields.building_floors ?? null);
+        if (floor !== null && building !== null && floor > building) {
+          problems.floor_number = ["invalid_floor"];
+          if (Object.hasOwn(next, "building_floors")) problems.building_floors = ["invalid_floor"];
         }
       }
       // Cross-field, on the resulting state: a basis only while the unit is marla or kanal; a unit moved away clears a stored one.
@@ -1107,7 +1293,7 @@ createServer((req, res) => {
       const merged = { ...target.fields, ...next };
       const sqft = normalisedSqft(merged.area_value, merged.area_unit, merged.marla_basis);
       if (sqft !== merged.area_sqft) next.area_sqft = sqft;
-      const changed = Object.keys(next).filter((key) => target.fields[key] !== next[key]);
+      const changed = Object.keys(next).filter((key) => (target.fields[key] ?? null) !== next[key]);
       if (changed.length > 0) {
         for (const key of changed) {
           target.fields[key] = next[key];
@@ -1116,7 +1302,7 @@ createServer((req, res) => {
           else target.provenance[key] = { origin: "manual", confirmed: true };
         }
         target.revision += 1;
-        target.registryVersion = 3;
+        target.registryVersion = 4;
       }
       if (patchMode === "lost_once" && !patchLostSpent) {
         patchLostSpent = true;
