@@ -67,12 +67,37 @@ export const RENTAL_PERIOD_MESSAGES: Record<string, string> = {
   not_applicable: "A rental period applies only to rentals.",
   not_editable: NOT_EDITABLE,
 };
+export const AREA_VALUE_MESSAGES: Record<string, string> = {
+  required: "Enter an area.",
+  invalid: "Enter digits only, with an optional decimal point. Do not use commas, signs or units, for example 1200 or 10.5.",
+  invalid_area: "Enter an area above zero within the limits shown above, with no more decimal places than allowed.",
+  not_editable: NOT_EDITABLE,
+};
+export const AREA_UNIT_MESSAGES: Record<string, string> = {
+  required: "Choose a unit.",
+  invalid: "Choose a unit from the list.",
+  invalid_choice: "Choose a unit from the list.",
+  not_applicable: "An area unit does not apply to this listing.",
+  not_editable: NOT_EDITABLE,
+};
+export const MARLA_BASIS_MESSAGES: Record<string, string> = {
+  required: "Choose the marla size.",
+  invalid: "Choose a marla size from the list.",
+  invalid_choice: "Choose a marla size from the list.",
+  not_applicable: "A marla size applies only when the unit is marla or kanal.",
+  not_editable: NOT_EDITABLE,
+};
+export const MARLA_EXPLANATION =
+  "A marla is not the same size everywhere. Tell us how many square feet your marla is. If you leave it unknown you can still publish, but your listing will not appear when buyers filter by area and it will have no price estimate.";
 export const EDIT_FIELD_MESSAGES = {
   title: TITLE_MESSAGES,
   description: DESCRIPTION_MESSAGES,
   asking_price: PRICE_MESSAGES,
   price_basis: PRICE_BASIS_MESSAGES,
   rental_period: RENTAL_PERIOD_MESSAGES,
+  area_value: AREA_VALUE_MESSAGES,
+  area_unit: AREA_UNIT_MESSAGES,
+  marla_basis: MARLA_BASIS_MESSAGES,
 } as const;
 
 export const EDIT_FORBIDDEN = "Your account cannot edit listings right now.";
@@ -80,6 +105,7 @@ export const SAVED = "Saved";
 export const NO_CHANGES = "No changes to save.";
 export const CONFLICT_BANNER =
   "This draft was changed in another session. We loaded the latest version; your unsaved changes are still in the form. Review them and save again.";
+export const BASIS_DROPPED = "The marla size no longer applies because the unit changed in another session.";
 export const ALREADY_SAVED = "Your changes are already saved.";
 export const CHOICES_APPLIED = "Your choices are applied. Save to keep them.";
 export const LATEST_NOT_LOADED = "We could not load the latest version. Your changes are still in the form. Try saving again.";

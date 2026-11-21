@@ -32,10 +32,16 @@ export type FieldDef = {
   requirement: string;
   minLength: number | null;
   maxLength: number | null;
-  /** Money bounds and currency, as decimal text (never numbers). */
+  /** Money and decimal bounds and the money currency, as decimal text (never numbers). */
   min: string | null;
   max: string | null;
   currency: string | null;
+  /** The decimal places a decimal field allows (decimal fields only). */
+  scale: number | null;
+  /** A derived field is computed by the server and is never input (Story 2.3). */
+  derived: boolean;
+  /** The registry's short explanation of what a value means, when it documents one. */
+  description: string | null;
   allowedValues: string[];
   /** The values a purpose allows: the purpose's own list when the registry narrows it, else every allowed value. */
   valuesFor: (purpose: string | null) => string[];
@@ -46,9 +52,12 @@ export type FieldDef = {
 // Ids become element ids and option values: only simple tokens are accepted.
 const isToken = (value: unknown): value is string => typeof value === "string" && /^[a-z0-9_]+$/.test(value);
 const tokens = (value: unknown): string[] | null => (Array.isArray(value) ? [...new Set(value.filter(isToken))] : null);
+// An enum value is a token or a plain number written as text (the marla basis: "225", "272.25"); it stays text.
+const isChoice = (value: unknown): value is string => isToken(value) || (typeof value === "string" && /^\d{1,4}(\.\d{1,2})?$/.test(value));
+const choices = (value: unknown): string[] | null => (Array.isArray(value) ? [...new Set(value.filter(isChoice))] : null);
 
 const limit = (value: unknown): number | null => (typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null);
-const decimalText = (value: unknown): string | null => (typeof value === "string" && /^\d+(\.\d{1,2})?$/.test(value) ? value : null);
+const decimalText = (value: unknown): string | null => (typeof value === "string" && /^\d{1,16}(\.\d{1,8})?$/.test(value) ? value : null);
 const covers = (list: string[], value: string | null) => list.length === 0 || (value !== null && list.includes(value));
 
 /** Reads the field definitions; an entry that is not usable is skipped, and a missing or odd list is simply no definitions. */
@@ -60,11 +69,11 @@ function readFields(value: unknown): Map<string, FieldDef> {
     const raw = entry as Record<string, unknown>;
     const { id, type, requirement } = raw;
     if (!isToken(id) || fields.has(id) || typeof type !== "string") continue;
-    const allowed = tokens(raw.allowed_values) ?? [];
+    const allowed = choices(raw.allowed_values) ?? [];
     const narrowed = new Map<string, string[]>();
     if (typeof raw.allowed_values_by_purpose === "object" && raw.allowed_values_by_purpose !== null) {
       for (const [purpose, list] of Object.entries(raw.allowed_values_by_purpose)) {
-        const values = tokens(list);
+        const values = choices(list);
         if (isToken(purpose) && values) narrowed.set(purpose, values);
       }
     }
@@ -81,6 +90,9 @@ function readFields(value: unknown): Map<string, FieldDef> {
       min: decimalText(raw.min),
       max: decimalText(raw.max),
       currency: typeof raw.currency === "string" && /^[A-Z]{3}$/.test(raw.currency) ? raw.currency : null,
+      scale: typeof raw.scale === "number" && Number.isInteger(raw.scale) && raw.scale >= 1 && raw.scale <= 8 ? raw.scale : null,
+      derived: raw.derived === true,
+      description: typeof raw.description === "string" && raw.description.trim() ? raw.description : null,
       allowedValues: allowed,
       valuesFor: (purpose) => (purpose !== null && narrowed.has(purpose) ? (narrowed.get(purpose) ?? allowed) : allowed),
       appliesTo: (purpose, category, subtype) => covers(purposes, purpose) && covers(categories, category) && covers(subtypes, subtype),

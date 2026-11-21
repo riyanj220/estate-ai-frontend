@@ -617,6 +617,40 @@ Frontend half of Story 2.2. The contract is the backend's `docs/listings.md` (th
   tokens. Tests: `tests/e2e/listing-edit.spec.ts` (every row of the story's matrix; axe at desktop and mobile on the editor, over the
   limit, errors, conflict, saved and failure states).
 
+## Area and units (Story 2.3)
+
+Frontend half of Story 2.3, on the Story 2.2 editor (same form, one Save, same revision, `409` and typed-input rules). The contract is
+the backend's `docs/listings.md` ("Area and units") and `docs/registry.md` (version 3); the client was synced with `npm run api:sync`.
+
+- **The Area block** (`[id]/draft-editor.tsx`, after the price fields, a group titled "Area"): Area value (a text input,
+  `inputmode="decimal"`, digits and an optional decimal point; the text typed is sent trimmed and is never a JS number), Unit (a select
+  from the registry: Square feet, Square yards, Marla, Kanal, Acre) and Marla basis (a select shown only while the form's unit is marla or
+  kanal, with the first option "I don't know yet", meaning `null`, then "225 sq ft", "250 sq ft", "272.25 sq ft"). Its hint is the
+  explanation that a marla differs between places and what an unknown size means for filtering and estimates. The value hint, the unit
+  list and the basis list come from the registry definitions (`scale`, `min`, `max`, `allowed_values`; `derived` is honoured, a derived field gets no control; `description` is read but not shown, the explanation text is fixed), so
+  a stub registry with other bounds or options changes the form. The enum values of a registry may now be numbers written as text
+  (`"272.25"`); they stay text.
+- **Derived square feet** are read-only, below the block, from the saved Draft: "About 2,722.50 sq ft" when the server's `area_sqft` is not
+  null (grouped and padded to two decimals by string work in `formatSqft`; the server's own digits are kept), "Not available until the
+  marla size is known" for a saved marla or kanal with a value and no basis, nothing otherwise. It is never computed in the browser, never
+  sent, and it is the saved figure (it changes after a save). The Draft summary has an "Area" row ("10 Marla, 272.25 sq ft per marla").
+- **Sending**: only changed fields. Area text is compared by amount (`areaKey`: "10" and "10.0000" are the same, commas are not stripped
+  so "1,000" is a different text and the server refuses it). When the unit moves away from marla or kanal the basis control disappears, what
+  was typed for it is dropped (back to the saved value) and it is not sent; the server clears the stored basis and the answer shows `null`.
+  Moving between marla and kanal keeps the basis. A stored basis the registry no longer offers stays selected. Only text in the real shape is compared by amount (no leading zeros, decimals within the registry scale, at least four); padded or comma text is sent so the server refuses it, never taken for "no change".
+- **Errors**: `invalid` and `invalid_area` on the value, `invalid_choice` on the unit and the basis, `not_applicable` on the basis (when
+  its control is hidden the text goes to the form-level list, no link), `not_editable` and unknown codes as before. Conflict rows
+  (Keep mine / Use latest) cover the three fields with formatted latest values ("2,500.5", "Kanal", "225 sq ft"); the basis row follows the
+  unit the form will have. "Already saved" is unchanged. A row counts as open only while its control is shown: "Use latest" on a unit that needs no basis resets the typed basis to the latest one and drops its row, so the banner clears. If another session moved the unit away while the owner only edited the basis, the typed basis is reset and the banner adds that the marla size no longer applies. While area input is unsaved the derived line adds "(saved figure, updates after you save)".
+- **Playwright stub**: registry version 3 serves `area_value`, `area_unit`, `marla_basis` and the derived `area_sqft` (`scale`, `derived`,
+  `description` keys; `other` has other bounds, units and basis choices). PATCH validates like the real service: text only, the real
+  pattern (no commas or padding), `invalid` / `invalid_area`, bounds and scale from the registry, enum choices, `not_applicable` on a basis
+  for another unit, the basis cleared when the unit moves away, `area_sqft` rejected as `not_editable` and recomputed with BigInt math (sqft 1,
+  sqyd 9, acre 43,560, marla = basis, kanal = 20 x basis, half up to four decimals). New patch modes `area_codes` and `area_hidden`; presets
+  `area_marla`, `area_unknown`, `area_sqft`; `/__other-session` also takes `area_value`, `area_unit`, `marla_basis` (the derived figure and
+  the cleared basis follow). The stub's listing registry version is now 3. Tests are in `tests/e2e/listing-edit.spec.ts` (one or more
+  per row of the story's matrix, axe at desktop and mobile on the Area states).
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),

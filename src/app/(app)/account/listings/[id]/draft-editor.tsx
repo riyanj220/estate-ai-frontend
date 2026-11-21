@@ -7,13 +7,30 @@ import { Field } from "@/components/form-field";
 import { getApi } from "@/lib/api";
 import { withCsrf } from "@/lib/csrf";
 import { REJECTED_ERROR, SERVER_ERROR, readErrorBody, withTimeout } from "@/lib/forms";
-import { NOT_SET, formatPrice, label, normalizeText, plainLength, priceKey, readListing, type ListingView } from "@/lib/listing-labels";
+import {
+  NOT_SET,
+  areaKey,
+  areaSummary,
+  choiceLabel,
+  derivedText,
+  formatArea,
+  formatPrice,
+  isMarlaUnit,
+  label,
+  normalizeText,
+  plainLength,
+  priceKey,
+  readListing,
+  type ListingView,
+} from "@/lib/listing-labels";
 import {
   ALREADY_SAVED,
   CONFLICT_BANNER,
   EDIT_FIELD_MESSAGES,
   EDIT_FORBIDDEN,
+  BASIS_DROPPED,
   LATEST_NOT_LOADED,
+  MARLA_EXPLANATION,
   CHOICES_APPLIED,
   NO_CHANGES,
   SAVED,
@@ -24,14 +41,17 @@ import { useSession } from "@/lib/session";
 import { useFormFeedback } from "@/lib/use-form-feedback";
 import { useRegistry, type FieldDef, type Registry } from "@/lib/use-registry";
 
-type FieldName = "title" | "description" | "asking_price" | "price_basis" | "rental_period";
+type FieldName = "title" | "description" | "asking_price" | "price_basis" | "rental_period" | "area_value" | "area_unit" | "marla_basis";
 type Values = Record<FieldName, string>;
 type Fields = Record<string, string[]>;
 /** What the editor learns when it re-reads the Draft (the fallback of a conflict answer without usable data). */
 export type Latest = { kind: "found"; listing: ListingView } | { kind: "missing" } | { kind: "gone" } | { kind: "error" };
 
-const FIELD_ORDER: FieldName[] = ["title", "description", "asking_price", "price_basis", "rental_period"];
-const FIELD_LABELS: Record<string, string> = Object.fromEntries(FIELD_ORDER.map((name) => [name, label(name)]));
+const FIELD_ORDER: FieldName[] = ["title", "description", "asking_price", "price_basis", "rental_period", "area_value", "area_unit", "marla_basis"];
+const AREA_FIELDS: FieldName[] = ["area_value", "area_unit", "marla_basis"];
+const FIELD_LABELS: Record<string, string> = { ...Object.fromEntries(FIELD_ORDER.map((name) => [name, label(name)])), area_unit: "Unit" };
+/** What a screen reader hears in the conflict buttons: the unit control is visibly "Unit", its name stays unambiguous. */
+const ACTION_LABELS: Record<string, string> = { ...FIELD_LABELS, area_unit: "Area unit" };
 /** The registry type each editor control is built for: a field of another type gets no control. */
 const EXPECTED_TYPE: Record<FieldName, string> = {
   title: "text",
@@ -39,6 +59,9 @@ const EXPECTED_TYPE: Record<FieldName, string> = {
   asking_price: "money",
   price_basis: "enum",
   rental_period: "enum",
+  area_value: "decimal",
+  area_unit: "enum",
+  marla_basis: "enum",
 };
 
 const isFieldName = (key: string): key is FieldName => (FIELD_ORDER as string[]).includes(key);
@@ -48,11 +71,15 @@ const toValues = (listing: ListingView): Values => ({
   asking_price: listing.fields.asking_price ?? "",
   price_basis: listing.fields.price_basis ?? "",
   rental_period: listing.fields.rental_period ?? "",
+  area_value: listing.fields.area_value ?? "",
+  area_unit: listing.fields.area_unit ?? "",
+  marla_basis: listing.fields.marla_basis ?? "",
 });
 
 /** Two texts are the same value for one field: prices by amount (as text), free text as the server normalises it. */
-function same(name: FieldName, a: string, b: string): boolean {
+function sameText(name: FieldName, a: string, b: string, scale: number): boolean {
   if (name === "asking_price") return priceKey(a) === priceKey(b);
+  if (name === "area_value") return areaKey(a, scale) === areaKey(b, scale);
   if (name === "title" || name === "description") return normalizeText(a, name === "description") === normalizeText(b, name === "description");
   return a === b;
 }
@@ -60,11 +87,15 @@ function same(name: FieldName, a: string, b: string): boolean {
 /** A Listing the editor can build on: an integer revision is required, because every save is checked against it. */
 const hasRevision = (listing: ListingView | null): listing is ListingView & { revision: number } => listing !== null && Number.isInteger(listing.revision);
 
-/** The fields this Draft's form shows: those the registry defines with the expected type and that apply to the Draft. */
-function shownFields(registry: Registry, listing: ListingView): FieldName[] {
+/**
+ * The fields this Draft's form shows: those the registry defines with the expected type and that apply to the Draft. The marla
+ * basis also needs the unit the form currently has to be marla or kanal (a kanal is 20 marla); the server clears it otherwise.
+ */
+function shownFields(registry: Registry, listing: ListingView, unit: string): FieldName[] {
   return FIELD_ORDER.filter((name) => {
     const def = registry.field(name);
-    return def?.type === EXPECTED_TYPE[name] && def.appliesTo(listing.fields.purpose, listing.fields.category, listing.fields.subtype);
+    if (name === "marla_basis" && !isMarlaUnit(unit)) return false;
+    return def?.type === EXPECTED_TYPE[name] && !def.derived && def.appliesTo(listing.fields.purpose, listing.fields.category, listing.fields.subtype);
   });
 }
 
@@ -80,14 +111,20 @@ function hintFor(def: FieldDef): string {
     parts.push(`Amount in ${def.currency ?? "PKR"}`);
     if (def.min !== null && def.max !== null) parts.push(`Between ${def.min} and ${def.max}`);
   }
+  if (def.type === "decimal") {
+    if (def.scale !== null) parts.push(`Digits with an optional decimal point, up to ${def.scale} decimal places`);
+    if (def.min !== null && def.max !== null) parts.push(`Between ${def.min} and ${def.max}`);
+  }
   return parts.length > 0 ? `${parts.join(". ")}.` : "";
 }
 
 /** What "Latest saved" shows for one field. */
 function latestText(name: FieldName, value: string): string {
-  if (value === "") return NOT_SET;
+  if (value === "") return name === "marla_basis" ? "I don't know yet" : NOT_SET;
   if (name === "asking_price") return `PKR ${formatPrice(value)}`;
+  if (name === "area_value") return formatArea(value);
   if (name === "price_basis" || name === "rental_period") return label(value);
+  if (name === "area_unit" || name === "marla_basis") return choiceLabel(name, value);
   return value;
 }
 
@@ -119,6 +156,8 @@ export function DraftEditor({
 }) {
   const { account } = useSession();
   const { status, registry, retry, retrying } = useRegistry(signInPath);
+  const areaScale = registry?.field("area_value")?.scale ?? 4;
+  const same = (name: FieldName, a: string, b: string) => sameText(name, a, b, areaScale);
   const [listing, setListing] = useState(initial);
   const [values, setValues] = useState<Values>(() => toValues(initial));
   const [pending, setPending] = useState(false);
@@ -150,7 +189,7 @@ export function DraftEditor({
     setAlertTick((tick) => tick + 1);
   }
 
-  const shown = registry ? shownFields(registry, listing) : [];
+  const shown = registry ? shownFields(registry, listing, values.area_unit) : [];
   const baseline = toValues(listing);
   const dirty = shown.some((name) => !same(name, values[name], baseline[name]));
 
@@ -166,12 +205,19 @@ export function DraftEditor({
   }, [dirty]);
 
   function setValue(name: FieldName, value: string) {
-    setValues((current) => ({ ...current, [name]: value }));
+    // Moving the unit away from marla and kanal drops what was typed for the basis (it is hidden and never sent; the server clears it).
+    setValues((current) => ({
+      ...current,
+      [name]: value,
+      ...(name === "area_unit" && !isMarlaUnit(value) ? { marla_basis: baseline.marla_basis } : {}),
+    }));
     setInfo("");
     setFieldErrors((current) => {
-      if (!current[name]) return current;
+      const away = name === "area_unit" && !isMarlaUnit(value);
+      if (!current[name] && !(away && current.marla_basis)) return current;
       const next = { ...current };
       delete next[name];
+      if (away) delete next.marla_basis; // its control goes: no error text and no summary link to it
       return next;
     });
   }
@@ -203,28 +249,44 @@ export function DraftEditor({
     const before = toValues(listingRef.current);
     const typed = valuesRef.current;
     const fresh = toValues(latest);
-    const visible = shownFields(registry, latest);
+    // The basis row follows the unit the form will have: the owner's own when changed, else the latest one.
+    const unitTyped = !same("area_unit", typed.area_unit, before.area_unit);
+    const visible = shownFields(registry, latest, unitTyped ? typed.area_unit : fresh.area_unit);
     const ownerChanged = visible.filter((name) => !same(name, typed[name], before[name]));
     const differing = ownerChanged.filter((name) => !same(name, typed[name], fresh[name]));
     // "Already saved" only when nothing outside the owner's own changes moved on the server.
     const elsewhere = visible.some((name) => !ownerChanged.includes(name) && !same(name, before[name], fresh[name]));
+    // The owner changed only the basis while another session moved the unit away from marla and kanal: the basis no longer
+    // applies (the server cleared it), so the hidden typed basis is reset to the latest one and the banner says so.
+    const basisLost = !unitTyped && isMarlaUnit(before.area_unit) && !isMarlaUnit(fresh.area_unit) && !same("marla_basis", typed.marla_basis, before.marla_basis);
     setValues((current) => {
       const merged = { ...current };
       for (const name of FIELD_ORDER) if (!ownerChanged.includes(name) && same(name, current[name], before[name])) merged[name] = fresh[name];
+      if (basisLost) merged.marla_basis = fresh.marla_basis;
       return merged;
     });
     setListing(latest);
     setConflict({ fields: differing, kept: [] });
     setFieldErrors({});
     setFormErrors([]);
-    showAlert({ kind: "conflict", text: differing.length === 0 && !elsewhere ? ALREADY_SAVED : CONFLICT_BANNER });
+    showAlert({
+      kind: "conflict",
+      text: basisLost ? `${CONFLICT_BANNER} ${BASIS_DROPPED}` : differing.length === 0 && !elsewhere ? ALREADY_SAVED : CONFLICT_BANNER,
+    });
   }
 
   /** When the last open conflict row is resolved the banner goes and the choices are announced once in the live region. */
   function afterChoice(name: FieldName, resolved: Values) {
     if (!conflict) return;
     const latest = toValues(listingRef.current);
-    const open = conflict.fields.filter((other) => other !== name && !conflict.kept.includes(other) && !same(other, resolved[other], latest[other]));
+    // A row counts as open only while its control is shown under the unit the form has now.
+    const open = conflict.fields.filter(
+      (other) =>
+        other !== name &&
+        !conflict.kept.includes(other) &&
+        !(other === "marla_basis" && !isMarlaUnit(resolved.area_unit)) &&
+        !same(other, resolved[other], latest[other]),
+    );
     if (open.length > 0) return;
     setAlert(null);
     setInfo("");
@@ -241,9 +303,21 @@ export function DraftEditor({
 
   function takeLatest(name: FieldName) {
     if (submitting.current) return;
-    const latest = toValues(listingRef.current)[name];
-    setValues((current) => ({ ...current, [name]: latest }));
-    afterChoice(name, { ...valuesRef.current, [name]: latest });
+    const fresh = toValues(listingRef.current);
+    const latest = fresh[name];
+    // The latest unit does not need a basis: the typed one goes with its control, to the latest basis (the server cleared it).
+    const away = name === "area_unit" && !isMarlaUnit(latest);
+    const extra = away ? { marla_basis: fresh.marla_basis } : {};
+    setValues((current) => ({ ...current, [name]: latest, ...extra }));
+    if (away) {
+      setFieldErrors((current) => {
+        if (!current.marla_basis) return current;
+        const next = { ...current };
+        delete next.marla_basis;
+        return next;
+      });
+    }
+    afterChoice(name, { ...valuesRef.current, [name]: latest, ...extra });
     document.getElementById(name)?.focus();
   }
 
@@ -346,11 +420,16 @@ export function DraftEditor({
   }
 
   const price = listing.fields.asking_price === null ? NOT_SET : `PKR ${formatPrice(listing.fields.asking_price)}`;
+  const areaDirty = shown.some((name) => AREA_FIELDS.includes(name) && !same(name, values[name], baseline[name]));
+  const derivedBase = derivedText(listing.fields);
+  // The figure is the saved one: while area input is unsaved it must not read as describing that input.
+  const derived = derivedBase && areaDirty ? `${derivedBase} (saved figure, updates after you save)` : derivedBase;
   const hasErrors = formErrors.length > 0 || Object.keys(fieldErrors).length > 0;
   const showConflict = (name: FieldName) =>
     conflict !== null &&
     conflict.fields.includes(name) &&
     !conflict.kept.includes(name) &&
+    !(name === "marla_basis" && !isMarlaUnit(values.area_unit)) &&
     !same(name, values[name], baseline[name]);
 
   /** The "Latest saved" line with its two actions, shown under a field whose typed value differs from the latest one. */
@@ -364,10 +443,10 @@ export function DraftEditor({
         </p>
         <div className="conflict-actions">
           <button type="button" className="secondary-button" aria-disabled={busy} onClick={() => keepMine(name)}>
-            Keep mine<span className="sr-only"> for {FIELD_LABELS[name]}</span>
+            Keep mine<span className="sr-only"> for {ACTION_LABELS[name]}</span>
           </button>
           <button type="button" className="secondary-button" aria-disabled={busy} onClick={() => takeLatest(name)}>
-            Use latest<span className="sr-only"> for {FIELD_LABELS[name]}</span>
+            Use latest<span className="sr-only"> for {ACTION_LABELS[name]}</span>
           </button>
         </div>
       </div>
@@ -397,7 +476,7 @@ export function DraftEditor({
 
   function control(name: FieldName, def: FieldDef) {
     const errors = fieldErrors[name];
-    const common = { name, label: FIELD_LABELS[name], hint: hintFor(def) || undefined, errors };
+    const common = { name, label: FIELD_LABELS[name], hint: (name === "marla_basis" ? MARLA_EXPLANATION : hintFor(def)) || undefined, errors };
     if (name === "title") {
       return (
         <Field {...common}>
@@ -462,7 +541,26 @@ export function DraftEditor({
         </Field>
       );
     }
-    const key = name === "price_basis" ? "price_basis" : "rental_period";
+    if (name === "area_value") {
+      return (
+        <Field {...common}>
+          {(props) => (
+            <>
+              <input
+                {...props}
+                aria-describedby={describedBy(name, props["aria-describedby"], false)}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={values.area_value}
+                onChange={(e) => setValue("area_value", e.target.value)}
+              />
+              {conflictRow(name)}
+            </>
+          )}
+        </Field>
+      );
+    }
     return (
       <Field {...common}>
         {(props) => (
@@ -470,13 +568,13 @@ export function DraftEditor({
             <select
               {...props}
               aria-describedby={describedBy(name, props["aria-describedby"], false)}
-              value={values[key]}
-              onChange={(e) => setValue(key, e.target.value)}
+              value={values[name]}
+              onChange={(e) => setValue(name, e.target.value)}
             >
-              <option value="">{NOT_SET}</option>
+              <option value="">{name === "marla_basis" ? "I don't know yet" : NOT_SET}</option>
               {choices(name, def).map((choice) => (
                 <option key={choice} value={choice}>
-                  {label(choice)}
+                  {choiceLabel(name, choice)}
                 </option>
               ))}
             </select>
@@ -521,6 +619,10 @@ export function DraftEditor({
           <div>
             <dt>Asking price</dt>
             <dd data-testid="draft-price">{price}</dd>
+          </div>
+          <div>
+            <dt>Area</dt>
+            <dd data-testid="draft-area">{areaSummary(listing.fields)}</dd>
           </div>
         </dl>
       </section>
@@ -582,10 +684,30 @@ export function DraftEditor({
               </p>
             )}
             <form method="post" onSubmit={onSubmit} noValidate aria-busy={pending}>
-              {shown.map((name) => {
-                const def = registry.field(name);
-                return def ? <div key={name}>{control(name, def)}</div> : null;
-              })}
+              {shown
+                .filter((name) => !AREA_FIELDS.includes(name))
+                .map((name) => {
+                  const def = registry.field(name);
+                  return def ? <div key={name}>{control(name, def)}</div> : null;
+                })}
+              {shown.some((name) => AREA_FIELDS.includes(name)) && (
+                <div role="group" aria-labelledby="area-title" data-testid="area-block">
+                  <h3 id="area-title" className="section-title">
+                    Area
+                  </h3>
+                  {shown
+                    .filter((name) => AREA_FIELDS.includes(name))
+                    .map((name) => {
+                      const def = registry.field(name);
+                      return def ? <div key={name}>{control(name, def)}</div> : null;
+                    })}
+                  {derived && (
+                    <p className="hint" data-testid="area-derived">
+                      {derived}
+                    </p>
+                  )}
+                </div>
+              )}
               <button type="submit" className="primary-button" aria-disabled={pending ? true : undefined}>
                 {pending ? "Saving…" : "Save changes"}
               </button>

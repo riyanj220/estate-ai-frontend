@@ -27,6 +27,11 @@ export type ListingEditableValues = {
   asking_price: string | null;
   price_basis: string | null;
   rental_period: string | null;
+  /** Story 2.3: the area as decimal text, its unit, the marla basis (an enum text) and the server's derived square feet (decimal text). */
+  area_value: string | null;
+  area_unit: string | null;
+  marla_basis: string | null;
+  area_sqft: string | null;
 };
 
 /** A Listing as the pages read it, after defensive parsing (`status` is shown through `label`). */
@@ -39,6 +44,7 @@ export type ListingView = {
 };
 
 const text = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value : null);
+const decimalString = (value: unknown): string | null => (typeof value === "string" && /^\d+(\.\d+)?$/.test(value) ? value : null);
 const count = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
 /** Reads one Listing from a response body; null when it has no usable id. A missing or odd field is "unknown", never a crash. */
@@ -62,6 +68,11 @@ export function readListing(value: unknown): ListingView | null {
       asking_price: typeof known.asking_price === "string" && /^\d+(\.\d+)?$/.test(known.asking_price) ? known.asking_price : null,
       price_basis: text(known.price_basis),
       rental_period: text(known.rental_period),
+      // Areas are decimal strings too: never turned into numbers.
+      area_value: decimalString(known.area_value),
+      area_unit: text(known.area_unit),
+      marla_basis: text(known.marla_basis),
+      area_sqft: decimalString(known.area_sqft),
     },
   };
 }
@@ -109,4 +120,72 @@ export function plainLength(value: string, paragraphs: boolean): number {
 /** A canonical lowercase hyphenated UUID, the only id form the backend accepts; anything else is "not found" without a request. */
 export function isListingId(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id);
+}
+
+/** The units that need the marla basis: a kanal is 20 marla. Code-defined like the backend's rule, not a registry value. */
+export const MARLA_UNITS = ["marla", "kanal"];
+export const isMarlaUnit = (unit: string | null | undefined): boolean => typeof unit === "string" && MARLA_UNITS.includes(unit);
+
+const UNIT_LABELS: Record<string, string> = { sqft: "Square feet", sqyd: "Square yards", marla: "Marla", kanal: "Kanal", acre: "Acre" };
+
+/** The text of one choice of an enum field: the area units and the marla basis have their own wording, the rest derive from the id. */
+export function choiceLabel(field: string, value: string): string {
+  if (field === "area_unit") return Object.hasOwn(UNIT_LABELS, value) ? UNIT_LABELS[value] : label(value);
+  if (field === "marla_basis") return `${value} sq ft`;
+  return label(value);
+}
+
+/** The whole part grouped in threes, by string work only. */
+const group = (whole: string): string => whole.replace(/^0+(?=\d)/, "").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+/** "10.0000" to "10" and "5.2500" to "5.25": groups the whole part and drops trailing zeros of the decimals, never a number. */
+export function formatArea(value: string | null): string {
+  if (value === null) return NOT_SET;
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(value);
+  if (!match) return value;
+  const decimals = (match[2] ?? "").replace(/0+$/, "");
+  return group(match[1]) + (decimals ? `.${decimals}` : "");
+}
+
+/** "2722.5000" to "2,722.50": grouped, trailing zeros dropped but never fewer than two decimals, never a number. */
+export function formatSqft(value: string | null): string {
+  if (value === null) return NOT_SET;
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(value);
+  if (!match) return value;
+  const decimals = (match[2] ?? "").replace(/0+$/, "").padEnd(2, "0");
+  return `${group(match[1])}.${decimals}`;
+}
+
+/**
+ * A comparison key for area text, by string work only. Only text in the real shape (no leading zeros, at most ten whole digits,
+ * at most `max(scale, 4)` decimals, the registry's scale or the four the server stores) is compared by amount, so "10" and
+ * "10.0000" are the same; any other text (padded, comma, too many decimals) is its own trimmed plain text and is sent for the
+ * server to judge, never swallowed as "no change".
+ */
+export function areaKey(value: string, scale = 4): string {
+  const plain = value.trim();
+  const match = /^(0|[1-9]\d{0,9})(?:\.(\d+))?$/.exec(plain);
+  if (!match) return plain;
+  const decimals = match[2] ?? "";
+  if (decimals.length > Math.max(scale, 4)) return plain;
+  const kept = decimals.replace(/0+$/, "");
+  return kept ? `${match[1]}.${kept}` : match[1];
+}
+
+export const MARLA_UNKNOWN = "Not available until the marla size is known";
+
+/** The derived line under the Area block, from what is saved: null when there is nothing to say. */
+export function derivedText(fields: ListingEditableValues): string | null {
+  if (fields.area_sqft !== null) return `About ${formatSqft(fields.area_sqft)} sq ft`;
+  if (fields.area_value !== null && isMarlaUnit(fields.area_unit) && fields.marla_basis === null) return MARLA_UNKNOWN;
+  return null;
+}
+
+/** The Draft summary's area: "5 Marla", with the basis for a marla or kanal ("5 Marla, 225 sq ft per marla"). */
+export function areaSummary(fields: ListingEditableValues): string {
+  const { area_value: value, area_unit: unit, marla_basis: basis } = fields;
+  if (value === null && unit === null) return NOT_SET;
+  const unitText = unit === null ? null : choiceLabel("area_unit", unit);
+  const head = value !== null && unitText !== null ? `${formatArea(value)} ${unitText}` : value !== null ? `${formatArea(value)} (unit not set)` : `${unitText} (value not set)`;
+  return basis !== null && isMarlaUnit(unit) ? `${head}, ${basis} sq ft per marla` : head;
 }
