@@ -574,14 +574,18 @@ paths:
       description: 'Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing
         else (any other key, `origin` and `confirmed` included, is `validation_error`
         `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price`
-        (a decimal string in PKR, at most two decimals), `price_basis` and `rental_period`;
-        `null` clears a field. Saving never needs complete data. Every saved field
-        is recorded as `manual` and confirmed; the client never chooses provenance.
-        A `base_revision` that is not the current `revision` is `409 stale_revision`
+        (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`,
+        `area_value` (a decimal string, at most four decimals, above zero; never a
+        JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"`
+        square feet per marla, only while the unit is marla or kanal; changing the
+        unit away clears it); `null` clears a field. `area_sqft` is computed by the
+        server and is `not_editable` as input. Saving never needs complete data. Every
+        saved field is recorded as `manual` and confirmed; the client never chooses
+        provenance. A `base_revision` that is not the current `revision` is `409 stale_revision`
         with the current Listing under `current` and nothing written (a retried PATCH
         after it succeeded is also a 409: reload). An edit that changes nothing is
         `200` and keeps the revision. `400` carries codes keyed by registry field
-        id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_choice`,
+        id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_choice`,
         `not_applicable`, `contains_contact_details`, `not_editable`; unknown ids
         are `unknown_field` under `non_field_errors`) and never echoes a value. Another
         account''s, an unknown or a malformed id is `404 not_found`; an account that
@@ -2085,6 +2089,20 @@ components:
       - categories
       - purposes
       - subtypes
+    AreaUnitEnum:
+      enum:
+      - sqft
+      - sqyd
+      - marla
+      - kanal
+      - acre
+      type: string
+      description: |-
+        * `sqft` - sqft
+        * `sqyd` - sqyd
+        * `marla` - marla
+        * `kanal` - kanal
+        * `acre` - acre
     CapabilitiesEnum:
       enum:
       - sign_in
@@ -2495,10 +2513,34 @@ components:
           oneOf:
           - $ref: '#/components/schemas/RentalPeriodEnum'
           - $ref: '#/components/schemas/NullEnum'
+        area_value:
+          type: string
+          nullable: true
+          description: Decimal string with 4 decimals (`0.0001` to `9999999999.9999`),
+            digits and a point only.
+        area_unit:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/AreaUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        marla_basis:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/MarlaBasisEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        area_sqft:
+          type: string
+          nullable: true
+          description: Decimal string with 4 decimals (`0.0001` to `9999999999999999.9999`),
+            digits and a point only. Computed by the server; read-only.
       required:
+      - area_sqft
+      - area_unit
+      - area_value
       - asking_price
       - category
       - description
+      - marla_basis
       - price_basis
       - purpose
       - rental_period
@@ -2533,6 +2575,22 @@ components:
           nullable: true
           oneOf:
           - $ref: '#/components/schemas/RentalPeriodEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        area_value:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string with 4 decimals (`0.0001` to `9999999999.9999`),
+            digits and a point only.
+        area_unit:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/AreaUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        marla_basis:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/MarlaBasisEnum'
           - $ref: '#/components/schemas/NullEnum'
     ListingPage:
       type: object
@@ -2576,6 +2634,16 @@ components:
           minimum: 0
       required:
       - marked
+    MarlaBasisEnum:
+      enum:
+      - '225'
+      - '250'
+      - '272.25'
+      type: string
+      description: |-
+        * `225` - 225
+        * `250` - 250
+        * `272.25` - 272.25
     Notification:
       type: object
       properties:
@@ -2832,15 +2900,27 @@ components:
         min:
           type: string
           nullable: true
-          description: 'Money only: smallest amount, a decimal string.'
+          description: 'Money and decimal only: smallest value, a decimal string.'
         max:
           type: string
           nullable: true
-          description: 'Money only: largest amount, a decimal string.'
+          description: 'Money and decimal only: largest value, a decimal string.'
         currency:
           type: string
           nullable: true
           description: 'Money only: `PKR`.'
+        scale:
+          type: integer
+          nullable: true
+          description: 'Decimal only: the number of decimals stored and returned.'
+        derived:
+          type: boolean
+          description: Computed by the server from other fields; read-only, never
+            accepted as input.
+        description:
+          type: string
+          nullable: true
+          description: What the value means, for the form; null when not needed.
         class_:
           allOf:
           - $ref: '#/components/schemas/FieldClassEnum'
@@ -2862,6 +2942,8 @@ components:
       - applicability
       - class_
       - currency
+      - derived
+      - description
       - id
       - max
       - max_length
@@ -2869,6 +2951,7 @@ components:
       - min_length
       - quota_identity
       - requirement
+      - scale
       - searchable
       - sortable
       - type

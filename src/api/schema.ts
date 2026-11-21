@@ -183,7 +183,7 @@ export interface paths {
         head?: never;
         /**
          * Edit one of the signed-in account's own Listings
-         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis` and `rental_period`; `null` clears a field. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_choice`, `not_applicable`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_choice`, `not_applicable`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
          */
         patch: operations["update_listing"];
         trace?: never;
@@ -618,6 +618,15 @@ export interface components {
             subtypes: string[];
         };
         /**
+         * @description * `sqft` - sqft
+         *     * `sqyd` - sqyd
+         *     * `marla` - marla
+         *     * `kanal` - kanal
+         *     * `acre` - acre
+         * @enum {string}
+         */
+        AreaUnitEnum: "sqft" | "sqyd" | "marla" | "kanal" | "acre";
+        /**
          * @description * `sign_in` - sign_in
          *     * `browse` - browse
          *     * `view_drafts` - view_drafts
@@ -833,6 +842,12 @@ export interface components {
             asking_price: string | null;
             price_basis: (components["schemas"]["PriceBasisEnum"] | components["schemas"]["NullEnum"]) | null;
             rental_period: (components["schemas"]["RentalPeriodEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only. */
+            area_value: string | null;
+            area_unit: (components["schemas"]["AreaUnitEnum"] | components["schemas"]["NullEnum"]) | null;
+            marla_basis: (components["schemas"]["MarlaBasisEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with 4 decimals (`0.0001` to `9999999999999999.9999`), digits and a point only. Computed by the server; read-only. */
+            area_sqft: string | null;
         };
         /** @description The editable fields; the service judges every value (null clears a field). */
         ListingFieldsUpdateRequest: {
@@ -844,6 +859,10 @@ export interface components {
             asking_price?: string | null;
             price_basis?: (components["schemas"]["PriceBasisEnum"] | components["schemas"]["NullEnum"]) | null;
             rental_period?: (components["schemas"]["RentalPeriodEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only. */
+            area_value?: string | null;
+            area_unit?: (components["schemas"]["AreaUnitEnum"] | components["schemas"]["NullEnum"]) | null;
+            marla_basis?: (components["schemas"]["MarlaBasisEnum"] | components["schemas"]["NullEnum"]) | null;
         };
         ListingPage: {
             next: string | null;
@@ -863,6 +882,13 @@ export interface components {
         Marked: {
             marked: number;
         };
+        /**
+         * @description * `225` - 225
+         *     * `250` - 250
+         *     * `272.25` - 272.25
+         * @enum {string}
+         */
+        MarlaBasisEnum: "225" | "250" | "272.25";
         Notification: {
             /** Format: uuid */
             id: string;
@@ -992,12 +1018,18 @@ export interface components {
             min_length: number | null;
             /** @description Text only: maximum characters after normalisation. */
             max_length: number | null;
-            /** @description Money only: smallest amount, a decimal string. */
+            /** @description Money and decimal only: smallest value, a decimal string. */
             min: string | null;
-            /** @description Money only: largest amount, a decimal string. */
+            /** @description Money and decimal only: largest value, a decimal string. */
             max: string | null;
             /** @description Money only: `PKR`. */
             currency: string | null;
+            /** @description Decimal only: the number of decimals stored and returned. */
+            scale: number | null;
+            /** @description Computed by the server from other fields; read-only, never accepted as input. */
+            derived: boolean;
+            /** @description What the value means, for the form; null when not needed. */
+            description: string | null;
             /** Class */
             class_: components["schemas"]["FieldClassEnum"];
             searchable: boolean;
