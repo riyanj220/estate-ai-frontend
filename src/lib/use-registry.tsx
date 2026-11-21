@@ -18,6 +18,8 @@ export type Registry = {
   subtypesOf: (category: string) => string[];
   /** The definition of one Listing field (Story 2.2), or undefined when the registry does not define it. */
   field: (id: string) => FieldDef | undefined;
+  /** Every usable field definition, in the registry's own order (the Details section of the Draft editor is built from it). */
+  fieldList: () => FieldDef[];
 };
 
 /**
@@ -32,7 +34,7 @@ export type FieldDef = {
   requirement: string;
   minLength: number | null;
   maxLength: number | null;
-  /** Money and decimal bounds and the money currency, as decimal text (never numbers). */
+  /** Money, decimal and integer bounds and the money currency, as decimal text (never numbers; the server serves integer bounds as text too). */
   min: string | null;
   max: string | null;
   currency: string | null;
@@ -129,6 +131,7 @@ export function readRegistry(data: unknown): Registry | null {
     categories: [...subtypes.keys()],
     subtypesOf: (category) => subtypes.get(category) ?? [],
     field: (id) => fields.get(id),
+    fieldList: () => [...fields.values()],
   };
 }
 

@@ -7,6 +7,7 @@ import { Field } from "@/components/form-field";
 import { getApi } from "@/lib/api";
 import { withCsrf } from "@/lib/csrf";
 import { REJECTED_ERROR, SERVER_ERROR, readErrorBody, withTimeout } from "@/lib/forms";
+import { CROSS_FIELD_GROUPS, answeredDetails, detailLabel, latestDetail, sameDetail, sentDetail, shownDetails } from "@/lib/listing-details";
 import {
   NOT_SET,
   areaKey,
@@ -26,6 +27,8 @@ import {
 import {
   ALREADY_SAVED,
   CONFLICT_BANNER,
+  DETAIL_MESSAGES,
+  DETAILS_DROPPED,
   EDIT_FIELD_MESSAGES,
   EDIT_FORBIDDEN,
   BASIS_DROPPED,
@@ -40,9 +43,11 @@ import { failureMessage, thrownMessage } from "@/lib/request-errors";
 import { useSession } from "@/lib/session";
 import { useFormFeedback } from "@/lib/use-form-feedback";
 import { useRegistry, type FieldDef, type Registry } from "@/lib/use-registry";
+import { DetailsSection } from "./details-section";
 
 type FieldName = "title" | "description" | "asking_price" | "price_basis" | "rental_period" | "area_value" | "area_unit" | "marla_basis";
-type Values = Record<FieldName, string>;
+/** The form's text per control: the hand-built fields always, the registry details (keyed by id) only when answered; read them with `at`. */
+type Values = Record<string, string>;
 type Fields = Record<string, string[]>;
 /** What the editor learns when it re-reads the Draft (the fallback of a conflict answer without usable data). */
 export type Latest = { kind: "found"; listing: ListingView } | { kind: "missing" } | { kind: "gone" } | { kind: "error" };
@@ -52,6 +57,11 @@ const AREA_FIELDS: FieldName[] = ["area_value", "area_unit", "marla_basis"];
 const FIELD_LABELS: Record<string, string> = { ...Object.fromEntries(FIELD_ORDER.map((name) => [name, label(name)])), area_unit: "Unit" };
 /** What a screen reader hears in the conflict buttons: the unit control is visibly "Unit", its name stays unambiguous. */
 const ACTION_LABELS: Record<string, string> = { ...FIELD_LABELS, area_unit: "Area unit" };
+const labelOf = (name: string): string => (Object.hasOwn(FIELD_LABELS, name) ? FIELD_LABELS[name] : detailLabel(name));
+const actionLabelOf = (name: string): string => (Object.hasOwn(ACTION_LABELS, name) ? ACTION_LABELS[name] : detailLabel(name));
+/** A value of the form; a detail that was never answered or typed is empty text. */
+const at = (values: Values, name: string): string => (Object.hasOwn(values, name) ? values[name] : "");
+const keysOf = (...records: Values[]): string[] => [...new Set(records.flatMap((record) => Object.keys(record)))];
 /** The registry type each editor control is built for: a field of another type gets no control. */
 const EXPECTED_TYPE: Record<FieldName, string> = {
   title: "text",
@@ -66,6 +76,7 @@ const EXPECTED_TYPE: Record<FieldName, string> = {
 
 const isFieldName = (key: string): key is FieldName => (FIELD_ORDER as string[]).includes(key);
 const toValues = (listing: ListingView): Values => ({
+  ...listing.details,
   title: listing.fields.title ?? "",
   description: listing.fields.description ?? "",
   asking_price: listing.fields.asking_price ?? "",
@@ -128,11 +139,16 @@ function latestText(name: FieldName, value: string): string {
   return value;
 }
 
+/** The texts of the codes for a registry detail, by its type; a field the registry does not define has none (every code is generic). */
+function detailMessages(def: FieldDef | undefined): Record<string, string> {
+  return def && Object.hasOwn(DETAIL_MESSAGES, def.type) ? DETAIL_MESSAGES[def.type] : {};
+}
+
 /** The value the form sends for a changed field: trimmed, and null when emptied. Money stays the text that was typed. */
 const sentValue = (value: string): string | null => value.trim() || null;
 
 type Alert = { kind: "conflict" | "notice"; text: string };
-type Conflict = { fields: FieldName[]; kept: FieldName[] };
+type Conflict = { fields: string[]; kept: string[] };
 
 /**
  * The Draft page: the read-only summary and the editor for the fields introduced so far, built from the registry. Saving is
@@ -157,7 +173,11 @@ export function DraftEditor({
   const { account } = useSession();
   const { status, registry, retry, retrying } = useRegistry(signInPath);
   const areaScale = registry?.field("area_value")?.scale ?? 4;
-  const same = (name: FieldName, a: string, b: string) => sameText(name, a, b, areaScale);
+  const same = (name: string, a: string, b: string) => {
+    if (isFieldName(name)) return sameText(name, a, b, areaScale);
+    const def = registry?.field(name);
+    return def ? sameDetail(def, a, b) : a === b;
+  };
   const [listing, setListing] = useState(initial);
   const [values, setValues] = useState<Values>(() => toValues(initial));
   const [pending, setPending] = useState(false);
@@ -167,6 +187,8 @@ export function DraftEditor({
   const [alert, setAlert] = useState<Alert | null>(null);
   const [alertTick, setAlertTick] = useState(0);
   const [conflict, setConflict] = useState<Conflict | null>(null);
+  // The fields a problem between two fields (the floor rule) is shown under: editing either clears them all.
+  const [linked, setLinked] = useState<string[]>([]);
   const { announcement, setAnnouncement, resetAnnouncement, announce, focusSummary, summaryRef } = useFormFeedback();
   const alertRef = useRef<HTMLParagraphElement>(null);
   const submitting = useRef(false);
@@ -190,8 +212,11 @@ export function DraftEditor({
   }
 
   const shown = registry ? shownFields(registry, listing, values.area_unit) : [];
+  const detailDefs = registry ? shownDetails(registry, listing) : [];
+  const detailIds = detailDefs.map((def) => def.id);
+  const controls: string[] = [...shown, ...detailIds];
   const baseline = toValues(listing);
-  const dirty = shown.some((name) => !same(name, values[name], baseline[name]));
+  const dirty = controls.some((name) => !same(name, at(values, name), at(baseline, name)));
 
   // An unsaved-changes guard on leaving the page. In-app links are not intercepted; nothing is stored.
   useEffect(() => {
@@ -204,7 +229,7 @@ export function DraftEditor({
     return () => window.removeEventListener("beforeunload", guard);
   }, [dirty]);
 
-  function setValue(name: FieldName, value: string) {
+  function setValue(name: string, value: string) {
     // Moving the unit away from marla and kanal drops what was typed for the basis (it is hidden and never sent; the server clears it).
     setValues((current) => ({
       ...current,
@@ -212,11 +237,30 @@ export function DraftEditor({
       ...(name === "area_unit" && !isMarlaUnit(value) ? { marla_basis: baseline.marla_basis } : {}),
     }));
     setInfo("");
+    // The last open conflict row hidden by typing the latest value by hand ends the banner, like resolving it with a button.
+    if (conflict && conflict.fields.length > 0 && alert?.kind === "conflict") {
+      const latest = toValues(listingRef.current);
+      const open = (shownValues: Values) =>
+        conflict.fields.some(
+          (other) =>
+            !conflict.kept.includes(other) &&
+            !(other === "marla_basis" && !isMarlaUnit(shownValues.area_unit)) &&
+            !same(other, at(shownValues, other), at(latest, other)),
+        );
+      if (open(valuesRef.current) && !open({ ...valuesRef.current, [name]: value })) {
+        setAlert(null);
+        resetAnnouncement();
+        setAnnouncement(CHOICES_APPLIED);
+      }
+    }
+    const together = linked.includes(name) ? linked : []; // a problem between fields goes when one of its fields is edited
+    if (together.length > 0) setLinked([]);
     setFieldErrors((current) => {
       const away = name === "area_unit" && !isMarlaUnit(value);
-      if (!current[name] && !(away && current.marla_basis)) return current;
+      if (!current[name] && !(away && current.marla_basis) && !together.some((other) => current[other])) return current;
       const next = { ...current };
       delete next[name];
+      for (const other of together) delete next[other]; // a floor problem belongs to both floor fields
       if (away) delete next.marla_basis; // its control goes: no error text and no summary link to it
       return next;
     });
@@ -228,9 +272,10 @@ export function DraftEditor({
     setListing(next);
     setValues((current) => {
       const merged = { ...current };
-      for (const name of FIELD_ORDER) if (current[name] === submitted[name]) merged[name] = fresh[name];
+      for (const name of keysOf(current, submitted, fresh)) if (at(current, name) === at(submitted, name)) merged[name] = at(fresh, name);
       return merged;
     });
+    setLinked([]);
     setConflict(null);
     setAlert(null);
     setFieldErrors({});
@@ -251,32 +296,46 @@ export function DraftEditor({
     const fresh = toValues(latest);
     // The basis row follows the unit the form will have: the owner's own when changed, else the latest one.
     const unitTyped = !same("area_unit", typed.area_unit, before.area_unit);
-    const visible = shownFields(registry, latest, unitTyped ? typed.area_unit : fresh.area_unit);
-    const ownerChanged = visible.filter((name) => !same(name, typed[name], before[name]));
-    const differing = ownerChanged.filter((name) => !same(name, typed[name], fresh[name]));
+    const visible: string[] = [...shownFields(registry, latest, unitTyped ? typed.area_unit : fresh.area_unit), ...shownDetails(registry, latest).map((def) => def.id)];
+    const ownerChanged = visible.filter((name) => !same(name, at(typed, name), at(before, name)));
+    const differing = ownerChanged.filter((name) => !same(name, at(typed, name), at(fresh, name)));
     // "Already saved" only when nothing outside the owner's own changes moved on the server.
-    const elsewhere = visible.some((name) => !ownerChanged.includes(name) && !same(name, before[name], fresh[name]));
+    const elsewhere = visible.some((name) => !ownerChanged.includes(name) && !same(name, at(before, name), at(fresh, name)));
     // The owner changed only the basis while another session moved the unit away from marla and kanal: the basis no longer
     // applies (the server cleared it), so the hidden typed basis is reset to the latest one and the banner says so.
+    // Details the owner changed that no longer apply to the Draft as it is now (the latest data hides them): the typed value is reset.
+    const shownBefore = shownDetails(registry, listingRef.current).map((def) => def.id);
+    const latestIds = visible;
+    const detailsLost = shownBefore.filter((name) => !latestIds.includes(name) && !same(name, at(typed, name), at(before, name)));
     const basisLost = !unitTyped && isMarlaUnit(before.area_unit) && !isMarlaUnit(fresh.area_unit) && !same("marla_basis", typed.marla_basis, before.marla_basis);
     setValues((current) => {
       const merged = { ...current };
-      for (const name of FIELD_ORDER) if (!ownerChanged.includes(name) && same(name, current[name], before[name])) merged[name] = fresh[name];
+      for (const name of keysOf(current, before, fresh)) {
+        if (!ownerChanged.includes(name) && same(name, at(current, name), at(before, name))) merged[name] = at(fresh, name);
+      }
       if (basisLost) merged.marla_basis = fresh.marla_basis;
+      for (const name of detailsLost) merged[name] = at(fresh, name);
       return merged;
     });
     setListing(latest);
     setConflict({ fields: differing, kept: [] });
+    setLinked([]);
     setFieldErrors({});
     setFormErrors([]);
     showAlert({
       kind: "conflict",
-      text: basisLost ? `${CONFLICT_BANNER} ${BASIS_DROPPED}` : differing.length === 0 && !elsewhere ? ALREADY_SAVED : CONFLICT_BANNER,
+      text: [
+        differing.length === 0 && !elsewhere && !basisLost && detailsLost.length === 0 ? ALREADY_SAVED : CONFLICT_BANNER,
+        basisLost ? BASIS_DROPPED : null,
+        detailsLost.length > 0 ? DETAILS_DROPPED : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
     });
   }
 
   /** When the last open conflict row is resolved the banner goes and the choices are announced once in the live region. */
-  function afterChoice(name: FieldName, resolved: Values) {
+  function afterChoice(name: string, resolved: Values) {
     if (!conflict) return;
     const latest = toValues(listingRef.current);
     // A row counts as open only while its control is shown under the unit the form has now.
@@ -285,7 +344,7 @@ export function DraftEditor({
         other !== name &&
         !conflict.kept.includes(other) &&
         !(other === "marla_basis" && !isMarlaUnit(resolved.area_unit)) &&
-        !same(other, resolved[other], latest[other]),
+        !same(other, at(resolved, other), at(latest, other)),
     );
     if (open.length > 0) return;
     setAlert(null);
@@ -294,20 +353,30 @@ export function DraftEditor({
     setAnnouncement(CHOICES_APPLIED);
   }
 
-  function keepMine(name: FieldName) {
+  function keepMine(name: string) {
     if (submitting.current) return;
     setConflict((current) => (current ? { ...current, kept: [...current.kept, name] } : current));
     afterChoice(name, valuesRef.current);
     document.getElementById(name)?.focus();
   }
 
-  function takeLatest(name: FieldName) {
+  function takeLatest(name: string) {
     if (submitting.current) return;
     const fresh = toValues(listingRef.current);
-    const latest = fresh[name];
+    const latest = at(fresh, name);
+    const together = linked.includes(name) ? linked : [];
+    if (together.length > 0) setLinked([]);
+    // The field's own error and the problem between fields it belongs to are about the typed value, which is replaced.
+    setFieldErrors((current) => {
+      if (![name, ...together].some((key) => current[key])) return current;
+      const next = { ...current };
+      delete next[name];
+      for (const other of together) delete next[other];
+      return next;
+    });
     // The latest unit does not need a basis: the typed one goes with its control, to the latest basis (the server cleared it).
     const away = name === "area_unit" && !isMarlaUnit(latest);
-    const extra = away ? { marla_basis: fresh.marla_basis } : {};
+    const extra: Values = away ? { marla_basis: fresh.marla_basis } : {};
     setValues((current) => ({ ...current, [name]: latest, ...extra }));
     if (away) {
       setFieldErrors((current) => {
@@ -326,8 +395,9 @@ export function DraftEditor({
     if (submitting.current || !registry) return;
     setInfo("");
     setAlert(null);
-    const fields: Record<string, string | null> = {};
+    const fields: Record<string, string | number | boolean | null> = {};
     for (const name of shown) if (!same(name, values[name], baseline[name])) fields[name] = sentValue(values[name]);
+    for (const def of detailDefs) if (!same(def.id, at(values, def.id), at(baseline, def.id))) fields[def.id] = sentDetail(def, at(values, def.id));
     if (Object.keys(fields).length === 0) {
       resetAnnouncement();
       setFieldErrors({});
@@ -387,18 +457,39 @@ export function DraftEditor({
       if (parsed) {
         const mapped: Fields = {};
         const general: string[] = [];
+        const together: string[] = [];
         for (const [key, codes] of Object.entries(parsed.fields)) {
           if (codes.length === 0) continue;
           // Known codes only: any other sentence, code or key is generic, never the server's text. A field with no
           // control on this form goes to the form-level list, so the summary never points at a hidden control.
           if (isFieldName(key) && shown.includes(key)) mapped[key] = mapKnownCodes(codes, EDIT_FIELD_MESSAGES[key]);
           else if (isFieldName(key)) general.push(...mapKnownCodes(codes, EDIT_FIELD_MESSAGES[key], REJECTED_ERROR));
-          else general.push(...mapKnownCodes(codes, {}, REJECTED_ERROR));
+          else if (detailIds.includes(key)) {
+            mapped[key] = mapKnownCodes(codes, detailMessages(registry.field(key)));
+            for (const code of codes) if (Object.hasOwn(CROSS_FIELD_GROUPS, code)) together.push(...CROSS_FIELD_GROUPS[code]);
+          } else general.push(...mapKnownCodes(codes, detailMessages(registry.field(key)), REJECTED_ERROR));
+        }
+        // What was typed after the request went out is not what was judged: its errors (and a problem between fields that
+        // touches it) are dropped, so no text points at a value the server never saw.
+        const typedNow = valuesRef.current;
+        const stale = (key: string) => at(typedNow, key) !== at(submitted, key);
+        const groupStale = together.some(stale);
+        for (const key of Object.keys(mapped)) if (stale(key) || (groupStale && together.includes(key))) delete mapped[key];
+        const linkedNow = groupStale ? [] : [...new Set(together)]; // every field of the group, so editing the one without the error clears it too
+        const sentKeys = Object.keys(parsed.fields).filter((key) => (parsed.fields[key] ?? []).length > 0);
+        const nothingLeft = Object.keys(mapped).length === 0 && general.length === 0 && sentKeys.length > 0 && sentKeys.every((key) => controls.includes(key));
+        if (nothingLeft) {
+          resetAnnouncement();
+          setFieldErrors({});
+          setFormErrors([]);
+          setLinked([]);
+          return;
         }
         if (Object.keys(mapped).length === 0 && general.length === 0) general.push(REJECTED_ERROR);
         general.splice(0, general.length, ...new Set(general));
         resetAnnouncement();
         setFieldErrors(mapped);
+        setLinked(linkedNow);
         setFormErrors(general);
         focusSummary();
         announce("The form has errors. Review the list at the top of the page.");
@@ -420,33 +511,40 @@ export function DraftEditor({
   }
 
   const price = listing.fields.asking_price === null ? NOT_SET : `PKR ${formatPrice(listing.fields.asking_price)}`;
+  const detailSummary = registry ? answeredDetails(detailDefs, listing) : [];
   const areaDirty = shown.some((name) => AREA_FIELDS.includes(name) && !same(name, values[name], baseline[name]));
   const derivedBase = derivedText(listing.fields);
   // The figure is the saved one: while area input is unsaved it must not read as describing that input.
   const derived = derivedBase && areaDirty ? `${derivedBase} (saved figure, updates after you save)` : derivedBase;
   const hasErrors = formErrors.length > 0 || Object.keys(fieldErrors).length > 0;
-  const showConflict = (name: FieldName) =>
+  const showConflict = (name: string) =>
     conflict !== null &&
     conflict.fields.includes(name) &&
     !conflict.kept.includes(name) &&
     !(name === "marla_basis" && !isMarlaUnit(values.area_unit)) &&
-    !same(name, values[name], baseline[name]);
+    !same(name, at(values, name), at(baseline, name));
+
+  function latestOf(name: string): string {
+    if (isFieldName(name)) return latestText(name, baseline[name]);
+    const def = registry?.field(name);
+    return def ? latestDetail(def, at(baseline, name)) : at(baseline, name) || NOT_SET;
+  }
 
   /** The "Latest saved" line with its two actions, shown under a field whose typed value differs from the latest one. */
-  function conflictRow(name: FieldName) {
+  function conflictRow(name: string) {
     if (!showConflict(name)) return null;
     const busy = pending ? true : undefined;
     return (
       <div className="conflict-row" data-testid={`conflict-${name}`}>
         <p id={`${name}-latest`} className="hint">
-          Latest saved: <span className="latest-value">{latestText(name, baseline[name])}</span>
+          Latest saved: <span className="latest-value">{latestOf(name)}</span>
         </p>
         <div className="conflict-actions">
           <button type="button" className="secondary-button" aria-disabled={busy} onClick={() => keepMine(name)}>
-            Keep mine<span className="sr-only"> for {ACTION_LABELS[name]}</span>
+            Keep mine<span className="sr-only"> for {actionLabelOf(name)}</span>
           </button>
           <button type="button" className="secondary-button" aria-disabled={busy} onClick={() => takeLatest(name)}>
-            Use latest<span className="sr-only"> for {ACTION_LABELS[name]}</span>
+            Use latest<span className="sr-only"> for {actionLabelOf(name)}</span>
           </button>
         </div>
       </div>
@@ -624,6 +722,12 @@ export function DraftEditor({
             <dt>Area</dt>
             <dd data-testid="draft-area">{areaSummary(listing.fields)}</dd>
           </div>
+          {detailSummary.map((item) => (
+            <div key={item.id}>
+              <dt>{item.label}</dt>
+              <dd data-testid={`draft-detail-${item.id}`}>{item.text}</dd>
+            </div>
+          ))}
         </dl>
       </section>
       <section className="card" aria-labelledby="draft-edit-title" style={{ marginBottom: "var(--space)" }}>
@@ -646,12 +750,12 @@ export function DraftEditor({
             </button>
           </div>
         )}
-        {registry && shown.length === 0 && (
+        {registry && controls.length === 0 && (
           <p className="muted" data-testid="draft-nothing-editable">
             Nothing on this draft can be edited right now.
           </p>
         )}
-        {registry && shown.length > 0 && (
+        {registry && controls.length > 0 && (
           <>
             {/* The one live region of this form: the visible "Saved" or "No changes" text, else the busy and error announcements (an open alert announces itself). */}
             <p
@@ -665,8 +769,8 @@ export function DraftEditor({
             {hasErrors && (
               <ErrorSummary
                 ref={summaryRef}
-                order={shown}
-                labels={FIELD_LABELS}
+                order={controls}
+                labels={Object.fromEntries(controls.map((name) => [name, labelOf(name)]))}
                 fieldErrors={fieldErrors}
                 formErrors={formErrors}
                 titleId="edit-error-summary-title"
@@ -708,6 +812,16 @@ export function DraftEditor({
                   )}
                 </div>
               )}
+              <DetailsSection
+                fields={detailDefs}
+                values={values}
+                saved={baseline}
+                errors={fieldErrors}
+                purpose={purpose}
+                onChange={setValue}
+                conflictRow={conflictRow}
+                inConflict={showConflict}
+              />
               <button type="submit" className="primary-button" aria-disabled={pending ? true : undefined}>
                 {pending ? "Saving…" : "Save changes"}
               </button>

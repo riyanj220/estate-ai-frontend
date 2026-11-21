@@ -651,6 +651,58 @@ the backend's `docs/listings.md` ("Area and units") and `docs/registry.md` (vers
   the cleared basis follow). The stub's listing registry version is now 3. Tests are in `tests/e2e/listing-edit.spec.ts` (one or more
   per row of the story's matrix, axe at desktop and mobile on the Area states).
 
+## Details: House and Apartment (Story 2.4)
+
+Frontend half of Story 2.4, on the same editor (one Save, changed fields only, the same revision, `409` and typed-input rules). The contract is
+the backend's `docs/listings.md` and `docs/registry.md` (version 4: the new types `integer` and `boolean`, 30 residential fields with
+applicability by Subtype; integer bounds are served as text, "0" and "50").
+
+- **A generic registry-driven section**: `[id]/details-section.tsx` renders every registry field that applies to the Draft's purpose,
+  Category and Subtype and is not hand-built (not title, description, the price fields, the area fields or identity, never a derived field),
+  in registry order, grouped by requirement in fieldsets with legends: "Required before you publish", "Recommended", "More details" (an
+  empty group is not shown; a Plot has no applicable detail, so no section). The pure rules live in `src/lib/listing-details.ts`: the label
+  map (`DETAIL_LABELS` by registry id, fallback the humanised id), the hint from the registry (its description, then "Whole number from 0 to 50.",
+  the decimal and money limits; the requirement is the group's, not repeated), the comparison, the value sent and the "Latest saved" text.
+  **Adding a registry field (Stories 2.5 and 2.6) needs only a label entry (and not even that: without one its label is the humanised id)**; its
+  control, hint, group, saving, errors and conflict row follow from the definition. A type the section has no control for (text, an unknown
+  type) gets none. The id is the control's element id and the `data-testid` of its conflict row (`conflict-<id>`); the Draft summary lists
+  the answered details (`draft-detail-<id>`) and nothing unanswered.
+- **Controls by type**: `integer` a text input with `inputmode="numeric"`; `boolean` a select "Not answered / Yes / No" (null, true,
+  false); `enum` a select with "Not answered" first, then the registry's choices (a stored value it no longer offers stays shown);
+  `decimal` and `money` text inputs with the 2.2 and 2.3 string rules (the money control has the currency prefix). Unknown is only ever
+  "Not answered"; zero and No are answers and are shown as such. A control never starts as 0 or false.
+- **Sending**: an untouched field is never sent. Comparison is normalised (integers trimmed, decimals by amount with the registry's scale,
+  money by amount, choices exactly). Emptied or "Not answered" is `null`. An integer is sent as a JSON integer only when its trimmed text
+  matches `^(0|[1-9]\d{0,8})$` (ASCII digits, no leading zero, up to nine so `Number` is exact); the server then judges the range
+  ("99999" is `invalid_range`). Any other text ("007", "05", "-1", "1.5", "5.0", "1e2", "abc") is sent as typed for the server to refuse as
+  `invalid`, and `Number()` never sees arbitrary text. Money text is compared at the registry's scale (padding), and text with a leading zero
+  is a change that is sent, never silently "no change". Yes and No are `true` and `false`. Decimals and money stay text.
+- **Errors**: `invalid`, `invalid_range`, `invalid_floor`, `invalid_area`, `invalid_price`, `invalid_choice`, `not_applicable` and
+  `not_editable` have texts by registry type (`DETAIL_MESSAGES` in `listing-messages.ts`); an unknown code or a sentence is the generic text.
+  `invalid_floor` can arrive under a field the owner did not edit (the other floor field): it shows under that control, with a link in the
+  summary. A problem between fields (`CROSS_FIELD_GROUPS`: `invalid_floor` belongs to both floor fields) is cleared when one of its fields is
+  edited or takes "Use latest". An answer to a save is judged against what was submitted: a field retyped while the save was in flight
+  loses its error (and so does a group it belongs to), so no text points at a value the server never saw. The range, decimal and money
+  messages do not claim limits "shown above" (a registry may state one bound or none; the hint then says "At least 1."). A code for a detail with no control goes to the form-level list, with no link.
+  A conflict banner now also clears when the last open row is hidden by typing the latest value by hand. When another session makes a
+  detail the owner changed inapplicable, the typed value is reset to the latest and the banner adds "Some details no longer apply".
+- **Values the form cannot show as numbers** (a float or unsafe integer, a decimal or money sent as a JSON number) keep their text in the control
+  and the summary (`String(value)`); saving them unchanged sends nothing. A yes/no that is neither true nor false and an enum value the
+  registry no longer offers stay selectable (marked "(stored value)" / "(no longer offered)") for as long as they are the saved value, so
+  they can be restored. A key such as `__proto__` is ignored.
+- **Conflicts** cover every detail with formatted latest values: a number as is, "Yes" / "No", the choice's label, a decimal grouped without
+  trailing zeros ("3,000.1"), money as "PKR 3,000.00", "Not answered" for an answer cleared elsewhere. Typed input, bfcache, the privacy
+  rules (nothing in storage, console, title or address bar) and `aria-disabled` saving are the Story 2.2 behaviour.
+- **Playwright stub**: registry version 4 serves the 30 fields as the backend defines them; `other` has other limits, requirements and
+  choices for a few, and `extra` adds fields no label knows plus a text and an unknown-type field (a registry-driven test). PATCH
+  validates like the real service: integers only as JSON integers (strings, floats and booleans are `invalid`), booleans only as booleans,
+  bounds and choices from the registry, decimal and money text rules, `not_applicable` by Subtype, null a harmless no-op, the floor rule on
+  the resulting state (the code on the floor, and on the building when it was sent). New patch modes `detail_codes`, `detail_floor`,
+  `detail_hidden`, `detail_unknown`, `detail_not_editable`, `detail_not_applicable`, `detail_codes_slow` (a held 400); presets `house_blank`, `apartment_blank`, `house_details`, `apartment_details`, `house_zero`,
+  `plot_blank`, `house_odd` (values the form cannot represent); `/__other-session` also takes the detail ids (integers and booleans keep their wire type). The stub's listing registry
+  version is now 4. Tests are in `tests/e2e/listing-edit.spec.ts` ("details" tests, one or more per row of the story's matrix, axe at
+  desktop and mobile on the Details states).
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),

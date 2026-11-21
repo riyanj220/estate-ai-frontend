@@ -41,11 +41,38 @@ export type ListingView = {
   revision: number | null;
   registryVersion: number | null;
   fields: ListingFieldValues & ListingEditableValues;
+  /**
+   * The registry details of the Listing beyond the hand-built fields (Story 2.4 on), as form text keyed by registry id: an integer
+   * as its digits, a yes/no answer as "true" or "false", everything else as the text the server sent. A detail that is not
+   * answered (null) is absent. Whether an id has a control is the registry's decision, never this list's.
+   */
+  details: Record<string, string>;
 };
 
 const text = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value : null);
 const decimalString = (value: unknown): string | null => (typeof value === "string" && /^\d+(\.\d+)?$/.test(value) ? value : null);
 const count = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
+
+/** The keys of `fields` the editor builds by hand (and the listing-details and stub lists must agree with: a test checks it). */
+export const HAND_BUILT_KEYS = new Set(["purpose", "category", "subtype", "title", "description", "asking_price", "price_basis", "rental_period", "area_value", "area_unit", "marla_basis", "area_sqft"]);
+
+/**
+ * The answered details of a Listing as text (see `ListingView.details`). A key is kept only when it is a plain registry token and
+ * not an Object prototype name; a value is kept as the text of a finite JSON number, a boolean or a non-empty string. An object, an
+ * array or a null is "not answered".
+ */
+function readDetails(known: Record<string, unknown>): Record<string, string> {
+  const details: Record<string, string> = {};
+  for (const [key, value] of Object.entries(known)) {
+    if (HAND_BUILT_KEYS.has(key) || !/^[a-z0-9_]+$/.test(key) || key in Object.prototype) continue;
+    // A JSON number the form cannot call an integer (a float, an unsafe one, a decimal or money sent as a number) keeps its text, so
+    // the control shows what the server holds and the summary agrees; saving it unchanged sends nothing.
+    if (typeof value === "number" && Number.isFinite(value)) details[key] = String(value);
+    else if (typeof value === "boolean") details[key] = value ? "true" : "false";
+    else if (typeof value === "string" && value.trim()) details[key] = value;
+  }
+  return details;
+}
 
 /** Reads one Listing from a response body; null when it has no usable id. A missing or odd field is "unknown", never a crash. */
 export function readListing(value: unknown): ListingView | null {
@@ -74,6 +101,7 @@ export function readListing(value: unknown): ListingView | null {
       marla_basis: text(known.marla_basis),
       area_sqft: decimalString(known.area_sqft),
     },
+    details: readDetails(known),
   };
 }
 

@@ -100,11 +100,50 @@ export const EDIT_FIELD_MESSAGES = {
   marla_basis: MARLA_BASIS_MESSAGES,
 } as const;
 
+/**
+ * The codes the backend reports for a registry detail (Story 2.4 on), by registry field type, so a new registry field needs no
+ * message of its own. Known codes only, like every other map here: anything else becomes the generic text.
+ */
+const DETAIL_NOT_APPLICABLE = "This detail does not apply to this listing.";
+export const DETAIL_MESSAGES: Record<string, Record<string, string>> = {
+  integer: {
+    invalid: "Enter a whole number, digits only, for example 3.",
+    invalid_range: "Enter a whole number within the allowed range.",
+    invalid_floor: "The floor cannot be above the number of floors in the building. Check both numbers.",
+    not_applicable: DETAIL_NOT_APPLICABLE,
+    not_editable: NOT_EDITABLE,
+  },
+  boolean: {
+    invalid: "Choose Yes, No or Not answered.",
+    not_applicable: DETAIL_NOT_APPLICABLE,
+    not_editable: NOT_EDITABLE,
+  },
+  enum: {
+    invalid: "Choose an option from the list.",
+    invalid_choice: "Choose an option from the list.",
+    not_applicable: DETAIL_NOT_APPLICABLE,
+    not_editable: NOT_EDITABLE,
+  },
+  decimal: {
+    invalid: "Enter digits only, with an optional decimal point. Do not use commas, signs or units, for example 1200 or 10.5.",
+    invalid_area: "Enter an amount above zero within the allowed range, with no more decimal places than allowed.",
+    not_applicable: DETAIL_NOT_APPLICABLE,
+    not_editable: NOT_EDITABLE,
+  },
+  money: {
+    invalid: "Enter digits only, with an optional decimal point. Do not use commas or currency signs, for example 2500 or 2500.50.",
+    invalid_price: "Enter an amount within the allowed range, with at most two decimal places.",
+    not_applicable: DETAIL_NOT_APPLICABLE,
+    not_editable: NOT_EDITABLE,
+  },
+};
+
 export const EDIT_FORBIDDEN = "Your account cannot edit listings right now.";
 export const SAVED = "Saved";
 export const NO_CHANGES = "No changes to save.";
 export const CONFLICT_BANNER =
   "This draft was changed in another session. We loaded the latest version; your unsaved changes are still in the form. Review them and save again.";
+export const DETAILS_DROPPED = "Some details no longer apply to this draft, so your changes to them were dropped.";
 export const BASIS_DROPPED = "The marla size no longer applies because the unit changed in another session.";
 export const ALREADY_SAVED = "Your changes are already saved.";
 export const CHOICES_APPLIED = "Your choices are applied. Save to keep them.";
