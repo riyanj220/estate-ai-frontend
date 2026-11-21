@@ -166,7 +166,7 @@ const TAXONOMIES = {
     ],
   },
 };
-// The Field registry version 2 (Story 2.2) adds the five editable fields. `other` has different limits and values to prove the
+// The Field registry version 2 (Story 2.2) adds the five editable fields; version 3 (Story 2.3) adds the area fields. `other` has different limits and values to prove the
 // editor is built from the registry; `none` defines no editable field.
 const fieldDef = (id, type, requirement, extra = {}) => ({
   id,
@@ -180,6 +180,9 @@ const fieldDef = (id, type, requirement, extra = {}) => ({
   min: null,
   max: null,
   currency: null,
+  scale: null,
+  derived: false,
+  description: null,
   class: "public",
   searchable: false,
   sortable: false,
@@ -201,6 +204,20 @@ const REGISTRY_FIELDS = {
       allowed_values: ["day", "week", "month", "year"],
       applicability: { purposes: ["rent"], categories: [], subtypes: [] },
     }),
+    fieldDef("area_value", "decimal", "required_for_publication", { min: "0.0001", max: "9999999999.9999", scale: 4, searchable: true, sortable: true, ai_extractable: true, valuation_input: true }),
+    fieldDef("area_unit", "enum", "required_for_publication", {
+      allowed_values: ["sqft", "sqyd", "marla", "kanal", "acre"],
+      searchable: true,
+      ai_extractable: true,
+      valuation_input: true,
+    }),
+    fieldDef("marla_basis", "enum", "optional", {
+      allowed_values: ["225", "250", "272.25"],
+      description: "Square feet in one marla.",
+      ai_extractable: true,
+      valuation_input: true,
+    }),
+    fieldDef("area_sqft", "decimal", "optional", { min: "0.0001", max: "9999999999.9999", scale: 4, derived: true, searchable: true, sortable: true, description: "Area in square feet, computed from the area, its unit and the marla size." }),
   ],
   other: [
     fieldDef("title", "text", "recommended", { min_length: 5, max_length: 20 }),
@@ -214,7 +231,16 @@ const REGISTRY_FIELDS = {
       allowed_values: ["day", "week"],
       applicability: { purposes: ["rent"], categories: [], subtypes: [] },
     }),
+    // Other bounds, other units and other basis choices: the Area block is built from them.
+    fieldDef("area_value", "decimal", "recommended", { min: "1", max: "9999", scale: 2 }),
+    fieldDef("area_unit", "enum", "optional", { allowed_values: ["sqft", "marla", "kanal"] }),
+    fieldDef("marla_basis", "enum", "optional", { allowed_values: ["225", "250"] }),
+    fieldDef("area_sqft", "decimal", "optional", { min: "1", max: "9999", scale: 2, derived: true }),
   ],
+  // A finer area scale (6 decimals) to prove the client compares amounts by the registry's scale.
+  get scale6() {
+    return this.default.map((entry) => (entry.id === "area_value" ? { ...entry, min: "0.000001", max: "9999999999.999999", scale: 6 } : entry));
+  },
   none: [],
 };
 let fieldsName = "default";
@@ -224,7 +250,42 @@ let registryGets = 0;
 let registryNotModified = 0;
 let lastRegistryConditional = null;
 const listingId = (seq) => `00000000-0000-4000-9000-${String(seq).padStart(12, "0")}`;
-const EMPTY_EDITABLE = { title: null, description: null, asking_price: null, price_basis: null, rental_period: null };
+const EMPTY_EDITABLE = { title: null, description: null, asking_price: null, price_basis: null, rental_period: null, area_value: null, area_unit: null, marla_basis: null, area_sqft: null };
+// What a client may send (the derived square feet never): the real service answers `not_editable` for `area_sqft`.
+const INPUT_FIELDS = Object.keys(EMPTY_EDITABLE).filter((key) => key !== "area_sqft");
+// Area rules, exact like the real service: text only, no floats. Units measured in marla need the basis.
+const MARLA_UNITS = ["marla", "kanal"];
+const AREA_TEXT = /^(-)?(\d{1,30})(?:\.(\d{1,30}))?$/;
+const toScaled = (text, scale) => {
+  const [whole, fraction = ""] = text.split(".");
+  return BigInt(whole + fraction.padEnd(scale, "0"));
+};
+const fromScaled = (value, scale) => {
+  const digits = value.toString().padStart(scale + 1, "0");
+  return `${digits.slice(0, digits.length - scale)}.${digits.slice(digits.length - scale)}`;
+};
+/** The real conversion: sqft 1, sqyd 9, acre 43560, marla = basis, kanal = 20 x basis, half up to four decimals. */
+const normalisedSqft = (value, unit, basis) => {
+  if (value === null || unit === null) return null;
+  const bases = { 225: [225n, 1n], 250: [250n, 1n], 272.25: [27225n, 100n] };
+  let factor;
+  if (unit === "sqft") factor = [1n, 1n];
+  else if (unit === "sqyd") factor = [9n, 1n];
+  else if (unit === "acre") factor = [43560n, 1n];
+  else if (MARLA_UNITS.includes(unit)) {
+    if (basis === null || !Object.hasOwn(bases, basis)) return null;
+    const [numerator, denominator] = bases[basis];
+    factor = [numerator * (unit === "kanal" ? 20n : 1n), denominator];
+  } else return null;
+  const numerator = toScaled(value, 4) * factor[0] * 10000n;
+  const denominator = 10000n * factor[1];
+  return fromScaled((2n * numerator + denominator) / (2n * denominator), 4);
+};
+/** Keeps a stub Listing consistent after any area change: the basis only for marla and kanal, the square feet always derived. */
+const settleArea = (fields) => {
+  if (!MARLA_UNITS.includes(fields.area_unit)) fields.marla_basis = null;
+  fields.area_sqft = normalisedSqft(fields.area_value, fields.area_unit, fields.marla_basis);
+};
 const makeListing = (seq, owner, fields, revision = 1) => ({
   seq,
   owner,
@@ -268,6 +329,10 @@ const LISTING_PRESETS = {
       3,
     ),
   ],
+  // Story 2.3: a Draft with a marla and its basis (10 x 272.25), one with an unknown basis, and one in square feet.
+  area_marla: () => [makeListing(1, "mine", { area_value: "10.0000", area_unit: "marla", marla_basis: "272.25", area_sqft: "2722.5000" }, 2)],
+  area_unknown: () => [makeListing(1, "mine", { area_value: "5.0000", area_unit: "marla" }, 2)],
+  area_sqft: () => [makeListing(1, "mine", { area_value: "1200.0000", area_unit: "sqft", area_sqft: "1200.0000" }, 2)],
   rent: () => [makeListing(1, "mine", { purpose: "rent", category: "apartment", subtype: "apartment" })],
   rent_filled: () => [
     makeListing(
@@ -760,7 +825,7 @@ createServer((req, res) => {
   if (url.pathname === "/__listing-patch-mode") {
     return choose(
       "patchMode",
-      ["ok", "slow", "codes", "hidden", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
+      ["ok", "slow", "codes", "hidden", "area_codes", "area_hidden", "area_other_codes", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
       (v) => {
         patchMode = v;
         patchLostSpent = false;
@@ -772,11 +837,12 @@ createServer((req, res) => {
   if (url.pathname === "/__other-session") {
     const target = listings.find((item) => item.id === url.searchParams.get("id"));
     if (!target) return json(404, { error: "unknown listing" });
-    for (const name of Object.keys(EMPTY_EDITABLE)) {
+    for (const name of INPUT_FIELDS) {
       if (url.searchParams.has(name)) target.fields[name] = url.searchParams.get(name) || null;
     }
+    settleArea(target.fields);
     target.revision += 1;
-    target.registryVersion = 2;
+    target.registryVersion = 3;
     return json(200, { revision: target.revision });
   }
   if (url.pathname === "/__listing-patch-stats") {
@@ -855,7 +921,7 @@ createServer((req, res) => {
     }
     const send = () => {
       res.writeHead(200, headers);
-      res.end(JSON.stringify({ version: 2, taxonomy, fields: REGISTRY_FIELDS[fieldsName] }));
+      res.end(JSON.stringify({ version: 3, taxonomy, fields: REGISTRY_FIELDS[fieldsName] }));
     };
     if (registryMode === "flaky_slow") return void setTimeout(send, 1500);
     return send();
@@ -940,8 +1006,8 @@ createServer((req, res) => {
       else if (Object.keys(sent).length === 0) shape.fields = ["empty"];
       else {
         for (const key of Object.keys(sent)) {
-          if (Object.hasOwn(EMPTY_EDITABLE, key)) continue;
-          if (["purpose", "category", "subtype"].includes(key)) shape[key] = ["not_editable"];
+          if (INPUT_FIELDS.includes(key)) continue;
+          if (["purpose", "category", "subtype", "area_sqft"].includes(key)) shape[key] = ["not_editable"];
           else shape.non_field_errors = ["unknown_field"];
         }
       }
@@ -955,6 +1021,9 @@ createServer((req, res) => {
       }
       if (patchMode === "codes") return fail({ title: ["too_short"], description: ["contains_contact_details"], asking_price: ["invalid_price"], price_basis: ["invalid_choice"] });
       if (patchMode === "hidden") return fail({ rental_period: ["not_applicable"] });
+      if (patchMode === "area_codes") return fail({ area_value: ["invalid_area"], area_unit: ["invalid_choice"], marla_basis: ["not_applicable"] });
+      if (patchMode === "area_other_codes") return fail({ area_unit: ["invalid"], area_value: ["not_editable"], marla_basis: ["required"] });
+      if (patchMode === "area_hidden") return fail({ marla_basis: ["not_applicable"] });
       if (patchMode === "unknown") return fail({ title: ["Some server sentence."], description: ["mystery_code"], asking_price: ["constructor"], role: ["constructor"], non_field_errors: ["Some other sentence."] });
       if (patchMode === "non_field") return fail({ non_field_errors: ["unknown_field"] });
       if (patchMode === "not_editable") return fail({ title: ["not_editable"] });
@@ -1006,18 +1075,48 @@ createServer((req, res) => {
           if (target.fields.purpose !== "rent") problems[key] = ["not_applicable"];
           else if (typeof value === "string" && (rule?.allowed_values ?? []).includes(value)) next[key] = value;
           else problems[key] = ["invalid_choice"];
+        } else if (key === "area_value") {
+          // Text only; digits with an optional decimal point, no commas, no zero padding. A signed, too fine, too small or
+          // too large number is `invalid_area`.
+          const match = typeof value === "string" && value.length <= 40 ? AREA_TEXT.exec(value) : null;
+          if (!match || (match[2].length > 1 && match[2].startsWith("0"))) problems[key] = ["invalid"];
+          else if (match[1] || (match[3] ?? "").length > (rule?.scale ?? 4)) problems[key] = ["invalid_area"];
+          else {
+            const scaled = toScaled(value, 4);
+            if (scaled < toScaled(rule?.min ?? "0.0001", 4) || scaled > toScaled(rule?.max ?? "9999999999.9999", 4)) problems[key] = ["invalid_area"];
+            else next[key] = fromScaled(scaled, 4);
+          }
+        } else if (key === "area_unit") {
+          if (typeof value !== "string") problems[key] = ["invalid"];
+          else if ((rule?.allowed_values ?? []).includes(value)) next[key] = value;
+          else problems[key] = ["invalid_choice"];
+        } else if (key === "marla_basis") {
+          if (typeof value === "string" && (rule?.allowed_values ?? []).includes(value)) next[key] = value;
+          else problems[key] = ["invalid_choice"];
+        }
+      }
+      // Cross-field, on the resulting state: a basis only while the unit is marla or kanal; a unit moved away clears a stored one.
+      if (!problems.area_unit && !problems.marla_basis) {
+        const unit = Object.hasOwn(next, "area_unit") ? next.area_unit : target.fields.area_unit;
+        if (!MARLA_UNITS.includes(unit)) {
+          if (next.marla_basis !== undefined && next.marla_basis !== null) problems.marla_basis = ["not_applicable"];
+          else if (!Object.hasOwn(next, "marla_basis") && target.fields.marla_basis !== null) next.marla_basis = null;
         }
       }
       if (Object.keys(problems).length > 0) return fail(problems);
+      const merged = { ...target.fields, ...next };
+      const sqft = normalisedSqft(merged.area_value, merged.area_unit, merged.marla_basis);
+      if (sqft !== merged.area_sqft) next.area_sqft = sqft;
       const changed = Object.keys(next).filter((key) => target.fields[key] !== next[key]);
       if (changed.length > 0) {
         for (const key of changed) {
           target.fields[key] = next[key];
+          if (key === "area_sqft") continue; // derived: no provenance
           if (next[key] === null) delete target.provenance[key];
           else target.provenance[key] = { origin: "manual", confirmed: true };
         }
         target.revision += 1;
-        target.registryVersion = 2;
+        target.registryVersion = 3;
       }
       if (patchMode === "lost_once" && !patchLostSpent) {
         patchLostSpent = true;
