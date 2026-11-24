@@ -44,6 +44,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agencies/{agency_id}/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An Agency's public logo
+         * @description `agency_id` is the public Agency profile id (never the account id), as given in `logo_url`. Served to anyone, a Visitor included, ONLY while the Agency account is Active; a Suspended, Deactivated or Email-unverified Agency, an Agency without a logo, an unknown id and a malformed id all get the identical `404 not_found`. The `200` carries the stored `Content-Type`, `Content-Length`, `Cache-Control: public, max-age=60` (a suspended Agency's logo may stay in a cache for up to a minute), `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` and `Content-Security-Policy: default-src 'none'; sandbox`; no cookie is set and nothing varies by cookie. `HEAD` answers the same headers without a body. `Range` and `Accept` are ignored; there is no `ETag`.
+         */
+        get: operations["get_agency_logo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/csrf": {
         parameters: {
             query?: never;
@@ -293,6 +313,50 @@ export interface paths {
         patch: operations["update_agency_profile"];
         trace?: never;
     };
+    "/api/v1/me/agency-profile/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload or replace the signed-in Agency's logo
+         * @description Agency accounts only. The logo is then public through `GET /api/v1/agencies/{agency_id}/logo`, but only while the Agency account is Active. Needs `X-CSRFToken` and a `multipart/form-data` body with exactly one part, `file` (any other part, a non-file `file` or more than one file is `validation_error`). The request body may be at most 6 MB and the image at most 5 MB (5,242,880 bytes). Same pipeline and `fields.file` codes as the Listing image upload (`too_large`, `unsupported_type`, `too_large_dimensions`, `too_small`, `invalid_image`, `required`, `invalid`): the file name and declared type are ignored and never stored, the image is decoded, stripped of ALL metadata and encoded again (long side at most 2,048 px). Uploading again replaces the previous image, whose file and storage bytes are released in the same step. The account type is checked before the body (`403 forbidden` for the other type and administrators, `401` for a Visitor); a Deactivated account has no session. The account state follows the profile update (Active, Email-unverified and Suspended may change it). `409 storage_cap_exceeded` (counted on the stored size, replacement counted at its net size), `429` is the upload limit (10 per hour per account) with `Retry-After`, `503 busy` (with `Retry-After`) means image processing is at capacity: retry. Never cached.
+         */
+        put: operations["put_agency_logo"];
+        post?: never;
+        /**
+         * Remove the signed-in Agency's logo
+         * @description Needs `X-CSRFToken`. Deletes the logo and its stored file and gives its bytes back to the account's storage. `204` has no body, also when there is no logo. Same account refusals as the upload. Never cached.
+         */
+        delete: operations["delete_agency_logo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/agency-profile/image/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in Agency's own logo
+         * @description The bytes of the stored, re-encoded image with its stored `Content-Type` (`image/jpeg`, `image/png` or `image/webp`), `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` (no file name) and `Content-Security-Policy: default-src 'none'; sandbox`; no cookie is set. `HEAD` answers the same headers without a body. Only the owning account gets it (a Suspended or Email-unverified owner included, a Deactivated one not); everyone else (another account, the other account type, an administrator, a Visitor), an account without an image and a lost file get the same `404 not_found`. `Range` and `Accept` are ignored; there is no `ETag`.
+         */
+        get: operations["get_agency_logo_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/email-change": {
         parameters: {
             query?: never;
@@ -375,6 +439,50 @@ export interface paths {
          * @description Needs `X-CSRFToken`. Only `full_name` and `phone` are accepted, at least one; any other field (the email included) is `validation_error` (`unknown_field`). The phone stays mandatory: blank or null is `fields.phone = required`. All failing fields are reported at once. An unchanged submission succeeds and records nothing.
          */
         patch: operations["update_profile"];
+        trace?: never;
+    };
+    "/api/v1/me/profile/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload or replace the signed-in Individual's profile picture
+         * @description Individual accounts only. Needs `X-CSRFToken` and a `multipart/form-data` body with exactly one part, `file` (any other part, a non-file `file` or more than one file is `validation_error`). The request body may be at most 6 MB and the image at most 5 MB (5,242,880 bytes). Same pipeline and `fields.file` codes as the Listing image upload (`too_large`, `unsupported_type`, `too_large_dimensions`, `too_small`, `invalid_image`, `required`, `invalid`): the file name and declared type are ignored and never stored, the image is decoded, stripped of ALL metadata and encoded again (long side at most 2,048 px). Uploading again replaces the previous image, whose file and storage bytes are released in the same step. The account type is checked before the body (`403 forbidden` for the other type and administrators, `401` for a Visitor); a Deactivated account has no session. The account state follows the profile update (Active, Email-unverified and Suspended may change it). `409 storage_cap_exceeded` (counted on the stored size, replacement counted at its net size), `429` is the upload limit (10 per hour per account) with `Retry-After`, `503 busy` (with `Retry-After`) means image processing is at capacity: retry. Never cached.
+         */
+        put: operations["put_profile_image"];
+        post?: never;
+        /**
+         * Remove the signed-in Individual's profile picture
+         * @description Needs `X-CSRFToken`. Deletes the image and its stored file and gives its bytes back to the account's storage. `204` has no body, also when there is no picture (a repeat is harmless). Same account refusals as the upload. Never cached.
+         */
+        delete: operations["delete_profile_image"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/profile/image/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in Individual's own profile picture
+         * @description The bytes of the stored, re-encoded image with its stored `Content-Type` (`image/jpeg`, `image/png` or `image/webp`), `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` (no file name) and `Content-Security-Policy: default-src 'none'; sandbox`; no cookie is set. `HEAD` answers the same headers without a body. Only the owning account gets it (a Suspended or Email-unverified owner included, a Deactivated one not); everyone else (another account, the other account type, an administrator, a Visitor), an account without an image and a lost file get the same `404 not_found`. `Range` and `Accept` are ignored; there is no `ETag`. An Individual's picture has no public route.
+         */
+        get: operations["get_profile_image_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/notifications": {
@@ -656,6 +764,15 @@ export interface components {
             pending_email: string | null;
             /** @description Read-only Agency Verification status (`unverified` until a later story). */
             verification_status: string;
+            /** @description The logo as the owner sees it, or null (none, or its file was lost). */
+            image: components["schemas"]["ProfileImage"] | null;
+            /**
+             * Format: uuid
+             * @description The public Agency profile id (not the account id), used in `logo_url`. Returned only in the owner's own response.
+             */
+            agency_id: string;
+            /** @description The public logo route `/api/v1/agencies/{agency_id}/logo`, or null without a logo. It answers 404 unless the Agency account is Active. */
+            logo_url: string | null;
         };
         /**
          * @description Strict allowlist of the six fields; the account type and verification status are never
@@ -1543,6 +1660,17 @@ export interface components {
             email: string;
             /** @description The address of the newest unused, unexpired email-change request, or null. */
             pending_email: string | null;
+            /** @description The profile picture, or null (none, or its file was lost). Private to the owner: `url` is the owner-only route. */
+            image: components["schemas"]["ProfileImage"] | null;
+        };
+        ProfileImage: {
+            content_type: components["schemas"]["ContentTypeEnum"];
+            width: number;
+            height: number;
+            /** @description The stored size. */
+            bytes: number;
+            /** @description The owner-only route that serves the image (relative). Never a public URL. */
+            url: string;
         };
         ProvenanceEntry: {
             origin: components["schemas"]["OriginEnum"];
@@ -1811,6 +1939,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminMe"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_agency_logo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored image bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
                 };
             };
             /** @description Bad request or validation error */
@@ -3104,6 +3312,258 @@ export interface operations {
             };
         };
     };
+    put_agency_logo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["ImageUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description The stored image */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileImage"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `storage_cap_exceeded` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `busy`: image processing is at capacity; retry */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete_agency_logo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed (or there was none) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_agency_logo_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored image bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     request_email_change: {
         parameters: {
             query?: never;
@@ -3440,6 +3900,258 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Profile"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    put_profile_image: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["ImageUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description The stored image */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileImage"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `storage_cap_exceeded` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `busy`: image processing is at capacity; retry */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete_profile_image: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed (or there was none) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_profile_image_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored image bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
                 };
             };
             /** @description Bad request or validation error */

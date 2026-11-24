@@ -128,6 +128,86 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/agencies/{agency_id}/logo:
+    get:
+      operationId: get_agency_logo
+      description: '`agency_id` is the public Agency profile id (never the account
+        id), as given in `logo_url`. Served to anyone, a Visitor included, ONLY while
+        the Agency account is Active; a Suspended, Deactivated or Email-unverified
+        Agency, an Agency without a logo, an unknown id and a malformed id all get
+        the identical `404 not_found`. The `200` carries the stored `Content-Type`,
+        `Content-Length`, `Cache-Control: public, max-age=60` (a suspended Agency''s
+        logo may stay in a cache for up to a minute), `X-Content-Type-Options: nosniff`,
+        `Content-Disposition: inline` and `Content-Security-Policy: default-src ''none'';
+        sandbox`; no cookie is set and nothing varies by cookie. `HEAD` answers the
+        same headers without a body. `Range` and `Accept` are ignored; there is no
+        `ETag`.'
+      summary: An Agency's public logo
+      parameters:
+      - in: path
+        name: agency_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - agencies
+      responses:
+        '200':
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+          description: The stored image bytes
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/csrf:
     get:
       operationId: get_csrf_token
@@ -1231,6 +1311,231 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/agency-profile/image:
+    put:
+      operationId: put_agency_logo
+      description: 'Agency accounts only. The logo is then public through `GET /api/v1/agencies/{agency_id}/logo`,
+        but only while the Agency account is Active. Needs `X-CSRFToken` and a `multipart/form-data`
+        body with exactly one part, `file` (any other part, a non-file `file` or more
+        than one file is `validation_error`). The request body may be at most 6 MB
+        and the image at most 5 MB (5,242,880 bytes). Same pipeline and `fields.file`
+        codes as the Listing image upload (`too_large`, `unsupported_type`, `too_large_dimensions`,
+        `too_small`, `invalid_image`, `required`, `invalid`): the file name and declared
+        type are ignored and never stored, the image is decoded, stripped of ALL metadata
+        and encoded again (long side at most 2,048 px). Uploading again replaces the
+        previous image, whose file and storage bytes are released in the same step.
+        The account type is checked before the body (`403 forbidden` for the other
+        type and administrators, `401` for a Visitor); a Deactivated account has no
+        session. The account state follows the profile update (Active, Email-unverified
+        and Suspended may change it). `409 storage_cap_exceeded` (counted on the stored
+        size, replacement counted at its net size), `429` is the upload limit (10
+        per hour per account) with `Retry-After`, `503 busy` (with `Retry-After`)
+        means image processing is at capacity: retry. Never cached.'
+      summary: Upload or replace the signed-in Agency's logo
+      tags:
+      - me
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ImageUploadRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileImage'
+          description: The stored image
+        '409':
+          description: '`storage_cap_exceeded`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: '`busy`: image processing is at capacity; retry'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      operationId: delete_agency_logo
+      description: Needs `X-CSRFToken`. Deletes the logo and its stored file and gives
+        its bytes back to the account's storage. `204` has no body, also when there
+        is no logo. Same account refusals as the upload. Never cached.
+      summary: Remove the signed-in Agency's logo
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Removed (or there was none)
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/agency-profile/image/file:
+    get:
+      operationId: get_agency_logo_file
+      description: 'The bytes of the stored, re-encoded image with its stored `Content-Type`
+        (`image/jpeg`, `image/png` or `image/webp`), `Content-Length`, `Cache-Control:
+        private, no-store`, `X-Content-Type-Options: nosniff`, `Content-Disposition:
+        inline` (no file name) and `Content-Security-Policy: default-src ''none'';
+        sandbox`; no cookie is set. `HEAD` answers the same headers without a body.
+        Only the owning account gets it (a Suspended or Email-unverified owner included,
+        a Deactivated one not); everyone else (another account, the other account
+        type, an administrator, a Visitor), an account without an image and a lost
+        file get the same `404 not_found`. `Range` and `Accept` are ignored; there
+        is no `ETag`.'
+      summary: The signed-in Agency's own logo
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+          description: The stored image bytes
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/me/email-change:
     post:
       operationId: request_email_change
@@ -1528,6 +1833,231 @@ paths:
               schema:
                 $ref: '#/components/schemas/Profile'
           description: The updated profile
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/profile/image:
+    put:
+      operationId: put_profile_image
+      description: 'Individual accounts only. Needs `X-CSRFToken` and a `multipart/form-data`
+        body with exactly one part, `file` (any other part, a non-file `file` or more
+        than one file is `validation_error`). The request body may be at most 6 MB
+        and the image at most 5 MB (5,242,880 bytes). Same pipeline and `fields.file`
+        codes as the Listing image upload (`too_large`, `unsupported_type`, `too_large_dimensions`,
+        `too_small`, `invalid_image`, `required`, `invalid`): the file name and declared
+        type are ignored and never stored, the image is decoded, stripped of ALL metadata
+        and encoded again (long side at most 2,048 px). Uploading again replaces the
+        previous image, whose file and storage bytes are released in the same step.
+        The account type is checked before the body (`403 forbidden` for the other
+        type and administrators, `401` for a Visitor); a Deactivated account has no
+        session. The account state follows the profile update (Active, Email-unverified
+        and Suspended may change it). `409 storage_cap_exceeded` (counted on the stored
+        size, replacement counted at its net size), `429` is the upload limit (10
+        per hour per account) with `Retry-After`, `503 busy` (with `Retry-After`)
+        means image processing is at capacity: retry. Never cached.'
+      summary: Upload or replace the signed-in Individual's profile picture
+      tags:
+      - me
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ImageUploadRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileImage'
+          description: The stored image
+        '409':
+          description: '`storage_cap_exceeded`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: '`busy`: image processing is at capacity; retry'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      operationId: delete_profile_image
+      description: Needs `X-CSRFToken`. Deletes the image and its stored file and
+        gives its bytes back to the account's storage. `204` has no body, also when
+        there is no picture (a repeat is harmless). Same account refusals as the upload.
+        Never cached.
+      summary: Remove the signed-in Individual's profile picture
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Removed (or there was none)
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/profile/image/file:
+    get:
+      operationId: get_profile_image_file
+      description: 'The bytes of the stored, re-encoded image with its stored `Content-Type`
+        (`image/jpeg`, `image/png` or `image/webp`), `Content-Length`, `Cache-Control:
+        private, no-store`, `X-Content-Type-Options: nosniff`, `Content-Disposition:
+        inline` (no file name) and `Content-Security-Policy: default-src ''none'';
+        sandbox`; no cookie is set. `HEAD` answers the same headers without a body.
+        Only the owning account gets it (a Suspended or Email-unverified owner included,
+        a Deactivated one not); everyone else (another account, the other account
+        type, an administrator, a Visitor), an account without an image and a lost
+        file get the same `404 not_found`. `Range` and `Accept` are ignored; there
+        is no `ETag`. An Individual''s picture has no public route.'
+      summary: The signed-in Individual's own profile picture
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+          description: The stored image bytes
         '400':
           description: Bad request or validation error
           content:
@@ -2406,12 +2936,31 @@ components:
           type: string
           description: Read-only Agency Verification status (`unverified` until a
             later story).
+        image:
+          allOf:
+          - $ref: '#/components/schemas/ProfileImage'
+          nullable: true
+          description: The logo as the owner sees it, or null (none, or its file was
+            lost).
+        agency_id:
+          type: string
+          format: uuid
+          description: The public Agency profile id (not the account id), used in
+            `logo_url`. Returned only in the owner's own response.
+        logo_url:
+          type: string
+          nullable: true
+          description: The public logo route `/api/v1/agencies/{agency_id}/logo`,
+            or null without a logo. It answers 404 unless the Agency account is Active.
       required:
+      - agency_id
       - agency_name
       - business_phone
       - city_id
       - description
       - email
+      - image
+      - logo_url
       - office_address
       - pending_email
       - verification_status
@@ -4363,11 +4912,40 @@ components:
           nullable: true
           description: The address of the newest unused, unexpired email-change request,
             or null.
+        image:
+          allOf:
+          - $ref: '#/components/schemas/ProfileImage'
+          nullable: true
+          description: 'The profile picture, or null (none, or its file was lost).
+            Private to the owner: `url` is the owner-only route.'
       required:
       - email
       - full_name
+      - image
       - pending_email
       - phone
+    ProfileImage:
+      type: object
+      properties:
+        content_type:
+          $ref: '#/components/schemas/ContentTypeEnum'
+        width:
+          type: integer
+        height:
+          type: integer
+        bytes:
+          type: integer
+          description: The stored size.
+        url:
+          type: string
+          description: The owner-only route that serves the image (relative). Never
+            a public URL.
+      required:
+      - bytes
+      - content_type
+      - height
+      - url
+      - width
     ProvenanceEntry:
       type: object
       properties:
