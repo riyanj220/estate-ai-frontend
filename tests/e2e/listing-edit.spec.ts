@@ -196,7 +196,7 @@ test("save: only the changed field is sent with the base revision; the revision 
   await saveButton(page).click();
   await expect(live(page)).toHaveText("Saved");
   await expect(revision(page)).toHaveText("4");
-  await expect(page.getByTestId("draft-registry-version")).toHaveText("5");
+  await expect(page.getByTestId("draft-registry-version")).toHaveText("6");
   const sent = await patches(request);
   expect(sent.count).toBe(1);
   expect(sent.bodies[0]).toEqual({ base_revision: 3, fields: { title: "Corner house with a big garden" } });
@@ -307,7 +307,7 @@ test("field errors: each code maps to text under its control, the summary takes 
   await expect(summary(page)).toBeFocused();
   await expect(page.locator("#title-error")).toHaveText("Error: The title is too short. Check the length shown above.");
   await expect(page.locator("#description-error")).toHaveText(`Error: ${CONTACT}`);
-  await expect(page.locator("#asking_price-error")).toHaveText("Error: Enter an amount above zero within the limits shown above, with at most two decimal places.");
+  await expect(page.locator("#asking_price-error")).toHaveText("Error: Enter an amount within the limits shown above, with at most two decimal places.");
   await expect(page.locator("#price_basis-error")).toHaveText("Error: Choose a price basis from the list.");
   await expect(summary(page).getByRole("link")).toHaveCount(4);
   await expect(live(page)).toHaveText(ERRORS_ANNOUNCED);
@@ -912,7 +912,7 @@ test("area: the block is built from the registry, with the hint, the unit choice
     page
       .locator("form")
       .locator("input, select, textarea")
-      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"]')).map((node) => node.id));
+      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"], [data-testid="terms-block"]')).map((node) => node.id));
   expect(await controlIds()).toEqual(["title", "description", "asking_price", "price_basis", "area_value", "area_unit"]);
   await unitSelect(page).selectOption("marla");
   expect(await controlIds()).toEqual(["title", "description", "asking_price", "price_basis", "area_value", "area_unit", "marla_basis"]);
@@ -973,7 +973,7 @@ test("area: a registry that gives the value another type, or marks the unit deri
     await page
       .locator("form")
       .locator("input, select, textarea")
-      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"]')).map((node) => node.id)),
+      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"], [data-testid="terms-block"]')).map((node) => node.id)),
   ).toEqual(["title", "description", "asking_price", "price_basis"]);
 });
 
@@ -1494,9 +1494,11 @@ const APARTMENT_MORE = ["Balcony or terrace", "Building lobby", "Intercom", "Mai
 test("details: a House shows its own applicable fields grouped by requirement, in registry order, each group a fieldset with a legend", async ({ page, request }) => {
   await openDraft(page, request, "house_blank");
   await expect(page.getByRole("heading", { level: 3, name: "Details" })).toBeVisible();
-  await expect(page.getByRole("group", { name: "Required before you publish" })).toBeVisible();
-  await expect(page.getByRole("group", { name: "Recommended" })).toBeVisible();
-  await expect(page.getByRole("group", { name: "More details" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Required before you publish" })).toHaveCount(1); // the sale terms have none required
+  await expect(page.getByTestId("details-block").getByRole("group", { name: "Recommended" })).toBeVisible();
+  await expect(page.getByTestId("details-block").getByRole("group", { name: "More details" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Recommended" })).toHaveCount(2); // the Terms and the Details each have one
+  await expect(page.getByRole("group", { name: "More details" })).toHaveCount(2);
   await expect(page.locator("fieldset.detail-group")).toHaveCount(3);
   await expect(detailLabels(page, "required")).toHaveText(HOUSE_REQUIRED);
   await expect(detailLabels(page, "recommended")).toHaveText(HOUSE_RECOMMENDED);
@@ -2360,7 +2362,9 @@ test("seller-declared: the claims carry the label and the helper line, tied to t
     await expect(page.locator(`#${claim}-declared`)).toHaveText(SELLER_HELP);
     await expect(page.locator(`#${claim}-declared-tag`)).toHaveText(SELLER_DECLARED);
   }
-  await expect(page.locator('[data-testid$="-seller-declared"]')).toHaveCount(CLAIMS.length);
+  // A sale Draft also shows the sale terms (Story 2.6), whose possession availability is a claim too.
+  await expect(page.locator('[data-testid$="-seller-declared"]')).toHaveCount(CLAIMS.length + 1);
+  await expect(declaredTag(page, "possession_availability")).toHaveText(SELLER_DECLARED);
   for (const plain of ["plot_width", "corner_plot", "sewerage", "orientation", "electricity"]) {
     await expect(declaredTag(page, plain)).toHaveCount(0);
     await expect(page.locator(`#${plain}`)).not.toHaveAttribute("aria-describedby", /declared/);
@@ -2370,7 +2374,7 @@ test("seller-declared: the claims carry the label and the helper line, tied to t
   await expect(detail(page, "Possession status")).toHaveCount(1);
   await expectNoPlatformBadge(page);
   await openDraft(page, request, "plot_file_blank");
-  await expect(page.locator('[data-testid$="-seller-declared"]')).toHaveCount(CLAIMS.length + 1);
+  await expect(page.locator('[data-testid$="-seller-declared"]')).toHaveCount(CLAIMS.length + 2);
   await expect(declaredTag(page, "plot_file_status")).toHaveText(SELLER_DECLARED);
   await expectNoPlatformBadge(page);
 });
@@ -2848,11 +2852,11 @@ test("no platform badge: none appears on a Shop, an Office, with errors, in a co
 
 test("the registry's ETag carries the version, a hash of what it serves and the shape, and a registry change changes it", async ({ request }) => {
   const first = (await request.get(`${STUB}/api/v1/registry`)).headers().etag;
-  expect(first).toMatch(/^"5-[0-9a-f]{8}-4"$/);
+  expect(first).toMatch(/^"6-[0-9a-f]{8}-5"$/);
   expect((await request.get(`${STUB}/api/v1/registry`)).headers().etag).toBe(first);
   await registryFields(request, "plotmap");
   const changed = (await request.get(`${STUB}/api/v1/registry`)).headers().etag;
-  expect(changed).toMatch(/^"5-[0-9a-f]{8}-4"$/);
+  expect(changed).toMatch(/^"6-[0-9a-f]{8}-5"$/);
   expect(changed).not.toBe(first);
 });
 

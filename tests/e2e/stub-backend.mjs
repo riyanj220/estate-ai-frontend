@@ -188,6 +188,7 @@ const fieldDef = (id, type, requirement, extra = {}) => ({
   allowed_values_by_purpose: null,
   allowed_values_by_subtype: null,
   seller_declared: false,
+  section: "details",
   min_length: null,
   max_length: null,
   min: null,
@@ -214,6 +215,7 @@ const REGISTRY_FIELDS = {
       allowed_values_by_purpose: { sale: ["total", "per_unit"], rent: ["rental_period"] },
     }),
     fieldDef("rental_period", "enum", "required_for_publication", {
+      section: "terms",
       allowed_values: ["day", "week", "month", "year"],
       applicability: { purposes: ["rent"], categories: [], subtypes: [] },
     }),
@@ -241,6 +243,7 @@ const REGISTRY_FIELDS = {
       allowed_values_by_purpose: { sale: ["total"], rent: ["rental_period"] },
     }),
     fieldDef("rental_period", "enum", "recommended", {
+      section: "terms",
       allowed_values: ["day", "week"],
       applicability: { purposes: ["rent"], categories: [], subtypes: [] },
     }),
@@ -355,6 +358,39 @@ const PLOT_COMMERCIAL_DEFS = [
   boolDef("business_centre_facilities", "optional", subtypesOf("office")),
 ];
 REGISTRY_FIELDS.default.push(...RESIDENTIAL_DEFS, ...PLOT_COMMERCIAL_DEFS);
+// Story 2.6: the sale and rent terms of registry version 6, exactly as the backend defines them (descriptions copied from the real
+// registry). Every one is `section: "terms"`, applicable by purpose only; `possession_availability` is seller-declared; a date serves its
+// bounds as ISO text in `min` and `max`; the deposit and the advance accept zero.
+const SALE = { purposes: ["sale"], categories: [], subtypes: [] };
+const RENT = { purposes: ["rent"], categories: [], subtypes: [] };
+const BOTH_PURPOSES = { purposes: [], categories: [], subtypes: [] };
+const termDef = (id, type, requirement, applicability, extra = {}) => fieldDef(id, type, requirement, { section: "terms", applicability, ai_extractable: true, ...extra });
+const MONEY_ZERO = { min: "0", max: "999999999999.99", currency: "PKR" };
+const TERMS_DEFS = [
+  termDef("price_negotiable", "boolean", "optional", BOTH_PURPOSES, { description: "The price can be discussed." }),
+  termDef("possession_availability", "enum", "recommended", SALE, {
+    description: "When the buyer can take possession, as the seller states it.",
+    allowed_values: ["available_now", "within_one_month", "within_three_months", "after_three_months"],
+    seller_declared: true,
+    ai_extractable: false,
+  }),
+  termDef("security_deposit", "money", "recommended", RENT, { description: "Security deposit in PKR.", ...MONEY_ZERO }),
+  termDef("availability_date", "date", "recommended", RENT, {
+    description: "The date the property is available from, as a calendar date (YYYY-MM-DD).",
+    min: "2000-01-01",
+    max: "2100-12-31",
+  }),
+  termDef("advance_rent", "money", "optional", RENT, { description: "Rent paid in advance in PKR.", ...MONEY_ZERO }),
+  termDef("minimum_lease_months", "integer", "optional", RENT, { description: "Shortest lease in months.", min: "1", max: "120" }),
+  termDef("notice_period_days", "integer", "optional", RENT, { description: "Notice period in days.", min: "0", max: "365" }),
+  termDef("utility_electricity_included", "boolean", "optional", RENT, { description: "Electricity is included in the rent." }),
+  termDef("utility_gas_included", "boolean", "optional", RENT, { description: "Gas is included in the rent." }),
+  termDef("utility_water_included", "boolean", "optional", RENT, { description: "Water is included in the rent." }),
+  termDef("utility_internet_included", "boolean", "optional", RENT, { description: "Internet is included in the rent." }),
+  termDef("pets_allowed", "boolean", "optional", RENT, { description: "Pets are allowed." }),
+  termDef("occupant_restrictions", "enum", "optional", RENT, { description: "Who may rent, as the owner states it.", allowed_values: ["no_restriction", "families_only", "bachelors_only"] }),
+];
+REGISTRY_FIELDS.default.push(...TERMS_DEFS);
 // Other limits, requirements and choices for a few of them (and none of the rest): the section follows the registry. `extra` adds
 // fields no label knows (a yes/no, a choice, a count, a covered-area-like decimal with another scale, a field of a type with no control)
 // to prove that a registry field needs no code of its own.
@@ -381,6 +417,57 @@ Object.defineProperty(REGISTRY_FIELDS, "plotmap", {
       if (entry.id === "condition") return { ...entry, seller_declared: true };
       return entry;
     });
+  },
+});
+// Story 2.6: another registry for the terms. The date window and the notice range change, the advance rent moves out of the Terms
+// fieldset (`section: details`) and the deposit into it from nowhere else, the possession choices narrow, and a terms field of a type with
+// no control (`deposit_scheme`) is served and gets none.
+Object.defineProperty(REGISTRY_FIELDS, "termsother", {
+  enumerable: true,
+  get() {
+    return [
+      ...this.default.map((entry) => {
+        if (entry.id === "availability_date") return { ...entry, min: "2026-01-01", max: "2027-12-31", requirement: "required_for_publication" };
+        if (entry.id === "notice_period_days") return { ...entry, max: "90" };
+        if (entry.id === "advance_rent") return { ...entry, section: "details", min: "10" };
+        if (entry.id === "price_negotiable") return { ...entry, section: "details" };
+        if (entry.id === "possession_availability") return { ...entry, allowed_values: ["available_now", "after_three_months"] };
+        return entry;
+      }),
+      termDef("deposit_scheme", "geometry", "optional", RENT),
+    ];
+  },
+});
+// Date fields whose bounds cannot be trusted: a bound that is not a real date, junk text, none at all, and a window that ends before it starts.
+// The form offers no min or max for any of them and prints no "Between" clause.
+Object.defineProperty(REGISTRY_FIELDS, "baddates", {
+  enumerable: true,
+  get() {
+    return [
+      ...this.default,
+      termDef("bad_date", "date", "optional", RENT, { description: "A date.", min: "2000-13-45", max: "2100-12-31" }),
+      termDef("junk_date", "date", "optional", RENT, { description: "A date.", min: "junk", max: "soon" }),
+      termDef("open_date", "date", "optional", RENT, { description: "A date.", min: null, max: null }),
+      termDef("swapped_date", "date", "optional", RENT, { description: "A date.", min: "2030-01-01", max: "2020-01-01" }),
+    ];
+  },
+});
+// An older payload: no `section` key anywhere (the terms fall back to the Details, never guessed from applicability), and a marker that
+// is not one of the two known values.
+Object.defineProperty(REGISTRY_FIELDS, "nosection", {
+  enumerable: true,
+  get() {
+    return this.default.map((entry) => {
+      const older = { ...entry };
+      delete older.section;
+      return older;
+    });
+  },
+});
+Object.defineProperty(REGISTRY_FIELDS, "oddsection", {
+  enumerable: true,
+  get() {
+    return this.default.map((entry) => (entry.id === "pets_allowed" ? { ...entry, section: "extras" } : entry));
   },
 });
 Object.defineProperty(REGISTRY_FIELDS, "kiosk", {
@@ -439,8 +526,8 @@ Object.defineProperty(REGISTRY_FIELDS, "extra", {
     ];
   },
 });
-const REGISTRY_VERSION = 5;
-const REGISTRY_SHAPE = 4;
+const REGISTRY_VERSION = 6;
+const REGISTRY_SHAPE = 5;
 let fieldsName = "default";
 let taxonomyName = "default";
 let registryMode = "ok";
@@ -460,6 +547,7 @@ const EMPTY_EDITABLE = {
   area_sqft: null,
   ...Object.fromEntries(RESIDENTIAL_IDS.map((id) => [id, null])),
   ...Object.fromEntries(PLOT_COMMERCIAL_DEFS.map((entry) => [entry.id, null])),
+  ...Object.fromEntries(TERMS_DEFS.map((entry) => [entry.id, null])),
 };
 // What a client may send (the derived square feet never): the real service answers `not_editable` for `area_sqft`.
 const INPUT_FIELDS = Object.keys(EMPTY_EDITABLE).filter((key) => key !== "area_sqft");
@@ -494,7 +582,7 @@ const normalisedSqft = (value, unit, basis) => {
 /** Keeps a stub Listing consistent after any area change: the basis only for marla and kanal, the square feet always derived. */
 // A registry detail the editor builds generically: any non-derived field of a type with a control that is not hand-built.
 const HAND_IDS = ["purpose", "category", "subtype", "title", "description", "asking_price", "price_basis", "rental_period", "area_value", "area_unit", "marla_basis", "area_sqft"];
-const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money"];
+const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money", "date"];
 const currentDef = (id) => REGISTRY_FIELDS[fieldsName].find((entry) => entry.id === id);
 const isInput = (key) => INPUT_FIELDS.includes(key) || (!HAND_IDS.includes(key) && DETAIL_TYPES.includes(currentDef(key)?.type) && !currentDef(key).derived);
 /** Whether a field applies to a Listing, from the registry's applicability (an empty list means all). */
@@ -533,11 +621,25 @@ const checkDetail = (rule, value, fields) => {
     return scaled < toScaled(rule.min, scale) || scaled > toScaled(rule.max, scale) ? { code } : { value: fromScaled(scaled, scale) };
   }
   if (rule.type === "money") {
-    const match = typeof value === "string" && value.length <= 40 ? AREA_TEXT.exec(value) : null;
+    // Like the backend's check_money: text (surrounding whitespace trimmed) or a bare JSON integer; floats and booleans never.
+    const text = typeof value === "string" ? value.trim() : typeof value === "number" && Number.isSafeInteger(value) ? String(value) : "";
+    const match = text.length > 0 && text.length <= 40 ? AREA_TEXT.exec(text) : null;
     if (!match) return { code: "invalid" };
     if (match[1] || (match[3] ?? "").length > 2) return { code: "invalid_price" };
+    value = text;
     const cents = toScaled(value, 2);
     return cents < toScaled(rule.min, 2) || cents > toScaled(rule.max, 2) ? { code: "invalid_price" } : { value: fromScaled(cents, 2) };
+  }
+  if (rule.type === "date") {
+    // Plain calendar text only (ASCII digits, a real date: arithmetic, never Date); a real date outside the registry window is `invalid_date`,
+    // compared as text like the ISO strings they are.
+    const match = typeof value === "string" ? /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(value) : null;
+    if (!match) return { code: "invalid" };
+    const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+    const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+    if (year < 1 || month < 1 || month > 12 || day < 1 || day > days) return { code: "invalid" };
+    return (rule.min && value < rule.min) || (rule.max && value > rule.max) ? { code: "invalid_date" } : { value };
   }
   return { code: "invalid" }; // a type with no editor
 };
@@ -661,6 +763,40 @@ const LISTING_PRESETS = {
     ),
   ],
   rent: () => [makeListing(1, "mine", { purpose: "rent", category: "apartment", subtype: "apartment" })],
+  // Story 2.6: a sale Draft and a rent Draft with terms (revision 2), and a rent Draft with nothing set (no rental period, no terms). False
+  // and zero are answers. Low-entropy fake values only.
+  sale_terms: () => [makeListing(1, "mine", { asking_price: "1500000.00", price_basis: "total", price_negotiable: true, possession_availability: "within_one_month" }, 2)],
+  sale_terms_blank: () => [makeListing(1, "mine", { category: "apartment", subtype: "apartment" })],
+  rent_terms: () => [
+    makeListing(
+      1,
+      "mine",
+      {
+        purpose: "rent",
+        category: "apartment",
+        subtype: "apartment",
+        asking_price: "85000.00",
+        price_basis: "rental_period",
+        rental_period: "month",
+        security_deposit: "170000.00",
+        availability_date: "2027-03-01",
+        advance_rent: "0.00",
+        minimum_lease_months: 12,
+        notice_period_days: 0,
+        utility_electricity_included: true,
+        utility_gas_included: false,
+        pets_allowed: false,
+        occupant_restrictions: "families_only",
+        price_negotiable: false,
+      },
+      2,
+    ),
+  ],
+  rent_terms_blank: () => [makeListing(1, "mine", { purpose: "rent", category: "apartment", subtype: "apartment" })],
+  terms_unknown_purpose: () => [makeListing(1, "mine", { purpose: "lease_out", category: "house", subtype: "house" })],
+  shop_rent_blank: () => [makeListing(1, "mine", { purpose: "rent", category: "commercial", subtype: "shop" })],
+  plot_rent_blank: () => [makeListing(1, "mine", { purpose: "rent", category: "plot", subtype: "residential_plot" })],
+  house_rent_terms_blank: () => [makeListing(1, "mine", { purpose: "rent", category: "house", subtype: "house" })],
   rent_filled: () => [
     makeListing(
       1,
@@ -1152,7 +1288,7 @@ createServer((req, res) => {
   if (url.pathname === "/__listing-patch-mode") {
     return choose(
       "patchMode",
-      ["ok", "slow", "codes", "hidden", "area_codes", "area_hidden", "area_other_codes", "detail_codes", "plot_codes", "commercial_codes", "detail_floor", "detail_codes_slow", "detail_not_editable", "detail_not_applicable", "detail_hidden", "detail_unknown", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
+      ["ok", "slow", "codes", "hidden", "area_codes", "area_hidden", "area_other_codes", "detail_codes", "plot_codes", "commercial_codes", "detail_floor", "detail_codes_slow", "term_codes", "term_hidden", "detail_not_editable", "detail_not_applicable", "detail_hidden", "detail_unknown", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
       (v) => {
         patchMode = v;
         patchLostSpent = false;
@@ -1180,7 +1316,7 @@ createServer((req, res) => {
     }
     settleArea(target.fields);
     target.revision += 1;
-    target.registryVersion = 5;
+    target.registryVersion = 6;
     return json(200, { revision: target.revision });
   }
   if (url.pathname === "/__hand-ids") return json(200, { ids: HAND_IDS });
@@ -1369,6 +1505,8 @@ createServer((req, res) => {
       if (patchMode === "non_field") return fail({ non_field_errors: ["unknown_field"] });
       if (patchMode === "not_editable") return fail({ title: ["not_editable"] });
       if (patchMode === "detail_codes") return fail({ bedrooms: ["invalid_range"], condition: ["invalid_choice"], lift: ["invalid"], covered_area_sqft: ["invalid_area"], maintenance_charges: ["invalid_price"], floor_number: ["invalid_floor"] });
+      if (patchMode === "term_codes") return fail({ security_deposit: ["invalid_price"], availability_date: ["invalid_date"], minimum_lease_months: ["invalid_range"], occupant_restrictions: ["invalid_choice"], pets_allowed: ["invalid"], advance_rent: ["not_editable"], notice_period_days: ["mystery"], utility_gas_included: ["not_applicable"] });
+      if (patchMode === "term_hidden") return fail({ possession_availability: ["not_applicable"], payment_type: ["invalid"] });
       if (patchMode === "detail_codes_slow") return void setTimeout(() => fail({ bedrooms: ["invalid_range"], floor_number: ["invalid_floor"] }), 600);
       if (patchMode === "detail_not_editable") return fail({ bedrooms: ["not_editable"] });
       if (patchMode === "detail_not_applicable") return fail({ lift: ["not_applicable"] });
@@ -1483,7 +1621,7 @@ createServer((req, res) => {
           else target.provenance[key] = { origin: "manual", confirmed: true };
         }
         target.revision += 1;
-        target.registryVersion = 5;
+        target.registryVersion = 6;
       }
       if (patchMode === "lost_once" && !patchLostSpent) {
         patchLostSpent = true;
