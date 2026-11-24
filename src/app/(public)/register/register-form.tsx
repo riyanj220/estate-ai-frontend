@@ -98,7 +98,7 @@ export function RegisterForm() {
       }
 
       setStatus("idle");
-      const body = response.status === 400 ? readErrorBody(error) : null;
+      const body = response.status === 400 ? readErrorBody(error, true) : null;
       if (body) {
         const fields: Fields = {};
         const general: string[] = [];

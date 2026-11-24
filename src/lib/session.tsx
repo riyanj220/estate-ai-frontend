@@ -153,7 +153,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (response.status === 400) {
           let body = null;
           try {
-            body = readErrorBody(typeof error === "string" ? JSON.parse(error) : error);
+            body = readErrorBody(typeof error === "string" ? JSON.parse(error) : error, true);
           } catch {
             body = null;
           }

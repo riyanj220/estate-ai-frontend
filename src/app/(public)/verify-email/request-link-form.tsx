@@ -49,7 +49,7 @@ export function RequestLinkForm() {
         setSent(true);
         return show("sent");
       }
-      const body = response.status === 400 ? readErrorBody(error) : null;
+      const body = response.status === 400 ? readErrorBody(error, true) : null;
       if (body) {
         const own = body.fields.email ?? [];
         const general = Object.entries(body.fields).flatMap(([key, messages]) => (key === "email" ? [] : messages));
