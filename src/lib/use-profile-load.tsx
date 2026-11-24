@@ -46,24 +46,26 @@ export function useProfileLoad<T>(
 
   // A quiet load (after an email change request, on focus) keeps what is on screen when it fails and never shows
   // "loading". It resolves true when a fresh profile was applied.
-  const read = useCallback(
-    (quiet: boolean) => {
+  // "superseded" means a newer read took over (its answer is the one that applies); "failed" means nothing was applied.
+  const readDetailed = useCallback(
+    (quiet: boolean): Promise<"applied" | "superseded" | "failed"> => {
       const mine = ++ticket.current;
       return fetcher.current().then(async (next) => {
-        if (mine !== ticket.current) return false;
+        if (mine !== ticket.current) return "superseded";
         if (next === "gone") {
           await sessionGone();
-          return false;
+          return "failed";
         }
-        if (quiet && next.kind !== "ready") return false;
+        if (quiet && next.kind !== "ready") return "failed";
         // A Retry that did not end in a form must not leave the focus hand-over armed for a later quiet success.
         if (!quiet && next.kind !== "ready") retried.current = false;
         setLoad(next);
-        return next.kind === "ready";
+        return next.kind === "ready" ? "applied" : "failed";
       });
     },
     [sessionGone],
   );
+  const read = useCallback((quiet: boolean) => readDetailed(quiet).then((outcome) => outcome === "applied"), [readDetailed]);
 
   useEffect(() => {
     // The ref guard keeps strict mode and re-renders to one initial read.
@@ -105,7 +107,7 @@ export function useProfileLoad<T>(
     void read(false);
   }
 
-  return { load, read, retry, sessionGone };
+  return { load, read, readDetailed, retry, sessionGone };
 }
 
 /** The loading and load-failure states of a profile page (the heading and Retry button stay mounted while retrying). */

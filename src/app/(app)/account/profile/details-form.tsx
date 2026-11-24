@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ErrorSummary } from "@/components/error-summary";
 import { Field } from "@/components/form-field";
 import { getApi } from "@/lib/api";
 import { withCsrf } from "@/lib/csrf";
 import { REJECTED_ERROR, readErrorBody, withTimeout } from "@/lib/forms";
+import { markProfileSaving } from "@/lib/image-lock";
+import { SAVE_PAUSED, SAVE_WAIT } from "@/lib/listing-messages";
 import { mapKnownCodes } from "@/lib/password-messages";
 import { GENERAL_FIELD_MESSAGES, PROFILE_MESSAGES } from "@/lib/registration-messages";
 import { failureMessage, thrownMessage } from "@/lib/request-errors";
@@ -38,11 +40,17 @@ export function DetailsForm({
   initial,
   onSessionGone,
   onSaved,
+  imageBusy,
+  onPendingChange,
 }: {
   initial: Profile;
   onSessionGone: () => Promise<void>;
   /** Asks the page to re-read the profile quietly (used when the save answer could not be read). */
   onSaved: () => void;
+  /** The picture or logo is being changed: Save waits. */
+  imageBusy: boolean;
+  /** Tells the page whether a save is in flight (the picture or logo actions wait meanwhile). */
+  onPendingChange: (pending: boolean) => void;
 }) {
   const { refresh } = useSession();
   // The values the server last confirmed: the baseline for "what changed".
@@ -55,6 +63,14 @@ export function DetailsForm({
   const { announcement, setAnnouncement, resetAnnouncement, announce, notice, setNotice, showNotice, focusSummary, summaryRef, noticeRef } =
     useFormFeedback();
   const submitting = useRef(false);
+  // The save lock is set in the submit itself (not through a render); leaving the page drops it.
+  useEffect(
+    () => () => {
+      markProfileSaving(false);
+      onPendingChange(false);
+    },
+    [onPendingChange],
+  );
 
   const hasErrors = formErrors.length > 0 || Object.keys(fieldErrors).length > 0;
 
@@ -66,6 +82,10 @@ export function DetailsForm({
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting.current) return;
+    if (imageBusy) {
+      announce(SAVE_WAIT);
+      return;
+    }
     setInfo("");
     setNotice("");
     // Required fields are checked here so a blank field sends nothing; every other rule is the server's.
@@ -92,6 +112,8 @@ export function DetailsForm({
       return;
     }
     submitting.current = true;
+    markProfileSaving(true);
+    onPendingChange(true);
     setPending(true);
     resetAnnouncement();
     setAnnouncement("Saving your profile.");
@@ -150,6 +172,8 @@ export function DetailsForm({
       showNotice(thrownMessage(error));
     } finally {
       submitting.current = false;
+      markProfileSaving(false);
+      onPendingChange(false);
       setPending(false);
     }
   }
@@ -209,7 +233,12 @@ export function DetailsForm({
             />
           )}
         </Field>
-        <button type="submit" className="primary-button" disabled={pending}>
+        {imageBusy && (
+          <p id="save-paused" className="hint" data-testid="save-paused">
+            {SAVE_PAUSED}
+          </p>
+        )}
+        <button type="submit" className="primary-button" disabled={pending} aria-disabled={imageBusy ? true : undefined} aria-describedby={imageBusy ? "save-paused" : undefined}>
           {pending ? "Saving…" : "Save changes"}
         </button>
       </form>

@@ -51,3 +51,17 @@ export async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, m
 export function isTimeoutError(error: unknown): boolean {
   return error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError");
 }
+
+/** One signal that aborts when any of `signals` does (`AbortSignal.any` where the browser has it, chained by hand where it does not). */
+export function anySignal(signals: AbortSignal[]): AbortSignal {
+  if (typeof AbortSignal.any === "function") return AbortSignal.any(signals);
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+  }
+  return controller.signal;
+}

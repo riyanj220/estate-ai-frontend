@@ -553,3 +553,30 @@ body {
   flex-basis: 100%;
   margin: 0;
 }
+
+/* Profile picture and Agency logo section (Story 2.11) */
+.profile-image-frame {
+  margin-bottom: var(--space);
+}
+.profile-image {
+  display: block;
+  width: 10rem;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+.profile-image-frame[data-kind="agency"] .profile-image {
+  object-fit: contain;
+}
+.profile-image-placeholder {
+  border: 1px dashed var(--color-border);
+}
+.profile-image-failed {
+  width: 100%;
+  max-width: 20rem;
+  aspect-ratio: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+}

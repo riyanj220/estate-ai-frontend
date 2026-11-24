@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
 import { getApi } from "@/lib/api";
 import { CsrfFetchError, withCsrf } from "@/lib/csrf";
+import { RetryImage } from "@/components/retry-image";
 import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/image-lock";
-import { REJECTED_ERROR, UPLOAD_TIMEOUT_MS, rateLimitMessage, readErrorBody, withTimeout } from "@/lib/forms";
+import { REJECTED_ERROR, UPLOAD_TIMEOUT_MS, readErrorBody, withTimeout } from "@/lib/forms";
 import { readListing, type ListingView, type MediaItem } from "@/lib/listing-labels";
 import {
   IMAGES_ALREADY_GONE,
@@ -19,18 +20,16 @@ import {
   IMAGES_REFRESH_FAILED,
   IMAGES_UNKNOWN,
   IMAGES_UNREADABLE,
-  IMAGE_LOAD_FAILED,
   LATEST_NOT_LOADED,
   MAX_IMAGES,
   MAX_UPLOAD_BYTES,
   ORDER_CHANGED,
-  UPLOAD_BUSY,
   UPLOAD_CONFLICT_MESSAGES,
   UPLOAD_FILE_MESSAGES,
 } from "@/lib/listing-messages";
-import { mapKnownCodes } from "@/lib/password-messages";
 import { failureMessage, thrownMessage } from "@/lib/request-errors";
 import { useSession } from "@/lib/session";
+import { uploadErrorMessage } from "@/lib/upload-errors";
 import { useFormFeedback } from "@/lib/use-form-feedback";
 import type { Latest } from "./draft-editor";
 
@@ -46,37 +45,9 @@ const STATE_TEXT: Record<RowState, string> = { waiting: "Waiting", uploading: "U
 const SKIPPED = "An earlier image could not be added, so this one was not sent.";
 const ALLOWED_TYPES = "image/jpeg,image/png,image/webp";
 
-/** "Try again in 7 seconds." from a `Retry-After` of plain digits; anything else is "shortly" (the header is only ever shown as text). */
-function retryText(header: string | null): string {
-  if (header === null || !/^[1-9][0-9]{0,3}$/.test(header)) return "Try again shortly.";
-  return `Try again in ${header} ${header === "1" ? "second" : "seconds"}.`;
-}
-
-/** One thumbnail: a plain same-origin `<img>`; when it cannot load, the reason and a Retry (which mounts a fresh `<img>`). */
+/** One thumbnail: the shared same-origin `<img>` with its load-failure Retry. */
 function Thumb({ url, alt, label }: { url: string; alt: string; label: string }) {
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  if (failed) {
-    return (
-      <div className="image-thumb image-failed" data-testid="image-failed">
-        <p>{IMAGE_LOAD_FAILED}</p>
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={() => {
-            setFailed(false);
-            setAttempt((tick) => tick + 1);
-          }}
-        >
-          Retry<span className="sr-only"> loading {label}</span>
-        </button>
-      </div>
-    );
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element -- a same-origin, owner-only, no-store URL: the image optimiser must never see it
-    <img key={attempt} src={url} alt={alt} loading="lazy" className="image-thumb" onError={() => setFailed(true)} />
-  );
+  return <RetryImage url={url} alt={alt} label={label} className="image-thumb" failedClassName="image-thumb image-failed" />;
 }
 
 /**
@@ -242,28 +213,20 @@ export function ImagesSection({
       }
       if (response.status === 401) return { state: "failed", message: "Your session ended.", stop: true, reread: false, end: "gone" };
       if (response.status === 404) return { state: "failed", message: "This draft could not be found.", stop: true, reread: false, end: "missing" };
-      const parsed = readErrorBody(error);
+      const message = uploadErrorMessage({
+        status: response.status,
+        error,
+        retryAfter: response.headers.get("Retry-After"),
+        suspended: account?.state === "suspended",
+        forbidden: IMAGES_FORBIDDEN,
+        conflicts: UPLOAD_CONFLICT_MESSAGES,
+      });
       // A file the server refuses for its size or its content is that file's own problem: the others still go.
-      if (response.status === 413) return { state: "failed", message: UPLOAD_FILE_MESSAGES.too_large, stop: false, reread: false };
-      if (response.status === 400) {
-        const codes = parsed?.fields.file ?? [];
-        // Known codes only; a field with no known code is the generic text, never the server's own words.
-        const messages = codes.length > 0 ? mapKnownCodes(codes, UPLOAD_FILE_MESSAGES, REJECTED_ERROR) : [REJECTED_ERROR];
-        return { state: "failed", message: messages[0], stop: false, reread: false };
-      }
-      if (response.status === 409) {
-        const code = parsed?.code;
-        const text = typeof code === "string" && Object.hasOwn(UPLOAD_CONFLICT_MESSAGES, code) ? UPLOAD_CONFLICT_MESSAGES[code] : REJECTED_ERROR;
-        return { state: "failed", message: text, stop: true, reread: true };
-      }
-      if (response.status === 403) return { state: "failed", message: account?.state === "suspended" ? IMAGES_FORBIDDEN : failureMessage(403, null), stop: true, reread: false };
-      if (response.status === 503) {
-        return { state: "failed", message: `${UPLOAD_BUSY} ${retryText(response.headers.get("Retry-After"))}`, stop: true, reread: false };
-      }
-      if (response.status === 429) return { state: "failed", message: rateLimitMessage(response.headers.get("Retry-After")), stop: true, reread: false };
+      if (response.status === 413 || response.status === 400) return { state: "failed", message, stop: false, reread: false };
+      if (response.status === 409) return { state: "failed", message, stop: true, reread: true };
       // A server error may have come after the image was stored: the outcome is unknown.
-      if (response.status >= 500) return { state: "unknown", message: failureMessage(response.status, null), stop: true, reread: true };
-      return { state: "failed", message: failureMessage(response.status, null), stop: true, reread: false };
+      if (response.status >= 500 && response.status !== 503) return { state: "unknown", message, stop: true, reread: true };
+      return { state: "failed", message, stop: true, reread: false };
     } catch (thrown) {
       if (cancel.aborted) return { state: "failed", message: "", stop: true, reread: false };
       // A request that never left (no CSRF token) is a plain failure; a lost answer or a timeout may have stored the image.
