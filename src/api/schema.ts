@@ -183,7 +183,7 @@ export interface paths {
         head?: never;
         /**
          * Edit one of the signed-in account's own Listings
-         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)). Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_choice`, `not_applicable`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`). Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define (for example installment, down payment, title document or mortgage attributes) are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_choice`, `not_applicable`, `invalid_measure`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
          */
         patch: operations["update_listing"];
         trace?: never;
@@ -618,6 +618,22 @@ export interface components {
             subtypes: string[];
         };
         /**
+         * @description * `lda` - lda
+         *     * `cda` - cda
+         *     * `kda` - kda
+         *     * `rda` - rda
+         *     * `fda` - fda
+         *     * `mda` - mda
+         *     * `gda` - gda
+         *     * `bda` - bda
+         *     * `peshawar_development_authority` - peshawar_development_authority
+         *     * `private_society` - private_society
+         *     * `none` - none
+         *     * `other` - other
+         * @enum {string}
+         */
+        ApprovalAuthorityEnum: "lda" | "cda" | "kda" | "rda" | "fda" | "mda" | "gda" | "bda" | "peshawar_development_authority" | "private_society" | "none" | "other";
+        /**
          * @description * `sqft` - sqft
          *     * `sqyd` - sqyd
          *     * `marla` - marla
@@ -626,6 +642,25 @@ export interface components {
          * @enum {string}
          */
         AreaUnitEnum: "sqft" | "sqyd" | "marla" | "kanal" | "acre";
+        /**
+         * @description * `not_applicable` - not_applicable
+         *     * `balloting_pending` - balloting_pending
+         *     * `balloted` - balloted
+         * @enum {string}
+         */
+        BallotingStatusEnum: "not_applicable" | "balloting_pending" | "balloted";
+        /**
+         * @description * `retail` - retail
+         *     * `restaurant` - restaurant
+         *     * `office_work` - office_work
+         *     * `clinic` - clinic
+         *     * `warehouse` - warehouse
+         *     * `showroom` - showroom
+         *     * `mixed` - mixed
+         *     * `other` - other
+         * @enum {string}
+         */
+        BusinessUseEnum: "retail" | "restaurant" | "office_work" | "clinic" | "warehouse" | "showroom" | "mixed" | "other";
         /**
          * @description * `sign_in` - sign_in
          *     * `browse` - browse
@@ -705,6 +740,13 @@ export interface components {
         CsrfToken: {
             csrf_token: string;
         };
+        /**
+         * @description * `developed` - developed
+         *     * `partially_developed` - partially_developed
+         *     * `undeveloped` - undeveloped
+         * @enum {string}
+         */
+        DevelopmentStatusEnum: "developed" | "partially_developed" | "undeveloped";
         DraftCreateRequest: {
             /**
              * @description From the registry.
@@ -864,7 +906,7 @@ export interface components {
             asking_price: string | null;
             price_basis: (components["schemas"]["PriceBasisEnum"] | components["schemas"]["NullEnum"]) | null;
             rental_period: (components["schemas"]["RentalPeriodEnum"] | components["schemas"]["NullEnum"]) | null;
-            /** @description Decimal string with 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only. */
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. */
             area_value: string | null;
             area_unit: (components["schemas"]["AreaUnitEnum"] | components["schemas"]["NullEnum"]) | null;
             marla_basis: (components["schemas"]["MarlaBasisEnum"] | components["schemas"]["NullEnum"]) | null;
@@ -879,7 +921,7 @@ export interface components {
             /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
             parking_spaces: number | null;
             occupancy_status: (components["schemas"]["OccupancyStatusEnum"] | components["schemas"]["NullEnum"]) | null;
-            /** @description Decimal string with 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only. */
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. */
             covered_area_sqft: string | null;
             /** @description Whole number from 1 to 200, a JSON integer (never text). Null clears it. */
             total_floors: number | null;
@@ -924,7 +966,93 @@ export interface components {
             intercom: boolean | null;
             /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
             maintenance_charges: string | null;
-            /** @description Decimal string with 4 decimals (`0.0001` to `9999999999999999.9999`), digits and a point only. Computed by the server; read-only. */
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            electricity: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            water: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            gas: boolean | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `99999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            plot_width: string | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `99999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            plot_depth: string | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI. The choices depend on the Subtype (see the registry).
+             *
+             *     * `possession_ready` - possession_ready
+             *     * `possession_pending` - possession_pending
+             *     * `file_only` - file_only
+             */
+            possession_status: (components["schemas"]["PossessionStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            corner_plot: boolean | null;
+            /** @description Decimal string with up to 2 decimals (`1.00` to `999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            road_width_ft: string | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `not_applicable` - not_applicable
+             *     * `balloting_pending` - balloting_pending
+             *     * `balloted` - balloted
+             */
+            balloting_status: (components["schemas"]["BallotingStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            sewerage: boolean | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `developed` - developed
+             *     * `partially_developed` - partially_developed
+             *     * `undeveloped` - undeveloped
+             */
+            development_status: (components["schemas"]["DevelopmentStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `lda` - lda
+             *     * `cda` - cda
+             *     * `kda` - kda
+             *     * `rda` - rda
+             *     * `fda` - fda
+             *     * `mda` - mda
+             *     * `gda` - gda
+             *     * `bda` - bda
+             *     * `peshawar_development_authority` - peshawar_development_authority
+             *     * `private_society` - private_society
+             *     * `none` - none
+             *     * `other` - other
+             */
+            approval_authority: (components["schemas"]["ApprovalAuthorityEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            park_facing: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            main_boulevard: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            boundary_wall: boolean | null;
+            orientation: (components["schemas"]["OrientationEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `open_file` - open_file
+             *     * `allocation_letter` - allocation_letter
+             *     * `possession_letter` - possession_letter
+             */
+            plot_file_status: (components["schemas"]["PlotFileStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            business_use: (components["schemas"]["BusinessUseEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `9999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            frontage_ft: string | null;
+            road_access: (components["schemas"]["RoadAccessEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with up to 2 decimals (`1.00` to `99.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            ceiling_height_ft: string | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `99999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            power_load_kw: string | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            three_phase_electricity: boolean | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            conference_rooms: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            business_centre_facilities: boolean | null;
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. Computed by the server; read-only. */
             area_sqft: string | null;
         };
         /** @description The editable fields; the service judges every value (null clears a field). */
@@ -937,7 +1065,7 @@ export interface components {
             asking_price?: string | null;
             price_basis?: (components["schemas"]["PriceBasisEnum"] | components["schemas"]["NullEnum"]) | null;
             rental_period?: (components["schemas"]["RentalPeriodEnum"] | components["schemas"]["NullEnum"]) | null;
-            /** @description Decimal string with 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only. */
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. */
             area_value?: string | null;
             area_unit?: (components["schemas"]["AreaUnitEnum"] | components["schemas"]["NullEnum"]) | null;
             marla_basis?: (components["schemas"]["MarlaBasisEnum"] | components["schemas"]["NullEnum"]) | null;
@@ -952,7 +1080,7 @@ export interface components {
             /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
             parking_spaces?: number | null;
             occupancy_status?: (components["schemas"]["OccupancyStatusEnum"] | components["schemas"]["NullEnum"]) | null;
-            /** @description Decimal string with 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only. */
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. */
             covered_area_sqft?: string | null;
             /** @description Whole number from 1 to 200, a JSON integer (never text). Null clears it. */
             total_floors?: number | null;
@@ -997,6 +1125,92 @@ export interface components {
             intercom?: boolean | null;
             /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
             maintenance_charges?: string | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            electricity?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            water?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            gas?: boolean | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `99999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            plot_width?: string | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `99999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            plot_depth?: string | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI. The choices depend on the Subtype (see the registry).
+             *
+             *     * `possession_ready` - possession_ready
+             *     * `possession_pending` - possession_pending
+             *     * `file_only` - file_only
+             */
+            possession_status?: (components["schemas"]["PossessionStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            corner_plot?: boolean | null;
+            /** @description Decimal string with up to 2 decimals (`1.00` to `999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            road_width_ft?: string | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `not_applicable` - not_applicable
+             *     * `balloting_pending` - balloting_pending
+             *     * `balloted` - balloted
+             */
+            balloting_status?: (components["schemas"]["BallotingStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            sewerage?: boolean | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `developed` - developed
+             *     * `partially_developed` - partially_developed
+             *     * `undeveloped` - undeveloped
+             */
+            development_status?: (components["schemas"]["DevelopmentStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `lda` - lda
+             *     * `cda` - cda
+             *     * `kda` - kda
+             *     * `rda` - rda
+             *     * `fda` - fda
+             *     * `mda` - mda
+             *     * `gda` - gda
+             *     * `bda` - bda
+             *     * `peshawar_development_authority` - peshawar_development_authority
+             *     * `private_society` - private_society
+             *     * `none` - none
+             *     * `other` - other
+             */
+            approval_authority?: (components["schemas"]["ApprovalAuthorityEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            park_facing?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            main_boulevard?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            boundary_wall?: boolean | null;
+            orientation?: (components["schemas"]["OrientationEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `open_file` - open_file
+             *     * `allocation_letter` - allocation_letter
+             *     * `possession_letter` - possession_letter
+             */
+            plot_file_status?: (components["schemas"]["PlotFileStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            business_use?: (components["schemas"]["BusinessUseEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `9999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            frontage_ft?: string | null;
+            road_access?: (components["schemas"]["RoadAccessEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with up to 2 decimals (`1.00` to `99.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            ceiling_height_ft?: string | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `99999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            power_load_kw?: string | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            three_phase_electricity?: boolean | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            conference_rooms?: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            business_centre_facilities?: boolean | null;
         };
         ListingPage: {
             next: string | null;
@@ -1051,6 +1265,18 @@ export interface components {
          */
         OccupancyStatusEnum: "owner_occupied" | "tenant_occupied" | "vacant";
         /**
+         * @description * `north` - north
+         *     * `south` - south
+         *     * `east` - east
+         *     * `west` - west
+         *     * `north_east` - north_east
+         *     * `north_west` - north_west
+         *     * `south_east` - south_east
+         *     * `south_west` - south_west
+         * @enum {string}
+         */
+        OrientationEnum: "north" | "south" | "east" | "west" | "north_east" | "north_west" | "south_east" | "south_west";
+        /**
          * @description * `manual` - manual
          *     * `ai` - ai
          * @enum {string}
@@ -1104,6 +1330,20 @@ export interface components {
             phone?: string;
         };
         /**
+         * @description * `open_file` - open_file
+         *     * `allocation_letter` - allocation_letter
+         *     * `possession_letter` - possession_letter
+         * @enum {string}
+         */
+        PlotFileStatusEnum: "open_file" | "allocation_letter" | "possession_letter";
+        /**
+         * @description * `possession_ready` - possession_ready
+         *     * `possession_pending` - possession_pending
+         *     * `file_only` - file_only
+         * @enum {string}
+         */
+        PossessionStatusEnum: "possession_ready" | "possession_pending" | "file_only";
+        /**
          * @description * `total` - total
          *     * `per_unit` - per_unit
          *     * `rental_period` - rental_period
@@ -1155,6 +1395,12 @@ export interface components {
             allowed_values_by_purpose: {
                 [key: string]: string[];
             } | null;
+            /** @description Enums narrowed by Listing Subtype (Subtype -> allowed values, one entry per Subtype the field applies to); else null. When present it takes precedence over the choices in `allowed_values` for that Subtype. */
+            allowed_values_by_subtype: {
+                [key: string]: string[];
+            } | null;
+            /** @description A claim the seller makes (legal, approval, possession): show it as "Seller-declared", never as verified by EstateAI. */
+            seller_declared: boolean;
             /** @description Text only: minimum characters after normalisation. */
             min_length: number | null;
             /** @description Text only: maximum characters after normalisation. */
@@ -1187,6 +1433,13 @@ export interface components {
          * @enum {string}
          */
         RentalPeriodEnum: "day" | "week" | "month" | "year";
+        /**
+         * @description * `main_road` - main_road
+         *     * `secondary_road` - secondary_road
+         *     * `inner_street` - inner_street
+         * @enum {string}
+         */
+        RoadAccessEnum: "main_road" | "secondary_road" | "inner_street";
         /** @description Exactly `email` and `password`, both strings. Nothing else is accepted. */
         SignInRequest: {
             /** @description The account email; matched case-insensitively. */
