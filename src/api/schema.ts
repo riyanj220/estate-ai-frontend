@@ -203,7 +203,7 @@ export interface paths {
         head?: never;
         /**
          * Edit one of the signed-in account's own Listings
-         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`) and the sale and rent terms (`price_negotiable` for both; sale only `possession_availability`; rent only `security_deposit` and `advance_rent` as decimal strings in PKR with at most two decimals, `availability_date` as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`, `notice_period_days`, the four `utility_*_included` answers, `pets_allowed` and `occupant_restrictions`; the rent terms are `not_applicable` on a sale Draft and the other way round; a rental period is never assumed). Installment, payment type, down payment and title or approval document terms are not supported yet (`unknown_field`). Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define (for example installment, down payment, title document or mortgage attributes) are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`) and the sale and rent terms (`price_negotiable` for both; sale only `possession_availability`; rent only `security_deposit` and `advance_rent` as decimal strings in PKR with at most two decimals, `availability_date` as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`, `notice_period_days`, the four `utility_*_included` answers, `pets_allowed` and `occupant_restrictions`; the rent terms are `not_applicable` on a sale Draft and the other way round; a rental period is never assumed) and the location: `city` and `locality` as uuid text of an active city and one of its localities (`/api/v1/reference/cities` and `/api/v1/reference/cities/{city_id}/localities`; a locality of another city is `locality_not_in_city`, a locality without a city `invalid`; changing or clearing `city` clears the stored `locality` in the same write), the public location text `society`, `phase`, `sector` and `block` (up to 60 characters, no phone numbers or email addresses) and the PRIVATE address `street` (up to 120 characters), `house_number` (up to 30) and `latitude` and `longitude` (decimal strings with at most six decimals, -90 to 90 and -180 to 180, both or neither; `out_of_range` otherwise): the private fields are returned only to the owner and never appear in any public response. Installment, payment type, down payment and title or approval document terms are not supported yet (`unknown_field`). Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define (for example installment, down payment, title document or mortgage attributes) are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
          */
         patch: operations["update_listing"];
         trace?: never;
@@ -260,8 +260,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The bytes of one image of one of the signed-in account's own Drafts
-         * @description The media endpoint: the only place an image is served. Applied at request time: a Draft's image goes only to the owning account (Suspended and Email-unverified owners included, a Deactivated one not). Anyone else (another account, an administrator, a Visitor), an unknown or malformed id, another Listing's image and a Listing that is not a Draft get the same `404 not_found` (a Visitor gets 404, never 401). The body is the stored, re-encoded image with its stored `Content-Type` (`image/jpeg`, `image/png` or `image/webp`), `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` (no file name) and `Content-Security-Policy: default-src 'none'; sandbox`; no cookie is set. `HEAD` answers the same headers without a body. `Range` is ignored (always `200`, the whole file) and there is no `ETag`. `Accept` is ignored.
+         * The bytes of one image of a Listing the caller may see
+         * @description The media endpoint: the only place an image is served, decided at request time by the single visibility policy. An image of a public Listing (Published, not restricted, owner Active) goes to anyone, a Visitor and an administrator included, with `Cache-Control: public, max-age=60` (so it may stay in a cache for up to a minute after the Listing stops being public), no cookie and nothing varying by cookie, whatever cookies the request carries. An image of any other Listing (a Draft, a restricted one, one whose owner is Suspended or Deactivated) goes only to the owning account (Suspended and Email-unverified owners included, a Deactivated one not) with `Cache-Control: private, no-store`. Anyone else (another account, an administrator, a Visitor), an unknown or malformed id and another Listing's image get the same `404 not_found` (a Visitor gets 404, never 401). The body is the stored, re-encoded image with its stored `Content-Type` (`image/jpeg`, `image/png` or `image/webp`), `Content-Length`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` (no file name) and `Content-Security-Policy: default-src 'none'; sandbox`. `HEAD` answers the same headers without a body. `Range` is ignored (always `200`, the whole file) and there is no `ETag`. `Accept` is ignored.
          */
         get: operations["get_listing_image_file"];
         put?: never;
@@ -617,6 +617,26 @@ export interface paths {
          * @description Unpaginated: the list is small and bounded.
          */
         get: operations["list_cities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reference/cities/{city_id}/localities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Areas and societies of a city
+         * @description Public. The active localities of an active city, ordered by name. An unknown, inactive or malformed city id is `404 not_found`. Unpaginated: the list is small and bounded.
+         */
+        get: operations["list_localities"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1304,6 +1324,32 @@ export interface components {
             /** @description `true` or `false`; null when not answered (never defaulted to either). */
             pets_allowed: boolean | null;
             occupant_restrictions: (components["schemas"]["OccupantRestrictionsEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * Format: uuid
+             * @description The uuid of an active city from the reference lists (`/api/v1/reference/cities`), as text; never a name. Null clears it.
+             */
+            city: string | null;
+            /**
+             * Format: uuid
+             * @description The uuid of an active locality from the reference lists (`/api/v1/reference/cities`), as text; never a name. Null clears it.
+             */
+            locality: string | null;
+            /** @description Up to 60 characters. */
+            society: string | null;
+            /** @description Up to 60 characters. */
+            phase: string | null;
+            /** @description Up to 60 characters. */
+            sector: string | null;
+            /** @description Up to 60 characters. */
+            block: string | null;
+            /** @description Up to 120 characters. */
+            street: string | null;
+            /** @description Up to 30 characters. */
+            house_number: string | null;
+            /** @description Decimal string with up to 6 decimals (`-90` to `90`), digits and a point only, a leading minus sign, never a JSON number. Returned with 6 decimals. */
+            latitude: string | null;
+            /** @description Decimal string with up to 6 decimals (`-180` to `180`), digits and a point only, a leading minus sign, never a JSON number. Returned with 6 decimals. */
+            longitude: string | null;
             /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. Computed by the server; read-only. */
             area_sqft: string | null;
         };
@@ -1498,6 +1544,32 @@ export interface components {
             /** @description `true` or `false`; null when not answered (never defaulted to either). */
             pets_allowed?: boolean | null;
             occupant_restrictions?: (components["schemas"]["OccupantRestrictionsEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * Format: uuid
+             * @description The uuid of an active city from the reference lists (`/api/v1/reference/cities`), as text; never a name. Null clears it.
+             */
+            city?: string | null;
+            /**
+             * Format: uuid
+             * @description The uuid of an active locality from the reference lists (`/api/v1/reference/cities`), as text; never a name. Null clears it.
+             */
+            locality?: string | null;
+            /** @description Up to 60 characters. */
+            society?: string | null;
+            /** @description Up to 60 characters. */
+            phase?: string | null;
+            /** @description Up to 60 characters. */
+            sector?: string | null;
+            /** @description Up to 60 characters. */
+            block?: string | null;
+            /** @description Up to 120 characters. */
+            street?: string | null;
+            /** @description Up to 30 characters. */
+            house_number?: string | null;
+            /** @description Decimal string with up to 6 decimals (`-90` to `90`), digits and a point only, a leading minus sign, never a JSON number. Returned with 6 decimals. */
+            latitude?: string | null;
+            /** @description Decimal string with up to 6 decimals (`-180` to `180`), digits and a point only, a leading minus sign, never a JSON number. Returned with 6 decimals. */
+            longitude?: string | null;
         };
         ListingPage: {
             next: string | null;
@@ -1506,13 +1578,33 @@ export interface components {
         };
         /**
          * @description * `draft` - draft
+         *     * `published` - published
          * @enum {string}
          */
-        ListingStatusEnum: "draft";
+        ListingStatusEnum: "draft" | "published";
         ListingUpdateRequest: {
             /** @description The `revision` of the Listing the client last read. */
             base_revision: number;
             fields: components["schemas"]["ListingFieldsUpdateRequest"];
+        };
+        /**
+         * @description Allowlist. Names are plain strings: locality values are managed in the database. `kind`
+         *     is `area` or `society`, a closed vocabulary the form groups by.
+         */
+        Locality: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            kind: components["schemas"]["LocalityKindEnum"];
+        };
+        /**
+         * @description * `area` - area
+         *     * `society` - society
+         * @enum {string}
+         */
+        LocalityKindEnum: "area" | "society";
+        LocalityList: {
+            items: components["schemas"]["Locality"][];
         };
         Marked: {
             marked: number;
@@ -1715,10 +1807,11 @@ export interface components {
             /** @description A claim the seller makes (legal, approval, possession): show it as "Seller-declared", never as verified by EstateAI. */
             seller_declared: boolean;
             /**
-             * @description Where a form groups the field: `terms` (price, sale and rent terms) or `details`. Read this, never guess from applicability.
+             * @description Where a form groups the field: `terms` (price, sale and rent terms), `location` (city, locality, the public location text and the private address; group by `class`) or `details`. Read this, never guess from applicability.
              *
              *     * `details` - details
              *     * `terms` - terms
+             *     * `location` - location
              */
             section: components["schemas"]["SectionEnum"];
             /** @description Text only: minimum characters after normalisation. */
@@ -1733,6 +1826,8 @@ export interface components {
             currency: string | null;
             /** @description Decimal only: the number of decimals stored and returned. */
             scale: number | null;
+            /** @description Reference fields only: what the stored uuid points at, `city` or `locality`. The lists are `/api/v1/reference/cities` and `/api/v1/reference/cities/{city_id}/localities`; the value is the uuid, never a name. */
+            reference: string | null;
             /** @description Computed by the server from other fields; read-only, never accepted as input. */
             derived: boolean;
             /** @description What the value means, for the form; null when not needed. */
@@ -1763,9 +1858,10 @@ export interface components {
         /**
          * @description * `details` - details
          *     * `terms` - terms
+         *     * `location` - location
          * @enum {string}
          */
-        SectionEnum: "details" | "terms";
+        SectionEnum: "details" | "terms" | "location";
         /** @description Exactly `email` and `password`, both strings. Nothing else is accepted. */
         SignInRequest: {
             /** @description The account email; matched case-insensitively. */
@@ -1808,9 +1904,10 @@ export interface components {
          *     * `decimal` - decimal
          *     * `boolean` - boolean
          *     * `date` - date
+         *     * `reference` - reference
          * @enum {string}
          */
-        TypeEnum: "enum" | "text" | "money" | "integer" | "decimal" | "boolean" | "date";
+        TypeEnum: "enum" | "text" | "money" | "integer" | "decimal" | "boolean" | "date" | "reference";
         UnreadCount: {
             unread: number;
         };
@@ -1822,10 +1919,11 @@ export interface components {
             status: components["schemas"]["EmailVerifiedStatusEnum"];
         };
         /**
-         * @description * `private` - private
+         * @description * `private` - PRIVATE
+         *     * `public` - PUBLIC
          * @enum {string}
          */
-        VisibilityEnum: "private";
+        VisibilityEnum: "private" | "public";
         /**
          * @description Stable error code catalogue.
          * @enum {string}
@@ -3649,7 +3747,7 @@ export interface operations {
             query?: {
                 cursor?: string;
                 page_size?: number;
-                status?: "draft";
+                status?: "draft" | "published";
             };
             header?: never;
             path?: never;
@@ -4698,6 +4796,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CityList"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_localities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                city_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active localities by name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocalityList"];
                 };
             };
             /** @description Bad request or validation error */

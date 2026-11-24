@@ -679,13 +679,23 @@ paths:
         as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`,
         `notice_period_days`, the four `utility_*_included` answers, `pets_allowed`
         and `occupant_restrictions`; the rent terms are `not_applicable` on a sale
-        Draft and the other way round; a rental period is never assumed). Installment,
-        payment type, down payment and title or approval document terms are not supported
-        yet (`unknown_field`). Possession, balloting, development, approval and plot
-        file status are seller-declared (registry flag `seller_declared`): the owner''s
-        claim, never verified by EstateAI. A Plot File allows only `file_only` for
-        `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids
-        the registry does not define (for example installment, down payment, title
+        Draft and the other way round; a rental period is never assumed) and the location:
+        `city` and `locality` as uuid text of an active city and one of its localities
+        (`/api/v1/reference/cities` and `/api/v1/reference/cities/{city_id}/localities`;
+        a locality of another city is `locality_not_in_city`, a locality without a
+        city `invalid`; changing or clearing `city` clears the stored `locality` in
+        the same write), the public location text `society`, `phase`, `sector` and
+        `block` (up to 60 characters, no phone numbers or email addresses) and the
+        PRIVATE address `street` (up to 120 characters), `house_number` (up to 30)
+        and `latitude` and `longitude` (decimal strings with at most six decimals,
+        -90 to 90 and -180 to 180, both or neither; `out_of_range` otherwise): the
+        private fields are returned only to the owner and never appear in any public
+        response. Installment, payment type, down payment and title or approval document
+        terms are not supported yet (`unknown_field`). Possession, balloting, development,
+        approval and plot file status are seller-declared (registry flag `seller_declared`):
+        the owner''s claim, never verified by EstateAI. A Plot File allows only `file_only`
+        for `possession_status` and the other Subtypes refuse it (`invalid_choice`).
+        Ids the registry does not define (for example installment, down payment, title
         document or mortgage attributes) are `unknown_field`. Counts are JSON integers
         and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`,
         never 0 or false. The registry says which apply to which Subtype (`not_applicable`
@@ -698,10 +708,11 @@ paths:
         `200` and keeps the revision. `400` carries codes keyed by registry field
         id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`,
         `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`,
-        `contains_contact_details`, `not_editable`; unknown ids are `unknown_field`
-        under `non_field_errors`) and never echoes a value. Another account''s, an
-        unknown or a malformed id is `404 not_found`; an account that may not edit
-        (Suspended, Deactivated) is `403 forbidden`. Never cached.'
+        `out_of_range`, `locality_not_in_city`, `contains_contact_details`, `not_editable`;
+        unknown ids are `unknown_field` under `non_field_errors`) and never echoes
+        a value. Another account''s, an unknown or a malformed id is `404 not_found`;
+        an account that may not edit (Suspended, Deactivated) is `403 forbidden`.
+        Never cached.'
       summary: Edit one of the signed-in account's own Listings
       parameters:
       - in: path
@@ -1042,19 +1053,24 @@ paths:
   /api/v1/listings/{listing_id}/images/{image_id}/file:
     get:
       operationId: get_listing_image_file
-      description: 'The media endpoint: the only place an image is served. Applied
-        at request time: a Draft''s image goes only to the owning account (Suspended
-        and Email-unverified owners included, a Deactivated one not). Anyone else
-        (another account, an administrator, a Visitor), an unknown or malformed id,
-        another Listing''s image and a Listing that is not a Draft get the same `404
+      description: 'The media endpoint: the only place an image is served, decided
+        at request time by the single visibility policy. An image of a public Listing
+        (Published, not restricted, owner Active) goes to anyone, a Visitor and an
+        administrator included, with `Cache-Control: public, max-age=60` (so it may
+        stay in a cache for up to a minute after the Listing stops being public),
+        no cookie and nothing varying by cookie, whatever cookies the request carries.
+        An image of any other Listing (a Draft, a restricted one, one whose owner
+        is Suspended or Deactivated) goes only to the owning account (Suspended and
+        Email-unverified owners included, a Deactivated one not) with `Cache-Control:
+        private, no-store`. Anyone else (another account, an administrator, a Visitor),
+        an unknown or malformed id and another Listing''s image get the same `404
         not_found` (a Visitor gets 404, never 401). The body is the stored, re-encoded
         image with its stored `Content-Type` (`image/jpeg`, `image/png` or `image/webp`),
-        `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options:
-        nosniff`, `Content-Disposition: inline` (no file name) and `Content-Security-Policy:
-        default-src ''none''; sandbox`; no cookie is set. `HEAD` answers the same
-        headers without a body. `Range` is ignored (always `200`, the whole file)
-        and there is no `ETag`. `Accept` is ignored.'
-      summary: The bytes of one image of one of the signed-in account's own Drafts
+        `Content-Length`, `X-Content-Type-Options: nosniff`, `Content-Disposition:
+        inline` (no file name) and `Content-Security-Policy: default-src ''none'';
+        sandbox`. `HEAD` answers the same headers without a body. `Range` is ignored
+        (always `200`, the whole file) and there is no `ETag`. `Accept` is ignored.'
+      summary: The bytes of one image of a Listing the caller may see
       parameters:
       - in: path
         name: image_id
@@ -1632,6 +1648,7 @@ paths:
           type: string
           enum:
           - draft
+          - published
       tags:
       - me
       security:
@@ -2497,6 +2514,69 @@ paths:
               schema:
                 $ref: '#/components/schemas/CityList'
           description: Active cities by name
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/reference/cities/{city_id}/localities:
+    get:
+      operationId: list_localities
+      description: 'Public. The active localities of an active city, ordered by name.
+        An unknown, inactive or malformed city id is `404 not_found`. Unpaginated:
+        the list is small and bounded.'
+      summary: Areas and societies of a city
+      parameters:
+      - in: path
+        name: city_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - reference
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocalityList'
+          description: Active localities by name
         '400':
           description: Bad request or validation error
           content:
@@ -4056,6 +4136,54 @@ components:
           oneOf:
           - $ref: '#/components/schemas/OccupantRestrictionsEnum'
           - $ref: '#/components/schemas/NullEnum'
+        city:
+          type: string
+          format: uuid
+          nullable: true
+          description: The uuid of an active city from the reference lists (`/api/v1/reference/cities`),
+            as text; never a name. Null clears it.
+        locality:
+          type: string
+          format: uuid
+          nullable: true
+          description: The uuid of an active locality from the reference lists (`/api/v1/reference/cities`),
+            as text; never a name. Null clears it.
+        society:
+          type: string
+          nullable: true
+          description: Up to 60 characters.
+        phase:
+          type: string
+          nullable: true
+          description: Up to 60 characters.
+        sector:
+          type: string
+          nullable: true
+          description: Up to 60 characters.
+        block:
+          type: string
+          nullable: true
+          description: Up to 60 characters.
+        street:
+          type: string
+          nullable: true
+          description: Up to 120 characters.
+        house_number:
+          type: string
+          nullable: true
+          description: Up to 30 characters.
+        latitude:
+          type: string
+          nullable: true
+          description: Decimal string with up to 6 decimals (`-90` to `90`), digits
+            and a point only, a leading minus sign, never a JSON number. Returned
+            with 6 decimals.
+        longitude:
+          type: string
+          nullable: true
+          description: Decimal string with up to 6 decimals (`-180` to `180`), digits
+            and a point only, a leading minus sign, never a JSON number. Returned
+            with 6 decimals.
         area_sqft:
           type: string
           nullable: true
@@ -4076,6 +4204,7 @@ components:
       - basement
       - bathrooms
       - bedrooms
+      - block
       - boundary_wall
       - building_floors
       - building_lobby
@@ -4084,6 +4213,7 @@ components:
       - business_use
       - category
       - ceiling_height_ft
+      - city
       - condition
       - conference_rooms
       - construction_status
@@ -4099,10 +4229,14 @@ components:
       - frontage_ft
       - furnishing
       - gas
+      - house_number
       - intercom
       - kitchens
+      - latitude
       - laundry_rooms
       - lift
+      - locality
+      - longitude
       - main_boulevard
       - maintenance_charges
       - marla_basis
@@ -4114,6 +4248,7 @@ components:
       - park_facing
       - parking_spaces
       - pets_allowed
+      - phase
       - plot_depth
       - plot_file_status
       - plot_width
@@ -4128,10 +4263,13 @@ components:
       - rental_period
       - road_access
       - road_width_ft
+      - sector
       - security_deposit
       - servant_quarters
       - sewerage
+      - society
       - store_rooms
+      - street
       - study_rooms
       - subtype
       - three_phase_electricity
@@ -4623,6 +4761,62 @@ components:
           oneOf:
           - $ref: '#/components/schemas/OccupantRestrictionsEnum'
           - $ref: '#/components/schemas/NullEnum'
+        city:
+          type: string
+          format: uuid
+          nullable: true
+          description: The uuid of an active city from the reference lists (`/api/v1/reference/cities`),
+            as text; never a name. Null clears it.
+        locality:
+          type: string
+          format: uuid
+          nullable: true
+          description: The uuid of an active locality from the reference lists (`/api/v1/reference/cities`),
+            as text; never a name. Null clears it.
+        society:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Up to 60 characters.
+        phase:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Up to 60 characters.
+        sector:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Up to 60 characters.
+        block:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Up to 60 characters.
+        street:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Up to 120 characters.
+        house_number:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Up to 30 characters.
+        latitude:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string with up to 6 decimals (`-90` to `90`), digits
+            and a point only, a leading minus sign, never a JSON number. Returned
+            with 6 decimals.
+        longitude:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string with up to 6 decimals (`-180` to `180`), digits
+            and a point only, a leading minus sign, never a JSON number. Returned
+            with 6 decimals.
     ListingPage:
       type: object
       properties:
@@ -4643,8 +4837,11 @@ components:
     ListingStatusEnum:
       enum:
       - draft
+      - published
       type: string
-      description: '* `draft` - draft'
+      description: |-
+        * `draft` - draft
+        * `published` - published
     ListingUpdateRequest:
       type: object
       properties:
@@ -4657,6 +4854,40 @@ components:
       required:
       - base_revision
       - fields
+    Locality:
+      type: object
+      description: |-
+        Allowlist. Names are plain strings: locality values are managed in the database. `kind`
+        is `area` or `society`, a closed vocabulary the form groups by.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          $ref: '#/components/schemas/LocalityKindEnum'
+      required:
+      - id
+      - kind
+      - name
+    LocalityKindEnum:
+      enum:
+      - area
+      - society
+      type: string
+      description: |-
+        * `area` - area
+        * `society` - society
+    LocalityList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Locality'
+      required:
+      - items
     Marked:
       type: object
       properties:
@@ -5039,10 +5270,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/SectionEnum'
           description: |-
-            Where a form groups the field: `terms` (price, sale and rent terms) or `details`. Read this, never guess from applicability.
+            Where a form groups the field: `terms` (price, sale and rent terms), `location` (city, locality, the public location text and the private address; group by `class`) or `details`. Read this, never guess from applicability.
 
             * `details` - details
             * `terms` - terms
+            * `location` - location
         min_length:
           type: integer
           nullable: true
@@ -5069,6 +5301,12 @@ components:
           type: integer
           nullable: true
           description: 'Decimal only: the number of decimals stored and returned.'
+        reference:
+          type: string
+          nullable: true
+          description: 'Reference fields only: what the stored uuid points at, `city`
+            or `locality`. The lists are `/api/v1/reference/cities` and `/api/v1/reference/cities/{city_id}/localities`;
+            the value is the uuid, never a name.'
         derived:
           type: boolean
           description: Computed by the server from other fields; read-only, never
@@ -5107,6 +5345,7 @@ components:
       - min
       - min_length
       - quota_identity
+      - reference
       - requirement
       - scale
       - searchable
@@ -5141,10 +5380,12 @@ components:
       enum:
       - details
       - terms
+      - location
       type: string
       description: |-
         * `details` - details
         * `terms` - terms
+        * `location` - location
     SignInRequest:
       type: object
       description: Exactly `email` and `password`, both strings. Nothing else is accepted.
@@ -5225,6 +5466,7 @@ components:
       - decimal
       - boolean
       - date
+      - reference
       type: string
       description: |-
         * `enum` - enum
@@ -5234,6 +5476,7 @@ components:
         * `decimal` - decimal
         * `boolean` - boolean
         * `date` - date
+        * `reference` - reference
     UnreadCount:
       type: object
       properties:
@@ -5261,8 +5504,11 @@ components:
     VisibilityEnum:
       enum:
       - private
+      - public
       type: string
-      description: '* `private` - private'
+      description: |-
+        * `private` - PRIVATE
+        * `public` - PUBLIC
     ErrorCode:
       type: string
       enum:
