@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getApi } from "@/lib/api";
 import { withTimeout } from "@/lib/forms";
+import { isIsoDate } from "@/lib/listing-labels";
 import { useSession } from "@/lib/session";
 
 /**
@@ -34,7 +35,11 @@ export type FieldDef = {
   requirement: string;
   minLength: number | null;
   maxLength: number | null;
-  /** Money, decimal and integer bounds and the money currency, as decimal text (never numbers; the server serves integer bounds as text too). */
+  /**
+   * The bounds as text, never numbers: decimal text for money, decimal and integer fields (the server serves integer bounds as text too),
+   * ISO calendar-date text ("2000-01-01") for a date field. Do not assume numeric text for every type; the client only prints them (and
+   * uses a date's as the `min` and `max` attributes of the date input).
+   */
   min: string | null;
   max: string | null;
   currency: string | null;
@@ -47,6 +52,8 @@ export type FieldDef = {
   allowedValues: string[];
   /** The registry marks the field as the owner's own claim, never checked by EstateAI (Story 2.5): the form says so next to it. */
   sellerDeclared: boolean;
+  /** Where a form groups the field (Story 2.6): `terms` for the sale and rent terms, else `details`; a missing or unknown marker is `details`. */
+  section: "terms" | "details";
   /**
    * The values offered for a purpose and Subtype: the Subtype's own list when the registry narrows it (intersected with the
    * purpose's list when both exist; nothing when the Subtype has no entry), else the purpose's list, else every allowed value.
@@ -65,6 +72,9 @@ const choices = (value: unknown): string[] | null => (Array.isArray(value) ? [..
 
 const limit = (value: unknown): number | null => (typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null);
 const decimalText = (value: unknown): string | null => (typeof value === "string" && /^\d{1,16}(\.\d{1,8})?$/.test(value) ? value : null);
+const dateText = (value: unknown): string | null => (typeof value === "string" && isIsoDate(value) ? value : null);
+/** A bound of this field type: ISO text for a date, decimal text for every other type. Anything else is no bound. */
+const bound = (type: string, value: unknown): string | null => (type === "date" ? dateText(value) : decimalText(value));
 const covers = (list: string[], value: string | null) => list.length === 0 || (value !== null && list.includes(value));
 
 /** Reads the field definitions; an entry that is not usable is skipped, and a missing or odd list is simply no definitions. */
@@ -94,6 +104,13 @@ function readFields(value: unknown): Map<string, FieldDef> {
         if (isToken(subtype) && values) bySubtype.set(subtype, values);
       }
     }
+    let [min, max] = [bound(type, raw.min), bound(type, raw.max)];
+    // Fail closed: a date bound must be a real calendar date, and a window with a bad bound or whose start is after its end is no window at
+    // all (both dropped); an absent bound simply means no bound on that side.
+    const present = (value: unknown) => value !== null && value !== undefined;
+    if (type === "date" && ((present(raw.min) && min === null) || (present(raw.max) && max === null) || (min !== null && max !== null && min > max))) {
+      [min, max] = [null, null];
+    }
     const applicability = typeof raw.applicability === "object" && raw.applicability !== null ? (raw.applicability as Record<string, unknown>) : {};
     const purposes = tokens(applicability.purposes) ?? [];
     const categories = tokens(applicability.categories) ?? [];
@@ -104,14 +121,15 @@ function readFields(value: unknown): Map<string, FieldDef> {
       requirement: typeof requirement === "string" ? requirement : "optional",
       minLength: limit(raw.min_length),
       maxLength: limit(raw.max_length),
-      min: decimalText(raw.min),
-      max: decimalText(raw.max),
+      min,
+      max,
       currency: typeof raw.currency === "string" && /^[A-Z]{3}$/.test(raw.currency) ? raw.currency : null,
       scale: typeof raw.scale === "number" && Number.isInteger(raw.scale) && raw.scale >= 1 && raw.scale <= 8 ? raw.scale : null,
       derived: raw.derived === true,
       description: typeof raw.description === "string" && raw.description.trim() ? raw.description : null,
       allowedValues: allowed,
       sellerDeclared: raw.seller_declared === true,
+      section: raw.section === "terms" ? "terms" : "details",
       valuesFor: (purpose, subtype = null) => {
         const byPurpose = purpose !== null && narrowed.has(purpose) ? (narrowed.get(purpose) ?? allowed) : null;
         if (!hasSubtypeMap) return byPurpose ?? allowed;

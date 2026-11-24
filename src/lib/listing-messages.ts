@@ -50,7 +50,7 @@ export const DESCRIPTION_MESSAGES: Record<string, string> = {
 export const PRICE_MESSAGES: Record<string, string> = {
   required: "Enter an asking price.",
   invalid: "Enter digits only, with an optional decimal point. Do not use commas or currency signs, for example 1500000 or 1500000.50.",
-  invalid_price: "Enter an amount above zero within the limits shown above, with at most two decimal places.",
+  invalid_price: "Enter an amount within the limits shown above, with at most two decimal places.",
   not_editable: NOT_EDITABLE,
 };
 export const PRICE_BASIS_MESSAGES: Record<string, string> = {
@@ -115,6 +115,7 @@ export const DETAIL_MESSAGES: Record<string, Record<string, string>> = {
   },
   boolean: {
     invalid: "Choose Yes, No or Not answered.",
+    invalid_choice: "Choose Yes, No or Not answered.",
     not_applicable: DETAIL_NOT_APPLICABLE,
     not_editable: NOT_EDITABLE,
   },
@@ -137,8 +138,15 @@ export const DETAIL_MESSAGES: Record<string, Record<string, string>> = {
     not_applicable: DETAIL_NOT_APPLICABLE,
     not_editable: NOT_EDITABLE,
   },
+  date: {
+    invalid: "Enter a real date written year-month-day, for example 2027-03-01.",
+    invalid_date: "Enter a date within the allowed range shown above.",
+    not_applicable: DETAIL_NOT_APPLICABLE,
+    not_editable: NOT_EDITABLE,
+  },
 };
 
+export const INCOMPLETE_DATE = "Finish the date or clear it.";
 export const EDIT_FORBIDDEN = "Your account cannot edit listings right now.";
 export const SAVED = "Saved";
 export const NO_CHANGES = "No changes to save.";

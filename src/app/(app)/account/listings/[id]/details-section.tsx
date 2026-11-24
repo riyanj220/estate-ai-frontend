@@ -1,8 +1,8 @@
 "use client";
 
 import { Field } from "@/components/form-field";
-import { NOT_ANSWERED, NOT_OFFERED_HINT, NO_LONGER_OFFERED, SELLER_DECLARED, SELLER_DECLARED_HELP, detailHint, detailLabel, groupDetails, notOffered } from "@/lib/listing-details";
-import { choiceLabel } from "@/lib/listing-labels";
+import { NOT_ANSWERED, NOT_OFFERED_HINT, NO_LONGER_OFFERED, SELLER_DECLARED, SELLER_DECLARED_HELP, detailHint, detailLabel, groupDetails, notOffered, splitTerms, termsTitle } from "@/lib/listing-details";
+import { choiceLabel, isIsoDate } from "@/lib/listing-labels";
 import type { FieldDef } from "@/lib/use-registry";
 
 /**
@@ -10,7 +10,10 @@ import type { FieldDef } from "@/lib/use-registry";
  * requirement, each group a fieldset with its legend. It holds no state and no rules: the editor owns the values, the errors,
  * the comparison and the saving, and passes the conflict row for a field. A control follows the registry type (integer: a text
  * input for digits; boolean: Not answered, Yes, No; enum: Not answered first, then the registry's choices; decimal and money:
- * text inputs). Stories 2.5 and 2.6 add registry fields (and their labels), not code here. A registry field flagged `seller_declared` shows the
+ * text inputs; date: a native date input whose value is the ISO text, with the registry's bounds as its `min` and `max`, and a text input
+ * for a value that is not a real ISO date, so what was typed is shown and sent as it is for the server to judge). The registry fields marked
+ * `section: terms` (Story 2.6) go in one "Terms for sale" or "Terms for rent" fieldset before the Details, grouped the same way. Stories
+ * 2.5 and 2.6 add registry fields (and their labels), not code here. A registry field flagged `seller_declared` shows the
  * "Seller-declared" tag and its helper line (the owner's claim, never a platform check).
  */
 export function DetailsSection({
@@ -24,6 +27,7 @@ export function DetailsSection({
   onChange,
   conflictRow,
   inConflict,
+  onDateInput,
 }: {
   fields: FieldDef[];
   values: Record<string, string>;
@@ -36,8 +40,11 @@ export function DetailsSection({
   onChange: (id: string, value: string) => void;
   conflictRow: (id: string) => React.ReactNode;
   inConflict: (id: string) => boolean;
+  /** A date input reports whether it holds a partly typed date (`validity.badInput`): its value is "" then, which is not a clear. */
+  onDateInput: (id: string, incomplete: boolean) => void;
 }) {
   if (fields.length === 0) return null;
+  const { terms, details } = splitTerms(fields);
 
   function control(def: FieldDef) {
     const id = def.id;
@@ -93,6 +100,36 @@ export function DetailsSection({
               </>
             );
           }
+          if (def.type === "date") {
+            // The value is the ISO text itself (no Date anywhere). The input type follows the SAVED value, never the text being typed, so it
+            // never changes under the person's fingers: a saved value that is not a real date (no real server holds one) stays a text input
+            // until it is saved, because a native date input would blank it.
+            const savedText = Object.hasOwn(saved, id) ? saved[id] : "";
+            const native = savedText === "" || isIsoDate(savedText);
+            const sync = (target: HTMLInputElement) => onDateInput(id, native && target.validity.badInput);
+            return (
+              <>
+                <input
+                  {...shared}
+                  type={native ? "date" : "text"}
+                  min={native ? (def.min ?? undefined) : undefined}
+                  max={native ? (def.max ?? undefined) : undefined}
+                  inputMode={native ? undefined : "numeric"}
+                  placeholder={native ? undefined : "YYYY-MM-DD"}
+                  autoComplete="off"
+                  value={value}
+                  onChange={(e) => {
+                    onChange(id, e.target.value);
+                    sync(e.target);
+                  }}
+                  onInput={(e) => sync(e.currentTarget)}
+                  onKeyUp={(e) => sync(e.currentTarget)}
+                  onBlur={(e) => sync(e.currentTarget)}
+                />
+                {conflictRow(id)}
+              </>
+            );
+          }
           const input = (
             <input
               {...shared}
@@ -124,18 +161,39 @@ export function DetailsSection({
   }
 
   return (
-    <div data-testid="details-block">
-      <h3 id="details-title" className="section-title">
-        Details
-      </h3>
-      {groupDetails(fields).map((group) => (
-        <fieldset key={group.key} className="detail-group" data-testid={`details-${group.key}`}>
-          <legend>{group.title}</legend>
-          {group.fields.map((def) => (
-            <div key={def.id}>{control(def)}</div>
+    <>
+      {terms.length > 0 && (
+        <fieldset className="terms-block" data-testid="terms-block">
+          <legend>
+            <h3 id="terms-title" className="section-title">
+              {termsTitle(purpose)}
+            </h3>
+          </legend>
+          {groupDetails(terms).map((group) => (
+            <fieldset key={group.key} className="terms-group" data-testid={`terms-${group.key}`}>
+              <legend>{group.title}</legend>
+              {group.fields.map((def) => (
+                <div key={def.id}>{control(def)}</div>
+              ))}
+            </fieldset>
           ))}
         </fieldset>
-      ))}
-    </div>
+      )}
+      {details.length > 0 && (
+        <div data-testid="details-block">
+          <h3 id="details-title" className="section-title">
+            Details
+          </h3>
+          {groupDetails(details).map((group) => (
+            <fieldset key={group.key} className="detail-group" data-testid={`details-${group.key}`}>
+              <legend>{group.title}</legend>
+              {group.fields.map((def) => (
+                <div key={def.id}>{control(def)}</div>
+              ))}
+            </fieldset>
+          ))}
+        </div>
+      )}
+    </>
   );
 }

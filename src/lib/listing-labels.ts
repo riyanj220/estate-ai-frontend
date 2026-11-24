@@ -183,6 +183,13 @@ const CHOICE_LABELS: Record<string, Record<string, string>> = {
     south_west: "South-west",
   },
   balloting_status: { not_applicable: "Not applicable", balloting_pending: "Balloting pending", balloted: "Balloted" },
+  possession_availability: {
+    available_now: "Available now",
+    within_one_month: "Within one month",
+    within_three_months: "Within three months",
+    after_three_months: "After three months",
+  },
+  occupant_restrictions: { no_restriction: "No restriction", families_only: "Families only", bachelors_only: "Bachelors only" },
   possession_status: { possession_ready: "Possession ready", possession_pending: "Possession pending", file_only: "File only (no possession)" },
 };
 
@@ -247,4 +254,18 @@ export function areaSummary(fields: ListingEditableValues): string {
   const unitText = unit === null ? null : choiceLabel("area_unit", unit);
   const head = value !== null && unitText !== null ? `${formatArea(value)} ${unitText}` : value !== null ? `${formatArea(value)} (unit not set)` : `${unitText} (value not set)`;
   return basis !== null && isMarlaUnit(unit) ? `${head}, ${basis} sq ft per marla` : head;
+}
+
+/**
+ * Whether text is a real calendar date written YYYY-MM-DD, by arithmetic on the digits only (never `Date`, so no time zone and no
+ * rounding can touch it). It only decides which input to show: a native date input cannot hold anything else.
+ */
+export function isIsoDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+  return day <= days;
 }

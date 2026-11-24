@@ -20,7 +20,7 @@ const NOT_DETAILS = HAND_BUILT_KEYS;
 export const TRIMMED_DECIMALS = ["area_value", "covered_area_sqft"];
 
 /** The registry types the Details section has a control for; a field of another type gets none. */
-const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money"];
+const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money", "date"];
 
 /** Labels by registry id. The registry carries ids only; text a person reads lives here. */
 const DETAIL_LABELS: Record<string, string> = {
@@ -79,6 +79,19 @@ const DETAIL_LABELS: Record<string, string> = {
   three_phase_electricity: "Three-phase electricity",
   conference_rooms: "Conference rooms",
   business_centre_facilities: "Business centre facilities",
+  price_negotiable: "Price negotiable",
+  possession_availability: "Possession availability",
+  security_deposit: "Security deposit (PKR)",
+  availability_date: "Available from",
+  advance_rent: "Advance rent (PKR)",
+  minimum_lease_months: "Minimum lease (months)",
+  notice_period_days: "Notice period (days)",
+  utility_electricity_included: "Electricity included",
+  utility_gas_included: "Gas included",
+  utility_water_included: "Water included",
+  utility_internet_included: "Internet included",
+  pets_allowed: "Pets allowed",
+  occupant_restrictions: "Occupant restrictions",
 };
 
 /** Labels that differ by Category (so a new Subtype of the Category inherits them): commercial property is fitted out rather than furnished. */
@@ -112,6 +125,16 @@ export function shownDetails(registry: Registry, listing: ListingView): FieldDef
         !def.derived &&
         def.appliesTo(purpose, category, subtype),
     );
+}
+
+/** The sale and rent terms (registry `section: terms`) go in their own fieldset, never guessed from applicability; every other detail stays in Details. */
+export function splitTerms(defs: FieldDef[]): { terms: FieldDef[]; details: FieldDef[] } {
+  return { terms: defs.filter((def) => def.section === "terms"), details: defs.filter((def) => def.section !== "terms") };
+}
+
+/** The title of the Terms fieldset by the Draft's purpose; a purpose this client does not know gets the plain "Terms". */
+export function termsTitle(purpose: string | null): string {
+  return purpose === "sale" ? "Terms for sale" : purpose === "rent" ? "Terms for rent" : "Terms";
 }
 
 export type DetailGroup = { key: "required" | "recommended" | "more"; title: string; fields: FieldDef[] };
@@ -178,6 +201,7 @@ export function sameDetail(def: FieldDef, a: string, b: string): boolean {
     return measureKey(a, limit) === measureKey(b, limit);
   }
   if (def.type === "money") return moneyKey(a, def.scale ?? 2) === moneyKey(b, def.scale ?? 2);
+  if (def.type === "date") return a.trim() === b.trim(); // ISO text compared as text: no Date, no time zone
   return false;
 }
 
@@ -222,6 +246,7 @@ export function detailHint(def: FieldDef): string {
     parts.push(`Amount in ${def.currency ?? "PKR"}.`);
     if (limits) parts.push(limits);
   }
+  if (def.type === "date" && limits) parts.push(limits); // the bounds are ISO text; the registry's own description names the format
   return parts.join(" ");
 }
 
@@ -230,7 +255,8 @@ export function answeredDetails(
   defs: FieldDef[],
   listing: ListingView,
 ): { id: string; label: string; text: string; sellerDeclared: boolean }[] {
-  return defs
+  const { terms, details } = splitTerms(defs); // the summary follows the form: the terms first
+  return [...terms, ...details]
     .filter((def) => Object.hasOwn(listing.details, def.id))
     .map((def) => ({
       id: def.id,

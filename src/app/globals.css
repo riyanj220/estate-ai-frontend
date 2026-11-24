@@ -424,6 +424,26 @@ body {
   gap: 0.5rem;
 }
 
+.terms-block {
+  border: 0;
+  margin: 0 0 var(--space);
+  padding: 0;
+  min-width: 0;
+}
+.terms-block > legend {
+  padding: 0;
+}
+.terms-group {
+  border: 0;
+  margin: 0 0 var(--space);
+  padding: 0;
+  min-width: 0;
+}
+.terms-group legend {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  padding: 0;
+}
 .detail-group {
   border: 0;
   margin: 0 0 var(--space);

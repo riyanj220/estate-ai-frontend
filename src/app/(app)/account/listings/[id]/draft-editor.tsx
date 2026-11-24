@@ -31,6 +31,7 @@ import {
   DETAILS_DROPPED,
   EDIT_FIELD_MESSAGES,
   EDIT_FORBIDDEN,
+  INCOMPLETE_DATE,
   BASIS_DROPPED,
   LATEST_NOT_LOADED,
   MARLA_EXPLANATION,
@@ -189,6 +190,8 @@ export function DraftEditor({
   const [conflict, setConflict] = useState<Conflict | null>(null);
   // The fields a problem between two fields (the floor rule) is shown under: editing either clears them all.
   const [linked, setLinked] = useState<string[]>([]);
+  // Date fields that hold a partly typed date (the browser reports "" for them): Save is blocked until each is finished or cleared.
+  const [incomplete, setIncomplete] = useState<string[]>([]);
   const { announcement, setAnnouncement, resetAnnouncement, announce, focusSummary, summaryRef } = useFormFeedback();
   const alertRef = useRef<HTMLParagraphElement>(null);
   const submitting = useRef(false);
@@ -228,6 +231,11 @@ export function DraftEditor({
     window.addEventListener("beforeunload", guard);
     return () => window.removeEventListener("beforeunload", guard);
   }, [dirty]);
+
+  /** A date input says whether it is incomplete: a finished or cleared one drops its flag (the flag is only ever raised by Save). */
+  function onDateInput(name: string, partial: boolean) {
+    if (!partial) setIncomplete((current) => (current.includes(name) ? current.filter((other) => other !== name) : current));
+  }
 
   function setValue(name: string, value: string) {
     // Moving the unit away from marla and kanal drops what was typed for the basis (it is hidden and never sent; the server clears it).
@@ -276,6 +284,7 @@ export function DraftEditor({
       return merged;
     });
     setLinked([]);
+    setIncomplete([]);
     setConflict(null);
     setAlert(null);
     setFieldErrors({});
@@ -366,6 +375,7 @@ export function DraftEditor({
     const latest = at(fresh, name);
     const together = linked.includes(name) ? linked : [];
     if (together.length > 0) setLinked([]);
+    setIncomplete((current) => current.filter((other) => other !== name));
     // The field's own error and the problem between fields it belongs to are about the typed value, which is replaced.
     setFieldErrors((current) => {
       if (![name, ...together].some((key) => current[key])) return current;
@@ -395,6 +405,18 @@ export function DraftEditor({
     if (submitting.current || !registry) return;
     setInfo("");
     setAlert(null);
+    // A partly typed date reads as "" (a clear). Nothing is sent while one is open: the save is blocked with the summary.
+    const partial = detailDefs
+      .filter((def) => def.type === "date" && (document.getElementById(def.id) as HTMLInputElement | null)?.validity?.badInput === true)
+      .map((def) => def.id);
+    setIncomplete(partial);
+    if (partial.length > 0) {
+      resetAnnouncement();
+      setFormErrors([]);
+      focusSummary();
+      announce("The form has errors. Review the list at the top of the page.");
+      return;
+    }
     const fields: Record<string, string | number | boolean | null> = {};
     for (const name of shown) if (!same(name, values[name], baseline[name])) fields[name] = sentValue(values[name]);
     for (const def of detailDefs) if (!same(def.id, at(values, def.id), at(baseline, def.id))) fields[def.id] = sentDetail(def, at(values, def.id));
@@ -516,7 +538,9 @@ export function DraftEditor({
   const derivedBase = derivedText(listing.fields);
   // The figure is the saved one: while area input is unsaved it must not read as describing that input.
   const derived = derivedBase && areaDirty ? `${derivedBase} (saved figure, updates after you save)` : derivedBase;
-  const hasErrors = formErrors.length > 0 || Object.keys(fieldErrors).length > 0;
+  const shownErrors: Fields = { ...fieldErrors };
+  for (const name of incomplete) shownErrors[name] = [...(shownErrors[name] ?? []), INCOMPLETE_DATE];
+  const hasErrors = formErrors.length > 0 || Object.keys(shownErrors).length > 0;
   const showConflict = (name: string) =>
     conflict !== null &&
     conflict.fields.includes(name) &&
@@ -785,7 +809,7 @@ export function DraftEditor({
                 ref={summaryRef}
                 order={controls}
                 labels={Object.fromEntries(controls.map((name) => [name, labelOf(name, listing.fields.category)]))}
-                fieldErrors={fieldErrors}
+                fieldErrors={shownErrors}
                 formErrors={formErrors}
                 titleId="edit-error-summary-title"
               />
@@ -830,7 +854,8 @@ export function DraftEditor({
                 fields={detailDefs}
                 values={values}
                 saved={baseline}
-                errors={fieldErrors}
+                errors={shownErrors}
+                onDateInput={onDateInput}
                 purpose={purpose}
                 category={listing.fields.category}
                 subtype={listing.fields.subtype}

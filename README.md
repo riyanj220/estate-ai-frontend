@@ -736,6 +736,50 @@ Frontend half of Story 2.5 on the same generic Details section: registry version
   Tests are in `tests/e2e/listing-edit.spec.ts` (plot, plot file, shop, office, seller-declared, by-subtype options, errors, conflicts, registry-driven,
   privacy, axe at desktop and mobile).
 
+## Sale and rent terms and the date control (Story 2.6)
+
+Frontend half of Story 2.6 on the same generic Details section: registry version 6 (shape 5: every field serves `section`, `terms` or
+`details`; the new `date` type serves its bounds as ISO text in `min` and `max`; 13 terms fields plus the existing `rental_period` are
+`section: terms`; the new error code `invalid_date`). The contract is the backend's `docs/listings.md` and `docs/registry.md`. Where the
+story spec grouped terms by applicability, the registry's explicit `section` marker replaces it: the client never guesses from applicability.
+
+- **Terms fieldset** (`details-section.tsx`, `splitTerms` and `termsTitle` in `listing-details.ts`): the applicable fields with
+  `section: terms` that the editor does not build by hand go in a fieldset "Terms for sale" / "Terms for rent" (plain "Terms" for a
+  purpose the client does not know), grouped by requirement inside it (`terms-required`, `terms-recommended`, `terms-more`, each a
+  `fieldset.terms-group` with a legend), after the Area and before the Details block. `rental_period`, the price and the price basis stay
+  hand-built where they were. The marker defaults to `details` when missing or unknown (an older payload shows every detail in Details, no Terms
+  fieldset). A sale never shows rent terms and a rent never shows `possession_availability` (applicability); the deferred terms (payment
+  type, installments, title documents) are not in the registry, so they never appear.
+- **Date control**: a native `<input type="date">` whose value is the ISO text; `min` and `max` are the registry's date bounds as plain text.
+  There is no `Date` anywhere (no parsing, no time zone, no conversion): comparison is string equality of the trimmed text, "Latest saved"
+  shows the ISO text, and the value sent is the trimmed text as it is, so the server judges it (`invalid` for a shape that is not a real date,
+  `invalid_date` for a real date outside the window). `isIsoDate` (digit arithmetic, leap years included, in `listing-labels.ts`) decides the
+  input type from the SAVED value only, never from what is being typed, so the type never changes under the person's fingers: a saved
+  value that is not a real date (no real server holds one) stays a text input (placeholder "YYYY-MM-DD") until it is saved. A browser without
+  date support shows text and sends it as typed. **A partly typed date** (the browser reports `value ""` with `validity.badInput`) is not a
+  clear: Save is blocked with the error summary ("Finish the date or clear it.", `aria-invalid`), nothing is sent, and the flag goes when the
+  date is finished or emptied. Registry date bounds fail closed: each must be a real calendar date and the start not after the end, else
+  both are dropped (no `min`/`max` attributes, no "Between" clause); bounds of other types stay decimal text.
+- **Summary and heading**: the Terms fieldset's legend holds an h3 ("Terms for sale"), like "Details"; the Draft summary lists answered terms
+  before answered details, as the form does.
+- **Labels**: "Price negotiable", "Possession availability", "Security deposit (PKR)", "Available from", "Advance rent (PKR)", "Minimum lease
+  (months)", "Notice period (days)", "Electricity included" (and gas, water, internet), "Pets allowed", "Occupant restrictions"; readable
+  options for possession availability and occupant restrictions (`CHOICE_LABELS`). `possession_availability` is seller-declared exactly like
+  the plot claims (tag, helper line, summary tag, "(seller-declared)" in its conflict row, no platform badge).
+- **Errors**: `DETAIL_MESSAGES.date` has `invalid` and the new `invalid_date`. The money wording is neutral (a security deposit and an advance
+  rent accept `0`): "Enter an amount within the allowed range, with at most two decimal places."; the asking price's text no longer says
+  "above zero" either ("within the limits shown above", its own limit line says 0.01).
+- **Summary and conflicts**: answered terms are listed in the Draft summary (No and 0 are shown; unanswered is absent); conflict rows,
+  Use latest / Keep mine, the cleared banner, linked errors, typed-input and privacy rules are the Story 2.2 to 2.5 behaviour.
+- **Playwright stub**: registry version 6, shape 5 (ETag `6-<hash>-5`), all 13 terms fields with the real descriptions and `section`
+  flags, the `date` type with ISO bounds; PATCH mirrors the backend (date shape `invalid` versus window `invalid_date` compared as text, money
+  zero allowed for the deposit and the advance, integer ranges, booleans, enums, applicability by purpose, null a no-op before applicability,
+  deferred ids `unknown_field`). Presets `sale_terms`, `sale_terms_blank`, `rent_terms`, `rent_terms_blank` (no period, nothing set),
+  `house_rent_terms_blank`, `terms_unknown_purpose`; registry variants `baddates` (date bounds that cannot be trusted), `termsother` (other date window and ranges, a term moved to the
+  details, a terms field of a type with no control), `nosection`, `oddsection`; patch modes `term_codes` and `term_hidden`. Tests are in
+  `tests/e2e/listing-terms.spec.ts` (one or more per row of the story's matrix, time zones, the stub's own rules, axe at desktop and mobile);
+  the Story 2.4 and 2.5 tests in `listing-edit.spec.ts` now scope their Details group lookups to the Details block.
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),
