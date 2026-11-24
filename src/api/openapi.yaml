@@ -593,11 +593,19 @@ paths:
         `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`)
         and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`,
         `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`,
-        `business_centre_facilities`). Possession, balloting, development, approval
-        and plot file status are seller-declared (registry flag `seller_declared`):
-        the owner''s claim, never verified by EstateAI. A Plot File allows only `file_only`
-        for `possession_status` and the other Subtypes refuse it (`invalid_choice`).
-        Ids the registry does not define (for example installment, down payment, title
+        `business_centre_facilities`) and the sale and rent terms (`price_negotiable`
+        for both; sale only `possession_availability`; rent only `security_deposit`
+        and `advance_rent` as decimal strings in PKR with at most two decimals, `availability_date`
+        as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`,
+        `notice_period_days`, the four `utility_*_included` answers, `pets_allowed`
+        and `occupant_restrictions`; the rent terms are `not_applicable` on a sale
+        Draft and the other way round; a rental period is never assumed). Installment,
+        payment type, down payment and title or approval document terms are not supported
+        yet (`unknown_field`). Possession, balloting, development, approval and plot
+        file status are seller-declared (registry flag `seller_declared`): the owner''s
+        claim, never verified by EstateAI. A Plot File allows only `file_only` for
+        `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids
+        the registry does not define (for example installment, down payment, title
         document or mortgage attributes) are `unknown_field`. Counts are JSON integers
         and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`,
         never 0 or false. The registry says which apply to which Subtype (`not_applicable`
@@ -609,11 +617,11 @@ paths:
         after it succeeded is also a 409: reload). An edit that changes nothing is
         `200` and keeps the revision. `400` carries codes keyed by registry field
         id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`,
-        `invalid_floor`, `invalid_choice`, `not_applicable`, `invalid_measure`, `contains_contact_details`,
-        `not_editable`; unknown ids are `unknown_field` under `non_field_errors`)
-        and never echoes a value. Another account''s, an unknown or a malformed id
-        is `404 not_found`; an account that may not edit (Suspended, Deactivated)
-        is `403 forbidden`. Never cached.'
+        `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`,
+        `contains_contact_details`, `not_editable`; unknown ids are `unknown_field`
+        under `non_field_errors`) and never echoes a value. Another account''s, an
+        unknown or a malformed id is `404 not_found`; an account that may not edit
+        (Suspended, Deactivated) is `403 forbidden`. Never cached.'
       summary: Edit one of the signed-in account's own Listings
       parameters:
       - in: path
@@ -2458,22 +2466,6 @@ components:
         * `required_for_publication` - required_for_publication
         * `recommended` - recommended
         * `optional` - optional
-    FieldTypeEnum:
-      enum:
-      - enum
-      - text
-      - money
-      - integer
-      - decimal
-      - boolean
-      type: string
-      description: |-
-        * `enum` - enum
-        * `text` - text
-        * `money` - money
-        * `integer` - integer
-        * `decimal` - decimal
-        * `boolean` - boolean
     FurnishingEnum:
       enum:
       - unfurnished
@@ -3001,6 +2993,81 @@ components:
           nullable: true
           description: '`true` or `false`; null when not answered (never defaulted
             to either).'
+        price_negotiable:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        possession_availability:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `available_now` - available_now
+            * `within_one_month` - within_one_month
+            * `within_three_months` - within_three_months
+            * `after_three_months` - after_three_months
+          oneOf:
+          - $ref: '#/components/schemas/PossessionAvailabilityEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        security_deposit:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        availability_date:
+          type: string
+          format: date
+          nullable: true
+          description: A calendar date as text `YYYY-MM-DD` (`2000-01-01` to `2100-12-31`),
+            never a timestamp or a JSON number. Returned the same way.
+        advance_rent:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        minimum_lease_months:
+          type: integer
+          maximum: 120
+          minimum: 1
+          nullable: true
+          description: Whole number from 1 to 120, a JSON integer (never text). Null
+            clears it.
+        notice_period_days:
+          type: integer
+          maximum: 365
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 365, a JSON integer (never text). Null
+            clears it.
+        utility_electricity_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        utility_gas_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        utility_water_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        utility_internet_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        pets_allowed:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        occupant_restrictions:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/OccupantRestrictionsEnum'
+          - $ref: '#/components/schemas/NullEnum'
         area_sqft:
           type: string
           nullable: true
@@ -3008,11 +3075,13 @@ components:
             digits and a point only, never a JSON number. Returned with 4 decimals.
             Computed by the server; read-only.
       required:
+      - advance_rent
       - approval_authority
       - area_sqft
       - area_unit
       - area_value
       - asking_price
+      - availability_date
       - backup_electricity
       - balcony_or_terrace
       - balloting_status
@@ -3049,22 +3118,29 @@ components:
       - main_boulevard
       - maintenance_charges
       - marla_basis
+      - minimum_lease_months
+      - notice_period_days
       - occupancy_status
+      - occupant_restrictions
       - orientation
       - park_facing
       - parking_spaces
+      - pets_allowed
       - plot_depth
       - plot_file_status
       - plot_width
+      - possession_availability
       - possession_status
       - powder_rooms
       - power_load_kw
       - prayer_rooms
       - price_basis
+      - price_negotiable
       - purpose
       - rental_period
       - road_access
       - road_width_ft
+      - security_deposit
       - servant_quarters
       - sewerage
       - store_rooms
@@ -3074,6 +3150,10 @@ components:
       - title
       - total_floors
       - tv_lounges
+      - utility_electricity_included
+      - utility_gas_included
+      - utility_internet_included
+      - utility_water_included
       - water
     ListingFieldsUpdateRequest:
       type: object
@@ -3478,6 +3558,83 @@ components:
           nullable: true
           description: '`true` or `false`; null when not answered (never defaulted
             to either).'
+        price_negotiable:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        possession_availability:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `available_now` - available_now
+            * `within_one_month` - within_one_month
+            * `within_three_months` - within_three_months
+            * `after_three_months` - after_three_months
+          oneOf:
+          - $ref: '#/components/schemas/PossessionAvailabilityEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        security_deposit:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        availability_date:
+          type: string
+          format: date
+          nullable: true
+          description: A calendar date as text `YYYY-MM-DD` (`2000-01-01` to `2100-12-31`),
+            never a timestamp or a JSON number. Returned the same way.
+        advance_rent:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        minimum_lease_months:
+          type: integer
+          maximum: 120
+          minimum: 1
+          nullable: true
+          description: Whole number from 1 to 120, a JSON integer (never text). Null
+            clears it.
+        notice_period_days:
+          type: integer
+          maximum: 365
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 365, a JSON integer (never text). Null
+            clears it.
+        utility_electricity_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        utility_gas_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        utility_water_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        utility_internet_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        pets_allowed:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        occupant_restrictions:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/OccupantRestrictionsEnum'
+          - $ref: '#/components/schemas/NullEnum'
     ListingPage:
       type: object
       properties:
@@ -3584,6 +3741,16 @@ components:
         * `owner_occupied` - owner_occupied
         * `tenant_occupied` - tenant_occupied
         * `vacant` - vacant
+    OccupantRestrictionsEnum:
+      enum:
+      - no_restriction
+      - families_only
+      - bachelors_only
+      type: string
+      description: |-
+        * `no_restriction` - no_restriction
+        * `families_only` - families_only
+        * `bachelors_only` - bachelors_only
     OrientationEnum:
       enum:
       - north
@@ -3708,6 +3875,18 @@ components:
         * `open_file` - open_file
         * `allocation_letter` - allocation_letter
         * `possession_letter` - possession_letter
+    PossessionAvailabilityEnum:
+      enum:
+      - available_now
+      - within_one_month
+      - within_three_months
+      - after_three_months
+      type: string
+      description: |-
+        * `available_now` - available_now
+        * `within_one_month` - within_one_month
+        * `within_three_months` - within_three_months
+        * `after_three_months` - after_three_months
     PossessionStatusEnum:
       enum:
       - possession_ready
@@ -3803,7 +3982,7 @@ components:
           type: string
           description: Stable snake_case id.
         type:
-          $ref: '#/components/schemas/FieldTypeEnum'
+          $ref: '#/components/schemas/TypeEnum'
         requirement:
           $ref: '#/components/schemas/FieldRequirementEnum'
         applicability:
@@ -3839,6 +4018,14 @@ components:
           type: boolean
           description: 'A claim the seller makes (legal, approval, possession): show
             it as "Seller-declared", never as verified by EstateAI.'
+        section:
+          allOf:
+          - $ref: '#/components/schemas/SectionEnum'
+          description: |-
+            Where a form groups the field: `terms` (price, sale and rent terms) or `details`. Read this, never guess from applicability.
+
+            * `details` - details
+            * `terms` - terms
         min_length:
           type: integer
           nullable: true
@@ -3850,11 +4037,13 @@ components:
         min:
           type: string
           nullable: true
-          description: 'Money, decimal and integer: smallest value, a decimal string.'
+          description: 'Money, decimal and integer: smallest value, a decimal string.
+            Date: the earliest date, `YYYY-MM-DD`.'
         max:
           type: string
           nullable: true
-          description: 'Money, decimal and integer: largest value, a decimal string.'
+          description: 'Money, decimal and integer: largest value, a decimal string.
+            Date: the latest date, `YYYY-MM-DD`.'
         currency:
           type: string
           nullable: true
@@ -3904,6 +4093,7 @@ components:
       - requirement
       - scale
       - searchable
+      - section
       - seller_declared
       - sortable
       - type
@@ -3930,6 +4120,14 @@ components:
         * `main_road` - main_road
         * `secondary_road` - secondary_road
         * `inner_street` - inner_street
+    SectionEnum:
+      enum:
+      - details
+      - terms
+      type: string
+      description: |-
+        * `details` - details
+        * `terms` - terms
     SignInRequest:
       type: object
       description: Exactly `email` and `password`, both strings. Nothing else is accepted.
@@ -4001,6 +4199,24 @@ components:
       required:
       - id
       - subtypes
+    TypeEnum:
+      enum:
+      - enum
+      - text
+      - money
+      - integer
+      - decimal
+      - boolean
+      - date
+      type: string
+      description: |-
+        * `enum` - enum
+        * `text` - text
+        * `money` - money
+        * `integer` - integer
+        * `decimal` - decimal
+        * `boolean` - boolean
+        * `date` - date
     UnreadCount:
       type: object
       properties:

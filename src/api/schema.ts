@@ -183,7 +183,7 @@ export interface paths {
         head?: never;
         /**
          * Edit one of the signed-in account's own Listings
-         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`). Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define (for example installment, down payment, title document or mortgage attributes) are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_choice`, `not_applicable`, `invalid_measure`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`) and the sale and rent terms (`price_negotiable` for both; sale only `possession_availability`; rent only `security_deposit` and `advance_rent` as decimal strings in PKR with at most two decimals, `availability_date` as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`, `notice_period_days`, the four `utility_*_included` answers, `pets_allowed` and `occupant_restrictions`; the rent terms are `not_applicable` on a sale Draft and the other way round; a rental period is never assumed). Installment, payment type, down payment and title or approval document terms are not supported yet (`unknown_field`). Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define (for example installment, down payment, title document or mortgage attributes) are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
          */
         patch: operations["update_listing"];
         trace?: never;
@@ -822,16 +822,6 @@ export interface components {
          */
         FieldRequirementEnum: "required_for_publication" | "recommended" | "optional";
         /**
-         * @description * `enum` - enum
-         *     * `text` - text
-         *     * `money` - money
-         *     * `integer` - integer
-         *     * `decimal` - decimal
-         *     * `boolean` - boolean
-         * @enum {string}
-         */
-        FieldTypeEnum: "enum" | "text" | "money" | "integer" | "decimal" | "boolean";
-        /**
          * @description * `unfurnished` - unfurnished
          *     * `semi_furnished` - semi_furnished
          *     * `furnished` - furnished
@@ -1052,6 +1042,41 @@ export interface components {
             conference_rooms: number | null;
             /** @description `true` or `false`; null when not answered (never defaulted to either). */
             business_centre_facilities: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            price_negotiable: boolean | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `available_now` - available_now
+             *     * `within_one_month` - within_one_month
+             *     * `within_three_months` - within_three_months
+             *     * `after_three_months` - after_three_months
+             */
+            possession_availability: (components["schemas"]["PossessionAvailabilityEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            security_deposit: string | null;
+            /**
+             * Format: date
+             * @description A calendar date as text `YYYY-MM-DD` (`2000-01-01` to `2100-12-31`), never a timestamp or a JSON number. Returned the same way.
+             */
+            availability_date: string | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            advance_rent: string | null;
+            /** @description Whole number from 1 to 120, a JSON integer (never text). Null clears it. */
+            minimum_lease_months: number | null;
+            /** @description Whole number from 0 to 365, a JSON integer (never text). Null clears it. */
+            notice_period_days: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_electricity_included: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_gas_included: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_water_included: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_internet_included: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            pets_allowed: boolean | null;
+            occupant_restrictions: (components["schemas"]["OccupantRestrictionsEnum"] | components["schemas"]["NullEnum"]) | null;
             /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. Computed by the server; read-only. */
             area_sqft: string | null;
         };
@@ -1211,6 +1236,41 @@ export interface components {
             conference_rooms?: number | null;
             /** @description `true` or `false`; null when not answered (never defaulted to either). */
             business_centre_facilities?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            price_negotiable?: boolean | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `available_now` - available_now
+             *     * `within_one_month` - within_one_month
+             *     * `within_three_months` - within_three_months
+             *     * `after_three_months` - after_three_months
+             */
+            possession_availability?: (components["schemas"]["PossessionAvailabilityEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            security_deposit?: string | null;
+            /**
+             * Format: date
+             * @description A calendar date as text `YYYY-MM-DD` (`2000-01-01` to `2100-12-31`), never a timestamp or a JSON number. Returned the same way.
+             */
+            availability_date?: string | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            advance_rent?: string | null;
+            /** @description Whole number from 1 to 120, a JSON integer (never text). Null clears it. */
+            minimum_lease_months?: number | null;
+            /** @description Whole number from 0 to 365, a JSON integer (never text). Null clears it. */
+            notice_period_days?: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_electricity_included?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_gas_included?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_water_included?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_internet_included?: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            pets_allowed?: boolean | null;
+            occupant_restrictions?: (components["schemas"]["OccupantRestrictionsEnum"] | components["schemas"]["NullEnum"]) | null;
         };
         ListingPage: {
             next: string | null;
@@ -1264,6 +1324,13 @@ export interface components {
          * @enum {string}
          */
         OccupancyStatusEnum: "owner_occupied" | "tenant_occupied" | "vacant";
+        /**
+         * @description * `no_restriction` - no_restriction
+         *     * `families_only` - families_only
+         *     * `bachelors_only` - bachelors_only
+         * @enum {string}
+         */
+        OccupantRestrictionsEnum: "no_restriction" | "families_only" | "bachelors_only";
         /**
          * @description * `north` - north
          *     * `south` - south
@@ -1337,6 +1404,14 @@ export interface components {
          */
         PlotFileStatusEnum: "open_file" | "allocation_letter" | "possession_letter";
         /**
+         * @description * `available_now` - available_now
+         *     * `within_one_month` - within_one_month
+         *     * `within_three_months` - within_three_months
+         *     * `after_three_months` - after_three_months
+         * @enum {string}
+         */
+        PossessionAvailabilityEnum: "available_now" | "within_one_month" | "within_three_months" | "after_three_months";
+        /**
          * @description * `possession_ready` - possession_ready
          *     * `possession_pending` - possession_pending
          *     * `file_only` - file_only
@@ -1385,7 +1460,7 @@ export interface components {
         RegistryField: {
             /** @description Stable snake_case id. */
             id: string;
-            type: components["schemas"]["FieldTypeEnum"];
+            type: components["schemas"]["TypeEnum"];
             requirement: components["schemas"]["FieldRequirementEnum"];
             /** @description Empty lists mean all values. */
             applicability: components["schemas"]["Applicability"];
@@ -1401,13 +1476,20 @@ export interface components {
             } | null;
             /** @description A claim the seller makes (legal, approval, possession): show it as "Seller-declared", never as verified by EstateAI. */
             seller_declared: boolean;
+            /**
+             * @description Where a form groups the field: `terms` (price, sale and rent terms) or `details`. Read this, never guess from applicability.
+             *
+             *     * `details` - details
+             *     * `terms` - terms
+             */
+            section: components["schemas"]["SectionEnum"];
             /** @description Text only: minimum characters after normalisation. */
             min_length: number | null;
             /** @description Text only: maximum characters after normalisation. */
             max_length: number | null;
-            /** @description Money, decimal and integer: smallest value, a decimal string. */
+            /** @description Money, decimal and integer: smallest value, a decimal string. Date: the earliest date, `YYYY-MM-DD`. */
             min: string | null;
-            /** @description Money, decimal and integer: largest value, a decimal string. */
+            /** @description Money, decimal and integer: largest value, a decimal string. Date: the latest date, `YYYY-MM-DD`. */
             max: string | null;
             /** @description Money only: `PKR`. */
             currency: string | null;
@@ -1440,6 +1522,12 @@ export interface components {
          * @enum {string}
          */
         RoadAccessEnum: "main_road" | "secondary_road" | "inner_street";
+        /**
+         * @description * `details` - details
+         *     * `terms` - terms
+         * @enum {string}
+         */
+        SectionEnum: "details" | "terms";
         /** @description Exactly `email` and `password`, both strings. Nothing else is accepted. */
         SignInRequest: {
             /** @description The account email; matched case-insensitively. */
@@ -1474,6 +1562,17 @@ export interface components {
             id: string;
             subtypes: string[];
         };
+        /**
+         * @description * `enum` - enum
+         *     * `text` - text
+         *     * `money` - money
+         *     * `integer` - integer
+         *     * `decimal` - decimal
+         *     * `boolean` - boolean
+         *     * `date` - date
+         * @enum {string}
+         */
+        TypeEnum: "enum" | "text" | "money" | "integer" | "decimal" | "boolean" | "date";
         UnreadCount: {
             unread: number;
         };
