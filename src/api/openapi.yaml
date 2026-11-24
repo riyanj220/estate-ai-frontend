@@ -690,29 +690,34 @@ paths:
         and `latitude` and `longitude` (decimal strings with at most six decimals,
         -90 to 90 and -180 to 180, both or neither; `out_of_range` otherwise): the
         private fields are returned only to the owner and never appear in any public
-        response. Installment, payment type, down payment and title or approval document
-        terms are not supported yet (`unknown_field`). Possession, balloting, development,
-        approval and plot file status are seller-declared (registry flag `seller_declared`):
-        the owner''s claim, never verified by EstateAI. A Plot File allows only `file_only`
-        for `possession_status` and the other Subtypes refuse it (`invalid_choice`).
-        Ids the registry does not define (for example installment, down payment, title
-        document or mortgage attributes) are `unknown_field`. Counts are JSON integers
-        and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`,
-        never 0 or false. The registry says which apply to which Subtype (`not_applicable`
-        otherwise); `null` clears a field. `area_sqft` is computed by the server and
-        is `not_editable` as input. Saving never needs complete data. Every saved
-        field is recorded as `manual` and confirmed; the client never chooses provenance.
-        A `base_revision` that is not the current `revision` is `409 stale_revision`
-        with the current Listing under `current` and nothing written (a retried PATCH
-        after it succeeded is also a 409: reload). An edit that changes nothing is
-        `200` and keeps the revision. `400` carries codes keyed by registry field
-        id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`,
-        `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`,
-        `out_of_range`, `locality_not_in_city`, `contains_contact_details`, `not_editable`;
-        unknown ids are `unknown_field` under `non_field_errors`) and never echoes
-        a value. Another account''s, an unknown or a malformed id is `404 not_found`;
-        an account that may not edit (Suspended, Deactivated) is `403 forbidden`.
-        Never cached.'
+        response. `amenities` is the map `{code: "present" | "none"}` of catalogue
+        codes (`/api/v1/reference/amenities`): the sent map replaces the whole stored
+        one, `null` or `{}` clears it, a code that is left out is unanswered (never
+        `none`), an unknown or inactive code, another state, a non-object or more
+        than 40 entries is `invalid`; nearby facilities are seller-declared (no distance,
+        no verification). Installment, payment type, down payment and title or approval
+        document terms are not supported yet (`unknown_field`). Possession, balloting,
+        development, approval and plot file status are seller-declared (registry flag
+        `seller_declared`): the owner''s claim, never verified by EstateAI. A Plot
+        File allows only `file_only` for `possession_status` and the other Subtypes
+        refuse it (`invalid_choice`). Ids the registry does not define (for example
+        installment, down payment, title document or mortgage attributes) are `unknown_field`.
+        Counts are JSON integers and yes/no answers are JSON `true`/`false`, never
+        text; unanswered is `null`, never 0 or false. The registry says which apply
+        to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft`
+        is computed by the server and is `not_editable` as input. Saving never needs
+        complete data. Every saved field is recorded as `manual` and confirmed; the
+        client never chooses provenance. A `base_revision` that is not the current
+        `revision` is `409 stale_revision` with the current Listing under `current`
+        and nothing written (a retried PATCH after it succeeded is also a 409: reload).
+        An edit that changes nothing is `200` and keeps the revision. `400` carries
+        codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`,
+        `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`,
+        `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`,
+        `contains_contact_details`, `not_editable`; unknown ids are `unknown_field`
+        under `non_field_errors`) and never echoes a value. Another account''s, an
+        unknown or a malformed id is `404 not_found`; an account that may not edit
+        (Suspended, Deactivated) is `403 forbidden`. Never cached.'
       summary: Edit one of the signed-in account's own Listings
       parameters:
       - in: path
@@ -2500,6 +2505,65 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/reference/amenities:
+    get:
+      operationId: list_amenities
+      description: 'Public. The active catalogue ordered by `kind` (`on_property`,
+        `community`, `nearby`) and then by display order. `code` is the stable identifier
+        a listing stores; `label` and `group` are for display. A `nearby` entry is
+        the seller''s own declaration: clients must label it "Seller-declared"; there
+        is no distance and no verification. Unpaginated: the list is small and bounded.'
+      summary: The amenity and nearby facility catalogue
+      tags:
+      - reference
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AmenityList'
+          description: Active amenities
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/reference/cities:
     get:
       operationId: list_cities
@@ -3085,6 +3149,45 @@ components:
       - office_address
       - password
       - phone
+    Amenity:
+      type: object
+      description: |-
+        Allowlist. Codes, labels and groups are plain strings (managed in the database, never
+        OpenAPI enums). `kind` is the closed vocabulary the form groups by; `nearby` entries are
+        declared by the seller and are never verified.
+      properties:
+        code:
+          type: string
+        label:
+          type: string
+        kind:
+          $ref: '#/components/schemas/AmenityKindEnum'
+        group:
+          type: string
+      required:
+      - code
+      - group
+      - kind
+      - label
+    AmenityKindEnum:
+      enum:
+      - on_property
+      - community
+      - nearby
+      type: string
+      description: |-
+        * `on_property` - on_property
+        * `community` - community
+        * `nearby` - nearby
+    AmenityList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Amenity'
+      required:
+      - items
     Applicability:
       type: object
       properties:
@@ -3627,13 +3730,7 @@ components:
           items:
             $ref: '#/components/schemas/Image'
           description: The images in `position` order; empty when there are none.
-        amenities:
-          type: array
-          items:
-            type: string
-          description: Empty until Story 2.8.
       required:
-      - amenities
       - fields
       - id
       - media
@@ -4184,6 +4281,17 @@ components:
           description: Decimal string with up to 6 decimals (`-180` to `180`), digits
             and a point only, a leading minus sign, never a JSON number. Returned
             with 6 decimals.
+        amenities:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: 'An object `{code: state}` with catalogue codes (`/api/v1/reference/amenities`)
+            and the state `"present"` or `"none"`, at most 40 entries. It REPLACES
+            the whole map; `null` or `{}` clears it. A code left out is unanswered,
+            never `none`. `nearby` entries are the seller''s own declaration: show
+            them as seller-declared; there is no distance and no verification. Returned
+            as the answered codes only, or `null` when none is answered.'
         area_sqft:
           type: string
           nullable: true
@@ -4192,6 +4300,7 @@ components:
             Computed by the server; read-only.
       required:
       - advance_rent
+      - amenities
       - approval_authority
       - area_sqft
       - area_unit
@@ -4817,6 +4926,18 @@ components:
           description: Decimal string with up to 6 decimals (`-180` to `180`), digits
             and a point only, a leading minus sign, never a JSON number. Returned
             with 6 decimals.
+        amenities:
+          type: object
+          additionalProperties:
+            type: string
+            minLength: 1
+          nullable: true
+          description: 'An object `{code: state}` with catalogue codes (`/api/v1/reference/amenities`)
+            and the state `"present"` or `"none"`, at most 40 entries. It REPLACES
+            the whole map; `null` or `{}` clears it. A code left out is unanswered,
+            never `none`. `nearby` entries are the seller''s own declaration: show
+            them as seller-declared; there is no distance and no verification. Returned
+            as the answered codes only, or `null` when none is answered.'
     ListingPage:
       type: object
       properties:
@@ -5270,11 +5391,12 @@ components:
           allOf:
           - $ref: '#/components/schemas/SectionEnum'
           description: |-
-            Where a form groups the field: `terms` (price, sale and rent terms), `location` (city, locality, the public location text and the private address; group by `class`) or `details`. Read this, never guess from applicability.
+            Where a form groups the field: `terms` (price, sale and rent terms), `location` (city, locality, the public location text and the private address; group by `class`), `amenities` (the amenity map, from the catalogue at `/api/v1/reference/amenities`) or `details`. Read this, never guess from applicability.
 
             * `details` - details
             * `terms` - terms
             * `location` - location
+            * `amenities` - amenities
         min_length:
           type: integer
           nullable: true
@@ -5381,11 +5503,13 @@ components:
       - details
       - terms
       - location
+      - amenities
       type: string
       description: |-
         * `details` - details
         * `terms` - terms
         * `location` - location
+        * `amenities` - amenities
     SignInRequest:
       type: object
       description: Exactly `email` and `password`, both strings. Nothing else is accepted.
@@ -5467,6 +5591,7 @@ components:
       - boolean
       - date
       - reference
+      - amenities
       type: string
       description: |-
         * `enum` - enum
@@ -5477,6 +5602,7 @@ components:
         * `boolean` - boolean
         * `date` - date
         * `reference` - reference
+        * `amenities` - amenities
     UnreadCount:
       type: object
       properties:
