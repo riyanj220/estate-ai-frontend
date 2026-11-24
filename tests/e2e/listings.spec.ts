@@ -161,7 +161,7 @@ test("registry: the browser revalidates it with its ETag", async ({ page, reques
   await expect(category(page)).toBeVisible();
   const after = await stats(request);
   expect(after.registryGets).toBe(2);
-  expect(after.lastRegistryConditional).toBe('"2-default"');
+  expect(after.lastRegistryConditional).toMatch(/^"5-[0-9a-f]{8}-4"$/);
   expect(after.registryNotModified).toBe(1);
   await expect(category(page).locator("option")).toHaveCount(5);
 });

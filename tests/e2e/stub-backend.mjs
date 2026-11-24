@@ -1,4 +1,5 @@
 // Minimal stand-in for the Django backend, used only by the Playwright tests.
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 
 let mode = "up";
@@ -158,6 +159,16 @@ const TAXONOMIES = {
       { id: "bungalow", subtypes: ["shared_unit", "only_bungalow"] },
     ],
   },
+  // A made-up commercial Subtype (`kiosk`): the labels follow the Category, so it needs no code.
+  kiosk: {
+    purposes: ["sale", "rent"],
+    categories: [
+      { id: "house", subtypes: ["house"] },
+      { id: "apartment", subtypes: ["apartment"] },
+      { id: "plot", subtypes: ["residential_plot", "commercial_plot", "plot_file"] },
+      { id: "commercial", subtypes: ["shop", "office", "kiosk"] },
+    ],
+  },
   other: {
     purposes: ["sale", "rent", "lease_out"],
     categories: [
@@ -175,6 +186,8 @@ const fieldDef = (id, type, requirement, extra = {}) => ({
   applicability: { purposes: [], categories: [], subtypes: [] },
   allowed_values: null,
   allowed_values_by_purpose: null,
+  allowed_values_by_subtype: null,
+  seller_declared: false,
   min_length: null,
   max_length: null,
   min: null,
@@ -246,11 +259,15 @@ const REGISTRY_FIELDS = {
 // Story 2.4: the thirty House and Apartment details of registry version 4, exactly as the backend defines them (bounds, choices,
 // requirements, applicability by Subtype). Integer bounds are served as text, like the real registry.
 const BOTH = { purposes: [], categories: [], subtypes: ["house", "apartment"] };
+const subtypesOf = (...subtypes) => ({ purposes: [], categories: [], subtypes });
+// Story 2.5: the shared details also apply to Shops and Offices (the same ids and columns).
+const UNITS_AND_COMMERCIAL = subtypesOf("house", "apartment", "shop", "office");
+const BUILDINGS = subtypesOf("apartment", "shop", "office");
 const HOUSE = { purposes: [], categories: [], subtypes: ["house"] };
 const APARTMENT = { purposes: [], categories: [], subtypes: ["apartment"] };
 const intDef = (id, requirement, applicability, min, max, extra = {}) =>
   fieldDef(id, "integer", requirement, { applicability, min: min === null ? null : String(min), max: max === null ? null : String(max), ai_extractable: true, ...extra });
-const boolDef = (id, requirement, applicability) => fieldDef(id, "boolean", requirement, { applicability, ai_extractable: true });
+const boolDef = (id, requirement, applicability, extra = {}) => fieldDef(id, "boolean", requirement, { applicability, ai_extractable: true, ...extra });
 const enumDef = (id, requirement, applicability, allowed_values, extra = {}) =>
   fieldDef(id, "enum", requirement, { applicability, allowed_values, ai_extractable: true, ...extra });
 const ROOM_COUNTS = ["drawing_rooms", "dining_rooms", "tv_lounges", "study_rooms", "prayer_rooms", "store_rooms", "laundry_rooms", "powder_rooms", "servant_quarters"];
@@ -258,10 +275,10 @@ const RESIDENTIAL_DEFS = [
   intDef("bedrooms", "required_for_publication", BOTH, 0, 50, { description: "Number of bedrooms. 0 for a studio.", searchable: true, valuation_input: true }),
   intDef("bathrooms", "required_for_publication", BOTH, 0, 50, { searchable: true, valuation_input: true }),
   intDef("construction_year", "recommended", BOTH, 1900, 2100, { description: "Year the building was built.", valuation_input: true }),
-  enumDef("condition", "recommended", BOTH, ["new", "excellent", "good", "needs_renovation"], { valuation_input: true }),
-  enumDef("furnishing", "recommended", BOTH, ["unfurnished", "semi_furnished", "furnished"], { searchable: true }),
-  intDef("parking_spaces", "recommended", BOTH, 0, 50, { searchable: true }),
-  enumDef("occupancy_status", "recommended", BOTH, ["owner_occupied", "tenant_occupied", "vacant"]),
+  enumDef("condition", "recommended", UNITS_AND_COMMERCIAL, ["new", "excellent", "good", "needs_renovation"], { valuation_input: true }),
+  enumDef("furnishing", "recommended", UNITS_AND_COMMERCIAL, ["unfurnished", "semi_furnished", "furnished"], { searchable: true }),
+  intDef("parking_spaces", "recommended", UNITS_AND_COMMERCIAL, 0, 50, { searchable: true }),
+  enumDef("occupancy_status", "recommended", UNITS_AND_COMMERCIAL, ["owner_occupied", "tenant_occupied", "vacant"]),
   fieldDef("covered_area_sqft", "decimal", "recommended", {
     applicability: BOTH,
     description: "Covered area in square feet, whatever unit the area uses.",
@@ -276,16 +293,16 @@ const RESIDENTIAL_DEFS = [
   enumDef("construction_status", "recommended", HOUSE, ["completed", "under_construction", "grey_structure"]),
   ...ROOM_COUNTS.map((id) => intDef(id, "optional", HOUSE, 0, 50)),
   boolDef("basement", "optional", HOUSE),
-  intDef("floor_number", "recommended", APARTMENT, 0, 200, { description: "Floor of the apartment. 0 is the ground floor." }),
-  intDef("building_floors", "recommended", APARTMENT, 1, 200, { description: "Number of floors in the building." }),
-  boolDef("lift", "recommended", APARTMENT),
+  intDef("floor_number", "recommended", BUILDINGS, 0, 200, { description: "Floor of the unit. 0 is the ground floor." }),
+  intDef("building_floors", "recommended", BUILDINGS, 1, 200, { description: "Number of floors in the building." }),
+  boolDef("lift", "recommended", subtypesOf("apartment", "office")),
   boolDef("backup_electricity", "recommended", APARTMENT),
-  boolDef("building_security", "recommended", APARTMENT),
+  boolDef("building_security", "recommended", BUILDINGS),
   boolDef("balcony_or_terrace", "optional", APARTMENT),
-  boolDef("building_lobby", "optional", APARTMENT),
+  boolDef("building_lobby", "optional", BUILDINGS),
   boolDef("intercom", "optional", APARTMENT),
   fieldDef("maintenance_charges", "money", "optional", {
-    applicability: APARTMENT,
+    applicability: BUILDINGS,
     description: "Maintenance charges in PKR per month.",
     min: "0",
     max: "999999999999.99",
@@ -294,7 +311,50 @@ const RESIDENTIAL_DEFS = [
   }),
 ];
 const RESIDENTIAL_IDS = RESIDENTIAL_DEFS.map((entry) => entry.id);
-REGISTRY_FIELDS.default.push(...RESIDENTIAL_DEFS);
+// Story 2.5: the Plot and Commercial details of registry version 5, as the backend serves them (feet and kW as decimal fields with scale 2,
+// the seller-declared claims flagged, the Plot File's own possession vocabulary in `allowed_values_by_subtype`).
+const PLOTS = subtypesOf("residential_plot", "commercial_plot", "plot_file");
+const UTILITIES = subtypesOf("residential_plot", "commercial_plot", "plot_file", "shop", "office");
+const COMMERCIAL = subtypesOf("shop", "office");
+const measureDef = (id, requirement, applicability, min, max, extra = {}) =>
+  fieldDef(id, "decimal", requirement, { applicability, min, max, scale: 2, ...extra });
+const declared = { seller_declared: true };
+const PLOT_COMMERCIAL_DEFS = [
+  boolDef("electricity", "recommended", UTILITIES, { description: "Electricity connection available." }),
+  boolDef("water", "recommended", UTILITIES, { description: "Water connection available." }),
+  boolDef("gas", "optional", UTILITIES, { description: "Gas connection available." }),
+  measureDef("plot_width", "recommended", PLOTS, "0.01", "99999.99", { description: "Plot width in feet.", ai_extractable: true, valuation_input: true }),
+  measureDef("plot_depth", "recommended", PLOTS, "0.01", "99999.99", { description: "Plot depth in feet.", ai_extractable: true, valuation_input: true }),
+  enumDef("possession_status", "recommended", PLOTS, ["possession_ready", "possession_pending", "file_only"], {
+    ...declared,
+    description: "As stated by the seller. A Plot File is never possession-ready.",
+    ai_extractable: false,
+    allowed_values_by_subtype: { residential_plot: ["possession_ready", "possession_pending"], commercial_plot: ["possession_ready", "possession_pending"], plot_file: ["file_only"] },
+  }),
+  boolDef("corner_plot", "recommended", PLOTS, { valuation_input: true }),
+  measureDef("road_width_ft", "recommended", PLOTS, "1.00", "999.99", { description: "Width of the road in front, in feet.", ai_extractable: true, valuation_input: true }),
+  enumDef("balloting_status", "recommended", PLOTS, ["not_applicable", "balloting_pending", "balloted"], { ...declared, ai_extractable: false }),
+  boolDef("sewerage", "recommended", PLOTS),
+  enumDef("development_status", "recommended", PLOTS, ["developed", "partially_developed", "undeveloped"], { ...declared, ai_extractable: false, valuation_input: true }),
+  enumDef("approval_authority", "recommended", PLOTS, ["lda", "cda", "kda", "rda", "fda", "mda", "gda", "bda", "peshawar_development_authority", "private_society", "none", "other"], {
+    ...declared,
+    ai_extractable: false,
+  }),
+  boolDef("park_facing", "optional", PLOTS),
+  boolDef("main_boulevard", "optional", PLOTS),
+  boolDef("boundary_wall", "optional", PLOTS),
+  enumDef("orientation", "optional", PLOTS, ["north", "south", "east", "west", "north_east", "north_west", "south_east", "south_west"]),
+  enumDef("plot_file_status", "optional", subtypesOf("plot_file"), ["open_file", "allocation_letter", "possession_letter"], { ...declared, ai_extractable: false }),
+  enumDef("business_use", "recommended", COMMERCIAL, ["retail", "restaurant", "office_work", "clinic", "warehouse", "showroom", "mixed", "other"]),
+  measureDef("frontage_ft", "recommended", subtypesOf("shop"), "0.01", "9999.99", { description: "Width of the frontage in feet.", ai_extractable: true, valuation_input: true }),
+  enumDef("road_access", "recommended", COMMERCIAL, ["main_road", "secondary_road", "inner_street"]),
+  measureDef("ceiling_height_ft", "optional", COMMERCIAL, "1.00", "99.99", { description: "Ceiling height in feet.", ai_extractable: true }),
+  measureDef("power_load_kw", "optional", COMMERCIAL, "0.01", "99999.99", { description: "Sanctioned power load in kilowatts.", ai_extractable: true }),
+  boolDef("three_phase_electricity", "optional", COMMERCIAL),
+  intDef("conference_rooms", "optional", subtypesOf("office"), 0, 50),
+  boolDef("business_centre_facilities", "optional", subtypesOf("office")),
+];
+REGISTRY_FIELDS.default.push(...RESIDENTIAL_DEFS, ...PLOT_COMMERCIAL_DEFS);
 // Other limits, requirements and choices for a few of them (and none of the rest): the section follows the registry. `extra` adds
 // fields no label knows (a yes/no, a choice, a count, a covered-area-like decimal with another scale, a field of a type with no control)
 // to prove that a registry field needs no code of its own.
@@ -304,6 +364,65 @@ REGISTRY_FIELDS.other.push(
   boolDef("lift", "required_for_publication", APARTMENT),
   intDef("kitchens", "optional", HOUSE, 1, 3),
 );
+// Another by-subtype map (and a by-purpose one, to prove the two are intersected): a Residential Plot may only state `possession_pending`, a
+// Plot File offers two choices, the approval authority is no longer a claim and the condition is one. The form follows these, not code.
+Object.defineProperty(REGISTRY_FIELDS, "plotmap", {
+  enumerable: true,
+  get() {
+    return this.default.map((entry) => {
+      if (entry.id === "possession_status") {
+        return {
+          ...entry,
+          allowed_values_by_purpose: { sale: ["possession_pending", "file_only"], rent: ["possession_ready"] },
+          allowed_values_by_subtype: { residential_plot: ["possession_pending"], commercial_plot: ["possession_ready"], plot_file: ["file_only", "possession_pending"] },
+        };
+      }
+      if (entry.id === "approval_authority") return { ...entry, seller_declared: false };
+      if (entry.id === "condition") return { ...entry, seller_declared: true };
+      return entry;
+    });
+  },
+});
+Object.defineProperty(REGISTRY_FIELDS, "kiosk", {
+  enumerable: true,
+  get() {
+    return this.default.map((entry) =>
+      entry.applicability.subtypes.includes("shop") ? { ...entry, applicability: { ...entry.applicability, subtypes: [...entry.applicability.subtypes, "kiosk"] } } : entry,
+    );
+  },
+});
+// The same registry with the two Story 2.5 keys missing from every field, like an older server.
+Object.defineProperty(REGISTRY_FIELDS, "nokeys", {
+  enumerable: true,
+  get() {
+    return this.default.map((entry) => {
+      const older = { ...entry };
+      delete older.seller_declared;
+      delete older.allowed_values_by_subtype;
+      return older;
+    });
+  },
+});
+// The possession list as a present-but-empty by-subtype map, and a by-purpose map that does not list the Draft's purpose: both fail closed.
+Object.defineProperty(REGISTRY_FIELDS, "emptymap", {
+  enumerable: true,
+  get() {
+    return this.default.map((entry) => (entry.id === "possession_status" ? { ...entry, allowed_values_by_subtype: {} } : entry));
+  },
+});
+Object.defineProperty(REGISTRY_FIELDS, "purposegap", {
+  enumerable: true,
+  get() {
+    return this.default.map((entry) => (entry.id === "possession_status" ? { ...entry, allowed_values_by_purpose: { rent: ["possession_ready", "possession_pending"] } } : entry));
+  },
+});
+// A hand-built field a registry flags as the owner's claim.
+Object.defineProperty(REGISTRY_FIELDS, "claimprice", {
+  enumerable: true,
+  get() {
+    return this.default.map((entry) => (entry.id === "asking_price" ? { ...entry, seller_declared: true } : entry));
+  },
+});
 Object.defineProperty(REGISTRY_FIELDS, "extra", {
   enumerable: true,
   get() {
@@ -320,6 +439,8 @@ Object.defineProperty(REGISTRY_FIELDS, "extra", {
     ];
   },
 });
+const REGISTRY_VERSION = 5;
+const REGISTRY_SHAPE = 4;
 let fieldsName = "default";
 let taxonomyName = "default";
 let registryMode = "ok";
@@ -338,6 +459,7 @@ const EMPTY_EDITABLE = {
   marla_basis: null,
   area_sqft: null,
   ...Object.fromEntries(RESIDENTIAL_IDS.map((id) => [id, null])),
+  ...Object.fromEntries(PLOT_COMMERCIAL_DEFS.map((entry) => [entry.id, null])),
 };
 // What a client may send (the derived square feet never): the real service answers `not_editable` for `area_sqft`.
 const INPUT_FIELDS = Object.keys(EMPTY_EDITABLE).filter((key) => key !== "area_sqft");
@@ -381,6 +503,7 @@ const applies = (rule, fields) =>
 /** The real rules for a registry detail: [value, code]. Integers and yes/no only as JSON numbers and booleans; decimals and money as text. */
 // A null is judged before this (it clears or is a no-op, even for a field that does not apply). The applicability rules themselves are
 // owned and tested by the backend; the stub only mirrors them so the form can be exercised.
+const AREA_CODE_IDS = ["area_value", "covered_area_sqft", "garden_area_sqft"];
 const checkDetail = (rule, value, fields) => {
   if (!applies(rule, fields)) return { code: "not_applicable" };
   if (rule.type === "integer") {
@@ -390,16 +513,24 @@ const checkDetail = (rule, value, fields) => {
   if (rule.type === "boolean") return typeof value === "boolean" ? { value } : { code: "invalid" };
   if (rule.type === "enum") {
     if (typeof value !== "string") return { code: "invalid" };
-    const allowed = rule.allowed_values_by_purpose?.[fields.purpose] ?? rule.allowed_values ?? [];
+    const byPurpose = rule.allowed_values_by_purpose?.[fields.purpose] ?? null;
+    let allowed = byPurpose ?? rule.allowed_values ?? [];
+    // A by-subtype map narrows to the Draft's Subtype (and to the purpose's list when there is one); a Subtype with no entry offers nothing.
+    if (rule.allowed_values_by_subtype) {
+      const own = rule.allowed_values_by_subtype[fields.subtype] ?? [];
+      allowed = byPurpose ? own.filter((choice) => byPurpose.includes(choice)) : own;
+    }
     return allowed.includes(value) ? { value } : { code: "invalid_choice" };
   }
   if (rule.type === "decimal") {
     const match = typeof value === "string" && value.length <= 40 ? AREA_TEXT.exec(value) : null;
     if (!match || (match[2].length > 1 && match[2].startsWith("0"))) return { code: "invalid" };
     const scale = rule.scale ?? 4;
-    if (match[1] || (match[3] ?? "").length > scale) return { code: "invalid_area" };
+    // The two area fields keep `invalid_area`; every other decimal (feet, kW) is `invalid_measure`.
+    const code = AREA_CODE_IDS.includes(rule.id) ? "invalid_area" : "invalid_measure";
+    if (match[1] || (match[3] ?? "").length > scale || match[2].length > 10) return { code };
     const scaled = toScaled(value, scale);
-    return scaled < toScaled(rule.min, scale) || scaled > toScaled(rule.max, scale) ? { code: "invalid_area" } : { value: fromScaled(scaled, scale) };
+    return scaled < toScaled(rule.min, scale) || scaled > toScaled(rule.max, scale) ? { code } : { value: fromScaled(scaled, scale) };
   }
   if (rule.type === "money") {
     const match = typeof value === "string" && value.length <= 40 ? AREA_TEXT.exec(value) : null;
@@ -481,8 +612,54 @@ const LISTING_PRESETS = {
   house_odd: () => [
     makeListing(1, "mine", { ...JSON.parse('{"__proto__": 7}'), bedrooms: 3.5, kitchens: 1e21, condition: "mint", basement: "maybe", covered_area_sqft: 1200.5 }, 2),
   ],
-  // A Plot has none of the residential details: the Details section does not show at all.
+  // Story 2.5: a Residential Plot, a Plot File, a Shop and an Office, blank and with details (revision 2). Feet and kW are decimal
+  // strings at the registry scale; the claims (possession, approval, development, balloting, plot file status) are the owner's.
   plot_blank: () => [makeListing(1, "mine", { category: "plot", subtype: "residential_plot" })],
+  plot_file_blank: () => [makeListing(1, "mine", { category: "plot", subtype: "plot_file" })],
+  shop_blank: () => [makeListing(1, "mine", { category: "commercial", subtype: "shop" })],
+  kiosk_blank: () => [makeListing(1, "mine", { category: "commercial", subtype: "kiosk" })],
+  // A Plot File that stores a possession the Plot File never offers (from before the rule): it must stay visible and be fixable.
+  plot_file_stale: () => [makeListing(1, "mine", { category: "plot", subtype: "plot_file", possession_status: "possession_ready" }, 2)],
+  office_blank: () => [makeListing(1, "mine", { category: "commercial", subtype: "office" })],
+  plot_details: () => [
+    makeListing(
+      1,
+      "mine",
+      {
+        category: "plot",
+        subtype: "residential_plot",
+        plot_width: "35.00",
+        plot_depth: "70.50",
+        possession_status: "possession_ready",
+        corner_plot: true,
+        road_width_ft: "40.00",
+        development_status: "developed",
+        approval_authority: "lda",
+        sewerage: false,
+        electricity: true,
+      },
+      2,
+    ),
+  ],
+  plot_file_details: () => [
+    makeListing(1, "mine", { category: "plot", subtype: "plot_file", possession_status: "file_only", plot_file_status: "allocation_letter", approval_authority: "private_society", plot_width: "30.00" }, 2),
+  ],
+  shop_details: () => [
+    makeListing(
+      1,
+      "mine",
+      { category: "commercial", subtype: "shop", business_use: "retail", frontage_ft: "18.00", road_access: "main_road", condition: "good", furnishing: "semi_furnished", floor_number: 1, building_floors: 4, power_load_kw: "12.50", three_phase_electricity: true, maintenance_charges: "4000.00" },
+      2,
+    ),
+  ],
+  office_details: () => [
+    makeListing(
+      1,
+      "mine",
+      { category: "commercial", subtype: "office", business_use: "office_work", road_access: "secondary_road", lift: true, conference_rooms: 3, floor_number: 2, building_floors: 8, ceiling_height_ft: "10.50", business_centre_facilities: false },
+      2,
+    ),
+  ],
   rent: () => [makeListing(1, "mine", { purpose: "rent", category: "apartment", subtype: "apartment" })],
   rent_filled: () => [
     makeListing(
@@ -975,7 +1152,7 @@ createServer((req, res) => {
   if (url.pathname === "/__listing-patch-mode") {
     return choose(
       "patchMode",
-      ["ok", "slow", "codes", "hidden", "area_codes", "area_hidden", "area_other_codes", "detail_codes", "detail_floor", "detail_codes_slow", "detail_not_editable", "detail_not_applicable", "detail_hidden", "detail_unknown", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
+      ["ok", "slow", "codes", "hidden", "area_codes", "area_hidden", "area_other_codes", "detail_codes", "plot_codes", "commercial_codes", "detail_floor", "detail_codes_slow", "detail_not_editable", "detail_not_applicable", "detail_hidden", "detail_unknown", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
       (v) => {
         patchMode = v;
         patchLostSpent = false;
@@ -1003,7 +1180,7 @@ createServer((req, res) => {
     }
     settleArea(target.fields);
     target.revision += 1;
-    target.registryVersion = 4;
+    target.registryVersion = 5;
     return json(200, { revision: target.revision });
   }
   if (url.pathname === "/__hand-ids") return json(200, { ids: HAND_IDS });
@@ -1053,7 +1230,9 @@ createServer((req, res) => {
   if (url.pathname === "/api/v1/registry" && req.method === "GET") {
     registryGets += 1;
     const taxonomy = TAXONOMIES[taxonomyName];
-    const etag = fieldsName === "default" ? `"2-${taxonomyName}"` : `"2-${taxonomyName}-${fieldsName}"`;
+    // "<registry version>-<hash of what is served>-<response shape version>", like the backend's validator.
+    const served = { version: REGISTRY_VERSION, taxonomy, fields: REGISTRY_FIELDS[fieldsName] };
+    const etag = `"${REGISTRY_VERSION}-${createHash("sha1").update(JSON.stringify(served)).digest("hex").slice(0, 8)}-${REGISTRY_SHAPE}"`;
     lastRegistryConditional = req.headers["if-none-match"] ?? null;
     if ((registryMode === "flaky" || registryMode === "flaky_slow") && registryGets === 1) return json(500, envelope("server_error", "Internal detail that must not show."));
     if (registryMode === "gone") return json(401, envelope("unauthenticated", "Authentication is required."));
@@ -1083,7 +1262,7 @@ createServer((req, res) => {
     }
     const send = () => {
       res.writeHead(200, headers);
-      res.end(JSON.stringify({ version: 4, taxonomy, fields: REGISTRY_FIELDS[fieldsName] }));
+      res.end(JSON.stringify(served));
     };
     if (registryMode === "flaky_slow") return void setTimeout(send, 1500);
     return send();
@@ -1193,6 +1372,8 @@ createServer((req, res) => {
       if (patchMode === "detail_codes_slow") return void setTimeout(() => fail({ bedrooms: ["invalid_range"], floor_number: ["invalid_floor"] }), 600);
       if (patchMode === "detail_not_editable") return fail({ bedrooms: ["not_editable"] });
       if (patchMode === "detail_not_applicable") return fail({ lift: ["not_applicable"] });
+      if (patchMode === "plot_codes") return fail({ plot_width: ["invalid_measure"], possession_status: ["invalid_choice"], corner_plot: ["invalid"], road_width_ft: ["invalid"], approval_authority: ["not_applicable"] });
+      if (patchMode === "commercial_codes") return fail({ furnishing: ["invalid_choice"], frontage_ft: ["invalid_measure"], power_load_kw: ["invalid"], floor_number: ["invalid_floor"], building_floors: ["invalid_floor"], business_use: ["invalid_choice"] });
       if (patchMode === "detail_floor") return fail({ floor_number: ["invalid_floor"] });
       if (patchMode === "detail_hidden") return fail({ kitchens: ["not_applicable"] });
       if (patchMode === "detail_unknown") return fail({ bedrooms: ["constructor"], condition: ["Some server sentence."], lift: ["invalid_range", "invalid"], nonsense_field: ["invalid"] });
@@ -1302,7 +1483,7 @@ createServer((req, res) => {
           else target.provenance[key] = { origin: "manual", confirmed: true };
         }
         target.revision += 1;
-        target.registryVersion = 4;
+        target.registryVersion = 5;
       }
       if (patchMode === "lost_once" && !patchLostSpent) {
         patchLostSpent = true;

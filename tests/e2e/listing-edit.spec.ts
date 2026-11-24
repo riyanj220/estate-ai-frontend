@@ -196,7 +196,7 @@ test("save: only the changed field is sent with the base revision; the revision 
   await saveButton(page).click();
   await expect(live(page)).toHaveText("Saved");
   await expect(revision(page)).toHaveText("4");
-  await expect(page.getByTestId("draft-registry-version")).toHaveText("4");
+  await expect(page.getByTestId("draft-registry-version")).toHaveText("5");
   const sent = await patches(request);
   expect(sent.count).toBe(1);
   expect(sent.bodies[0]).toEqual({ base_revision: 3, fields: { title: "Corner house with a big garden" } });
@@ -1510,7 +1510,7 @@ test("details: a House shows its own applicable fields grouped by requirement, i
   await expect(detail(page, "Basement")).toHaveValue("");
 });
 
-test("details: an Apartment shows its own set, and a Plot shows no Details at all", async ({ page, request }) => {
+test("details: an Apartment shows its own set, and a registry with no details for a Subtype shows no Details at all", async ({ page, request }) => {
   await openDraft(page, request, "apartment_blank");
   await expect(detailLabels(page, "required")).toHaveText(HOUSE_REQUIRED);
   await expect(detailLabels(page, "recommended")).toHaveText(APARTMENT_RECOMMENDED);
@@ -1518,6 +1518,7 @@ test("details: an Apartment shows its own set, and a Plot shows no Details at al
   for (const houseOnly of ["Total floors", "Kitchens", "Construction status", "Drawing rooms", "Servant quarters", "Basement"]) {
     await expect(detail(page, houseOnly)).toHaveCount(0);
   }
+  await registryFields(request, "other"); // this registry defines no detail for a plot
   await openDraft(page, request, "plot_blank");
   await expect(page.getByTestId("details-block")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 3, name: "Details" })).toHaveCount(0);
@@ -1533,7 +1534,7 @@ test("details: the control follows the registry type, with Not answered first an
   await expect(page.locator("#bedrooms-hint")).toHaveText("Number of bedrooms. 0 for a studio. Whole number from 0 to 50.");
   await expect(page.locator("#bathrooms-hint")).toHaveText("Whole number from 0 to 50.");
   await expect(page.locator("#construction_year-hint")).toHaveText("Year the building was built. Whole number from 1900 to 2100.");
-  await expect(page.locator("#floor_number-hint")).toHaveText("Floor of the apartment. 0 is the ground floor. Whole number from 0 to 200.");
+  await expect(page.locator("#floor_number-hint")).toHaveText("Floor of the unit. 0 is the ground floor. Whole number from 0 to 200.");
   await expect(page.locator("#building_floors-hint")).toHaveText("Number of floors in the building. Whole number from 1 to 200.");
   // boolean: Not answered, Yes, No
   await expect(detail(page, "Lift").locator("option")).toHaveText(["Not answered", "Yes", "No"]);
@@ -2218,6 +2219,643 @@ test("details: the three lists of hand-built ids agree (the client's two and the
   expect([...HAND_BUILT_KEYS].sort()).toEqual([...stub].sort());
 });
 
+// ---------------------------------------------------------------- plot and commercial details (Story 2.5)
+
+const SELLER_DECLARED = "Seller-declared";
+const SELLER_HELP = "You are stating this. EstateAI has not checked it.";
+const MEASURE_INVALID = "Enter digits only, with an optional decimal point. Do not use commas, signs or units, for example 1200 or 10.5.";
+const MEASURE_LIMITS = "Enter a number above zero within the allowed range, using digits and an optional decimal point.";
+const CLAIMS = ["possession_status", "balloting_status", "development_status", "approval_authority"];
+const PLOT_RECOMMENDED = ["Electricity", "Water", "Plot width (feet)", "Plot depth (feet)", "Possession status", "Corner plot", "Road width (feet)", "Balloting status", "Sewerage", "Development status", "Approval authority"];
+const PLOT_MORE = ["Gas", "Park facing", "On a main boulevard", "Boundary wall", "Orientation"];
+const SHOP_RECOMMENDED = ["Condition", "Furnishing or fit-out", "Parking spaces", "Occupancy status", "Floor number", "Floors in the building", "Building security", "Electricity", "Water", "Business use", "Frontage (feet)", "Road access"];
+const SHOP_MORE = ["Building lobby", "Maintenance charges (PKR per month)", "Gas", "Ceiling height (feet)", "Power load (kW)", "Three-phase electricity"];
+const OFFICE_RECOMMENDED = ["Condition", "Furnishing or fit-out", "Parking spaces", "Occupancy status", "Floor number", "Floors in the building", "Lift", "Building security", "Electricity", "Water", "Business use", "Road access"];
+const OFFICE_MORE = [...SHOP_MORE, "Conference rooms", "Business centre facilities"];
+const declaredTag = (page: Page, fieldId: string) => page.getByTestId(`${fieldId}-seller-declared`);
+const summaryTag = (page: Page, fieldId: string) => page.getByTestId(`draft-detail-${fieldId}-seller-declared`);
+/**
+ * No platform badge or verification wording anywhere on the Draft: the owner's claims are only ever the owner's. Scans the page (without the
+ * site header, navigation and footer, which carry the product name), the labels, titles and alt texts, and the tags' generated content.
+ */
+async function expectNoPlatformBadge(page: Page) {
+  await expect(main(page).locator('svg, img, [class*="badge"], [data-testid*="badge"], [data-testid*="verified"]')).toHaveCount(0);
+  const found = await page.evaluate((help) => {
+    const root = document.body.cloneNode(true) as HTMLElement;
+    root.querySelectorAll("header, nav, footer, script, style").forEach((element) => element.remove());
+    const attributes = [...document.querySelectorAll("main [aria-label], main [title], main [alt]")].map((element) =>
+      [element.getAttribute("aria-label"), element.getAttribute("title"), element.getAttribute("alt")].filter(Boolean).join(" "),
+    );
+    const generated = [...document.querySelectorAll(".declared-tag")].flatMap((element) => ["::before", "::after"].map((pseudo) => getComputedStyle(element, pseudo).content));
+    return { text: (root.textContent ?? "").replaceAll(help, ""), attributes, generated };
+  }, SELLER_HELP);
+  expect(found.text).not.toMatch(/verified|estateai|checked by|approved by|trusted|✓|✔/i);
+  expect(found.attributes.join(" ")).not.toMatch(/verified|estateai|badge|checked|approved|trusted/i);
+  for (const content of found.generated) expect(["none", "normal", '""']).toContain(content);
+}
+
+test("plot details: a Residential Plot shows only its own details, grouped by requirement, with nothing preselected", async ({ page, request }) => {
+  await openDraft(page, request, "plot_blank");
+  await expect(page.locator("fieldset.detail-group")).toHaveCount(2);
+  await expect(page.getByRole("group", { name: "Required before you publish" })).toHaveCount(0);
+  await expect(detailLabels(page, "recommended")).toHaveText(PLOT_RECOMMENDED);
+  await expect(detailLabels(page, "more")).toHaveText(PLOT_MORE);
+  for (const other of ["Plot file status", "Bedrooms", "Condition", "Furnishing or fit-out", "Business use", "Frontage (feet)", "Floor number", "Lift"]) await expect(detail(page, other)).toHaveCount(0);
+  for (const name of ["Plot width (feet)", "Possession status", "Corner plot", "Approval authority", "Orientation", "Electricity"]) await expect(detail(page, name)).toHaveValue("");
+  await expect(detail(page, "Plot width (feet)")).toHaveAttribute("inputmode", "decimal");
+  await expect(page.locator("#plot_width-hint")).toHaveText("Plot width in feet. Digits with an optional decimal point, up to 2 decimal places. Between 0.01 and 99999.99.");
+  await expect(page.locator("#road_width_ft-hint")).toHaveText("Width of the road in front, in feet. Digits with an optional decimal point, up to 2 decimal places. Between 1.00 and 999.99.");
+  await expect(detail(page, "Orientation").locator("option")).toHaveText(["Not answered", "North", "South", "East", "West", "North-east", "North-west", "South-east", "South-west"]);
+  await expect(detail(page, "Balloting status").locator("option")).toHaveText(["Not answered", "Not applicable", "Balloting pending", "Balloted"]);
+  await expect(detail(page, "Development status").locator("option")).toHaveText(["Not answered", "Developed", "Partially developed", "Undeveloped"]);
+  await expect(detail(page, "Approval authority").locator("option")).toHaveText([
+    "Not answered",
+    "Lahore Development Authority (LDA)",
+    "Capital Development Authority (CDA)",
+    "Karachi Development Authority (KDA)",
+    "Rawalpindi Development Authority (RDA)",
+    "Faisalabad Development Authority (FDA)",
+    "Multan Development Authority (MDA)",
+    "Gujranwala Development Authority (GDA)",
+    "Bahawalpur Development Authority (BDA)",
+    "Peshawar Development Authority",
+    "Private society",
+    "None",
+    "Other",
+  ]);
+  await expect(page.locator('[data-testid^="draft-detail-"]')).toHaveCount(0);
+});
+
+test("plot details: a Commercial Plot shows the same plot details as a Residential Plot", async ({ page, request }) => {
+  await openDraft(page, request, "plot_blank");
+  await otherSession(request, id(1), { subtype: "commercial_plot" });
+  await page.reload();
+  await expect(detailLabels(page, "recommended")).toHaveText(PLOT_RECOMMENDED);
+  await expect(detailLabels(page, "more")).toHaveText(PLOT_MORE);
+});
+
+test("plot file: the Plot File offers only file_only for possession, never preselected, and adds the plot file status", async ({ page, request }) => {
+  await openDraft(page, request, "plot_file_blank");
+  await expect(detailLabels(page, "recommended")).toHaveText(PLOT_RECOMMENDED);
+  await expect(detailLabels(page, "more")).toHaveText([...PLOT_MORE, "Plot file status"]);
+  await expect(detail(page, "Possession status").locator("option")).toHaveText(["Not answered", "File only (no possession)"]);
+  await expect(detail(page, "Possession status").locator("option").nth(1)).toHaveAttribute("value", "file_only");
+  await expect(detail(page, "Possession status")).toHaveValue(""); // nothing is chosen for the owner
+  await expect(detail(page, "Plot file status").locator("option")).toHaveText(["Not answered", "Open file", "Allocation letter", "Possession letter"]);
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("No changes to save.");
+  expect((await patches(request)).count).toBe(0);
+  await detail(page, "Possession status").selectOption("file_only");
+  await detail(page, "Plot file status").selectOption("allocation_letter");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[0]).toEqual({ base_revision: 1, fields: { possession_status: "file_only", plot_file_status: "allocation_letter" } });
+  await expect(summaryItem(page, "possession_status")).toContainText("File only (no possession)");
+  await expect(summaryItem(page, "plot_file_status")).toContainText("Allocation letter");
+});
+
+test("plot file: a Residential Plot is offered possession_ready and possession_pending, never file_only", async ({ page, request }) => {
+  await openDraft(page, request, "plot_blank");
+  await expect(detail(page, "Possession status").locator("option")).toHaveText(["Not answered", "Possession ready", "Possession pending"]);
+  await expect(detail(page, "Possession status").locator('option[value="file_only"]')).toHaveCount(0);
+  await openDraft(page, request, "plot_file_details");
+  await expect(detail(page, "Possession status")).toHaveValue("file_only");
+  await expect(detail(page, "Possession status").locator('option[value="possession_ready"]')).toHaveCount(0);
+  await expect(detail(page, "Possession status").locator('option[value="possession_pending"]')).toHaveCount(0);
+});
+
+test("shop details: a Shop shows the shared commercial details, the fit-out label and its own, and not the office-only ones", async ({ page, request }) => {
+  await openDraft(page, request, "shop_blank");
+  await expect(page.getByRole("group", { name: "Required before you publish" })).toHaveCount(0);
+  await expect(detailLabels(page, "recommended")).toHaveText(SHOP_RECOMMENDED);
+  await expect(detailLabels(page, "more")).toHaveText(SHOP_MORE);
+  for (const other of ["Lift", "Conference rooms", "Business centre facilities", "Bedrooms", "Plot width (feet)", "Possession status", "Furnishing", "Backup electricity"]) await expect(detail(page, other)).toHaveCount(0);
+  await expect(detail(page, "Frontage (feet)")).toHaveAttribute("inputmode", "decimal");
+  await expect(page.locator("#frontage_ft-hint")).toHaveText("Width of the frontage in feet. Digits with an optional decimal point, up to 2 decimal places. Between 0.01 and 9999.99.");
+  await expect(page.locator("#power_load_kw-hint")).toHaveText("Sanctioned power load in kilowatts. Digits with an optional decimal point, up to 2 decimal places. Between 0.01 and 99999.99.");
+  await expect(detail(page, "Furnishing or fit-out").locator("option")).toHaveText(["Not answered", "Unfurnished", "Semi furnished", "Furnished"]);
+  await expect(detail(page, "Business use").locator("option")).toHaveText(["Not answered", "Retail", "Restaurant", "Office work", "Clinic", "Warehouse", "Showroom", "Mixed", "Other"]);
+  await expect(detail(page, "Road access").locator("option")).toHaveText(["Not answered", "Main road", "Secondary road", "Inner street"]);
+  await expect(detail(page, "Condition")).toHaveValue("");
+  await expect(declaredTag(page, "business_use")).toHaveCount(0); // a business use is not a legal claim
+});
+
+test("office details: an Office shows the lift and its own details, and not the shop-only frontage", async ({ page, request }) => {
+  await openDraft(page, request, "office_blank");
+  await expect(detailLabels(page, "recommended")).toHaveText(OFFICE_RECOMMENDED);
+  await expect(detailLabels(page, "more")).toHaveText(OFFICE_MORE);
+  await expect(detail(page, "Frontage (feet)")).toHaveCount(0);
+  await expect(detail(page, "Furnishing")).toHaveCount(0);
+  await expect(detail(page, "Conference rooms")).toHaveAttribute("inputmode", "numeric");
+  await expect(page.locator("#conference_rooms-hint")).toHaveText("Whole number from 0 to 50.");
+  await expect(detail(page, "Business centre facilities").locator("option")).toHaveText(["Not answered", "Yes", "No"]);
+});
+
+test("seller-declared: the claims carry the label and the helper line, tied to the control, and nothing else does", async ({ page, request }) => {
+  await openDraft(page, request, "plot_blank");
+  for (const claim of CLAIMS) {
+    await expect(declaredTag(page, claim)).toHaveText(SELLER_DECLARED);
+    await expect(page.getByTestId(`${claim}-declared-help`)).toHaveText(SELLER_HELP);
+    await expect(page.locator(`#${claim}`)).toHaveAttribute("aria-describedby", new RegExp(`${claim}-declared-tag ${claim}-declared`));
+    await expect(page.locator(`#${claim}-declared`)).toHaveText(SELLER_HELP);
+    await expect(page.locator(`#${claim}-declared-tag`)).toHaveText(SELLER_DECLARED);
+  }
+  await expect(page.locator('[data-testid$="-seller-declared"]')).toHaveCount(CLAIMS.length);
+  for (const plain of ["plot_width", "corner_plot", "sewerage", "orientation", "electricity"]) {
+    await expect(declaredTag(page, plain)).toHaveCount(0);
+    await expect(page.locator(`#${plain}`)).not.toHaveAttribute("aria-describedby", /declared/);
+  }
+  await expect(page.getByTestId("possession_status-seller-declared")).toBeVisible();
+  // the label of the control stays its own name
+  await expect(detail(page, "Possession status")).toHaveCount(1);
+  await expectNoPlatformBadge(page);
+  await openDraft(page, request, "plot_file_blank");
+  await expect(page.locator('[data-testid$="-seller-declared"]')).toHaveCount(CLAIMS.length + 1);
+  await expect(declaredTag(page, "plot_file_status")).toHaveText(SELLER_DECLARED);
+  await expectNoPlatformBadge(page);
+});
+
+test("seller-declared: the Draft summary marks the claims and only the claims, with no platform badge", async ({ page, request }) => {
+  await openDraft(page, request, "plot_details");
+  for (const claim of ["possession_status", "development_status", "approval_authority"]) await expect(summaryTag(page, claim)).toHaveText(SELLER_DECLARED);
+  await expect(summaryItem(page, "possession_status")).toHaveText("Possession ready. Seller-declared");
+  await expect(summaryItem(page, "approval_authority")).toHaveText("Lahore Development Authority (LDA). Seller-declared");
+  await expect(summaryItem(page, "development_status")).toHaveText("Developed. Seller-declared");
+  await expect(summaryTag(page, "balloting_status")).toHaveCount(0); // not answered: not listed
+  for (const plain of ["plot_width", "plot_depth", "corner_plot", "road_width_ft", "sewerage", "electricity"]) await expect(summaryTag(page, plain)).toHaveCount(0);
+  await expect(page.locator('[data-testid="draft-details"] [data-testid$="-seller-declared"]')).toHaveCount(3);
+  await expectNoPlatformBadge(page);
+  await openDraft(page, request, "plot_file_details");
+  await expect(summaryTag(page, "plot_file_status")).toHaveText(SELLER_DECLARED);
+  await expect(summaryItem(page, "possession_status")).toHaveText("File only (no possession). Seller-declared");
+  await expectNoPlatformBadge(page);
+});
+
+test("plot details: the saved values fill the controls, the feet keep their scale, and the summary formats them", async ({ page, request }) => {
+  await openDraft(page, request, "plot_details");
+  await expect(detail(page, "Plot width (feet)")).toHaveValue("35.00");
+  await expect(detail(page, "Plot depth (feet)")).toHaveValue("70.50");
+  await expect(detail(page, "Possession status")).toHaveValue("possession_ready");
+  await expect(detail(page, "Corner plot")).toHaveValue("true");
+  await expect(detail(page, "Sewerage")).toHaveValue("false"); // No is an answer
+  await expect(detail(page, "Water")).toHaveValue("");
+  await expect(summaryItem(page, "plot_width")).toHaveText("35.00");
+  await expect(summaryItem(page, "plot_depth")).toHaveText("70.50");
+  await expect(summaryItem(page, "road_width_ft")).toHaveText("40.00");
+  await expect(summaryItem(page, "corner_plot")).toHaveText("Yes");
+  await expect(summaryItem(page, "sewerage")).toHaveText("No");
+  await expect(summaryItem(page, "water")).toHaveCount(0);
+});
+
+test("plot details: answers are sent as text feet, booleans and choices; only the changed fields; equal text is no change; the feet keep their scale", async ({ page, request }) => {
+  await openDraft(page, request, "plot_blank");
+  await detail(page, "Plot width (feet)").fill(" 35 ");
+  await detail(page, "Plot depth (feet)").fill("70.5");
+  await detail(page, "Possession status").selectOption("possession_pending");
+  await detail(page, "Corner plot").selectOption("false");
+  await detail(page, "Road width (feet)").fill("40.25");
+  await detail(page, "Approval authority").selectOption("peshawar_development_authority");
+  await detail(page, "Orientation").selectOption("north_east");
+  await detail(page, "Water").selectOption("true");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[0]).toEqual({
+    base_revision: 1,
+    fields: {
+      plot_width: "35",
+      plot_depth: "70.5",
+      possession_status: "possession_pending",
+      corner_plot: false,
+      road_width_ft: "40.25",
+      approval_authority: "peshawar_development_authority",
+      orientation: "north_east",
+      water: true,
+    },
+  });
+  expect(await storedFields(request)).toMatchObject({ plot_width: "35.00", plot_depth: "70.50", road_width_ft: "40.25", corner_plot: false, water: true });
+  expect((await storedFields(request)).sewerage ?? null).toBeNull(); // never a zero or false for what was not answered
+  await expect(detail(page, "Plot width (feet)")).toHaveValue("35.00"); // the server's text
+  await expect(summaryItem(page, "plot_width")).toHaveText("35.00");
+  await expect(summaryItem(page, "approval_authority")).toHaveText("Peshawar Development Authority. Seller-declared");
+  await expect(summaryItem(page, "orientation")).toHaveText("North-east");
+  // the same amount written another way is no change; another scale is
+  await detail(page, "Plot width (feet)").fill("35.0");
+  await detail(page, "Plot depth (feet)").fill("70.500");
+  await saveButton(page).click();
+  await expect(page.locator("#plot_depth-error")).toHaveText(`Error: ${MEASURE_LIMITS}`); // three decimals are sent for the server to judge
+  expect((await patches(request)).count).toBe(2);
+  expect((await patches(request)).bodies[1].fields).toEqual({ plot_depth: "70.500" });
+  await detail(page, "Plot depth (feet)").fill("70.50");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("No changes to save.");
+  expect((await patches(request)).count).toBe(2);
+});
+
+test("plot details: clearing a feet field sends null and never creates a zero", async ({ page, request }) => {
+  await openDraft(page, request, "plot_details");
+  await detail(page, "Plot width (feet)").fill("");
+  await detail(page, "Corner plot").selectOption("");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[0]).toEqual({ base_revision: 2, fields: { plot_width: null, corner_plot: null } });
+  expect(await storedFields(request)).toMatchObject({ plot_width: null, corner_plot: null });
+  await expect(summaryItem(page, "plot_width")).toHaveCount(0);
+  await expect(detail(page, "Plot width (feet)")).toHaveValue("");
+});
+
+test("plot details: the feet fields follow the strict text rules (invalid and invalid_measure), sent as typed and never as numbers", async ({ page, request }) => {
+  await openDraft(page, request, "plot_blank");
+  const width = detail(page, "Plot width (feet)");
+  const road = detail(page, "Road width (feet)");
+  await width.fill("12,5");
+  await road.fill("40 ft");
+  await saveButton(page).click();
+  await expect(summary(page)).toBeFocused();
+  await expect(page.locator("#plot_width-error")).toHaveText(`Error: ${MEASURE_INVALID}`);
+  await expect(page.locator("#road_width_ft-error")).toHaveText(`Error: ${MEASURE_INVALID}`);
+  expect((await patches(request)).bodies[0].fields).toEqual({ plot_width: "12,5", road_width_ft: "40 ft" });
+  for (const [typed, field] of [
+    ["0", "plot_width"],
+    ["35.001", "plot_width"],
+    ["-5", "plot_width"],
+    ["100000", "plot_width"],
+    ["0.99", "road_width_ft"],
+    ["1000", "road_width_ft"],
+  ] as const) {
+    await width.fill(field === "plot_width" ? typed : "");
+    await road.fill(field === "road_width_ft" ? typed : "");
+    await saveButton(page).click();
+    await expect(page.locator(`#${field}-error`), typed).toHaveText(`Error: ${MEASURE_LIMITS}`);
+    await expect(detail(page, field === "plot_width" ? "Plot width (feet)" : "Road width (feet)")).toHaveValue(typed); // the input stays
+  }
+  await width.fill("007");
+  await saveButton(page).click();
+  await expect(page.locator("#plot_width-error")).toHaveText(`Error: ${MEASURE_INVALID}`);
+  await width.fill("99999.99");
+  await road.fill("1");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect(await storedFields(request)).toMatchObject({ plot_width: "99999.99", road_width_ft: "1.00" });
+});
+
+test("plot details: invalid_choice, invalid, not_applicable and invalid_measure map to text under their controls", async ({ page, request }) => {
+  await openDraft(page, request, "plot_details");
+  await setMode(request, "listing-patch", "plot_codes");
+  await detail(page, "Plot depth (feet)").fill("71");
+  await saveButton(page).click();
+  await expect(summary(page)).toBeFocused();
+  await expect(page.locator("#plot_width-error")).toHaveText(`Error: ${MEASURE_LIMITS}`);
+  await expect(page.locator("#possession_status-error")).toHaveText(`Error: ${CHOICE_INVALID}`);
+  await expect(page.locator("#corner_plot-error")).toHaveText(`Error: ${BOOLEAN_INVALID}`);
+  await expect(page.locator("#road_width_ft-error")).toHaveText(`Error: ${MEASURE_INVALID}`);
+  await expect(page.locator("#approval_authority-error")).toHaveText(`Error: ${NOT_APPLICABLE}`);
+  await expect(summary(page).getByRole("link")).toHaveCount(5);
+  await expect(summary(page).getByRole("link", { name: "Possession status" })).toBeVisible();
+  await expect(live(page)).toHaveText(ERRORS_ANNOUNCED);
+  await expect(detail(page, "Plot depth (feet)")).toHaveValue("71");
+  await expect(detail(page, "Possession status")).toHaveAttribute("aria-invalid", "true");
+  await detail(page, "Possession status").selectOption("possession_pending");
+  await expect(page.locator("#possession_status-error")).toHaveCount(0);
+  await expect(page.locator("#plot_width-error")).toBeVisible();
+});
+
+test("commercial details: a Shop's answers are sent, the feet and kW keep their scale, and the shared fields use the same columns", async ({ page, request }) => {
+  await openDraft(page, request, "shop_blank");
+  await detail(page, "Business use").selectOption("clinic");
+  await detail(page, "Frontage (feet)").fill("18.5");
+  await detail(page, "Road access").selectOption("main_road");
+  await detail(page, "Condition").selectOption("good");
+  await detail(page, "Furnishing or fit-out").selectOption("semi_furnished");
+  await detail(page, "Parking spaces").fill("0");
+  await detail(page, "Floor number").fill("2");
+  await detail(page, "Floors in the building").fill("3");
+  await detail(page, "Power load (kW)").fill("12.5");
+  await detail(page, "Three-phase electricity").selectOption("true");
+  await detail(page, "Maintenance charges (PKR per month)").fill("4000");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[0]).toEqual({
+    base_revision: 1,
+    fields: {
+      condition: "good",
+      furnishing: "semi_furnished",
+      parking_spaces: 0,
+      floor_number: 2,
+      building_floors: 3,
+      maintenance_charges: "4000",
+      business_use: "clinic",
+      frontage_ft: "18.5",
+      road_access: "main_road",
+      power_load_kw: "12.5",
+      three_phase_electricity: true,
+    },
+  });
+  expect(await storedFields(request)).toMatchObject({ frontage_ft: "18.50", power_load_kw: "12.50", maintenance_charges: "4000.00" });
+  await expect(summaryItem(page, "frontage_ft")).toHaveText("18.50");
+  await expect(summaryItem(page, "power_load_kw")).toHaveText("12.50");
+  await expect(summaryItem(page, "furnishing")).toHaveText("Semi furnished");
+  await expect(page.locator('[data-testid="draft-details"] dt', { hasText: "Furnishing or fit-out" })).toHaveCount(1);
+  await expect(page.locator('[data-testid="draft-details"] [data-testid$="-seller-declared"]')).toHaveCount(0); // no commercial claim here
+});
+
+test("commercial details: the feet and kW errors, and the floor rule on a Shop and an Office, use the same texts", async ({ page, request }) => {
+  page.on("dialog", (dialog) => void dialog.accept()); // the page is left with unsaved changes on purpose
+  await openDraft(page, request, "shop_blank");
+  await detail(page, "Frontage (feet)").fill("0");
+  await detail(page, "Power load (kW)").fill("1,5");
+  await detail(page, "Floor number").fill("5");
+  await detail(page, "Floors in the building").fill("3");
+  await saveButton(page).click();
+  await expect(summary(page)).toBeFocused();
+  await expect(page.locator("#frontage_ft-error")).toHaveText(`Error: ${MEASURE_LIMITS}`);
+  await expect(page.locator("#power_load_kw-error")).toHaveText(`Error: ${MEASURE_INVALID}`);
+  await expect(page.locator("#floor_number-error")).toHaveText(`Error: ${FLOOR}`);
+  await expect(page.locator("#building_floors-error")).toHaveText(`Error: ${FLOOR}`);
+  await detail(page, "Floors in the building").fill("6"); // either floor clears the linked problem
+  await expect(page.locator("#floor_number-error")).toHaveCount(0);
+  await expect(page.locator("#building_floors-error")).toHaveCount(0);
+  await expect(page.locator("#frontage_ft-error")).toBeVisible();
+  await openDraft(page, request, "office_details");
+  await detail(page, "Floor number").fill("9");
+  await saveButton(page).click();
+  await expect(page.locator("#floor_number-error")).toHaveText(`Error: ${FLOOR}`);
+  await expect(page.locator("#building_floors-error")).toHaveCount(0); // the floors in the building were not sent
+  await detail(page, "Conference rooms").fill("51");
+  await detail(page, "Floor number").fill("2");
+  await saveButton(page).click();
+  await expect(page.locator("#conference_rooms-error")).toHaveText(`Error: ${INTEGER_RANGE}`);
+  await detail(page, "Conference rooms").fill("4");
+  await detail(page, "Lift").selectOption("false");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect(await storedFields(request)).toMatchObject({ conference_rooms: 4, lift: false, floor_number: 2 });
+});
+
+test("commercial details: the server's codes for the Shop's fields map to text under their controls", async ({ page, request }) => {
+  await openDraft(page, request, "shop_details");
+  await setMode(request, "listing-patch", "commercial_codes");
+  await detail(page, "Frontage (feet)").fill("19");
+  await saveButton(page).click();
+  await expect(page.locator("#frontage_ft-error")).toHaveText(`Error: ${MEASURE_LIMITS}`);
+  await expect(page.locator("#power_load_kw-error")).toHaveText(`Error: ${MEASURE_INVALID}`);
+  await expect(page.locator("#business_use-error")).toHaveText(`Error: ${CHOICE_INVALID}`);
+  await expect(page.locator("#floor_number-error")).toHaveText(`Error: ${FLOOR}`);
+  await expect(page.locator("#building_floors-error")).toHaveText(`Error: ${FLOOR}`);
+});
+
+test("plot conflict: the latest feet, choices and claims are formatted, and Use latest and Keep mine apply per field", async ({ page, request }) => {
+  await openDraft(page, request, "plot_details");
+  await otherSession(request, id(1), { plot_width: "40.00", possession_status: "possession_pending", approval_authority: "cda", road_width_ft: "45.50", sewerage: "true" });
+  await detail(page, "Plot width (feet)").fill("36");
+  await detail(page, "Possession status").selectOption("");
+  await detail(page, "Approval authority").selectOption("kda");
+  await detail(page, "Road width (feet)").fill("");
+  await saveButton(page).click();
+  await expect(conflictBanner(page)).toHaveText(CONFLICT);
+  await expect(page.getByTestId("conflict-plot_width")).toContainText("Latest saved: 40.00");
+  await expect(page.getByTestId("conflict-possession_status")).toContainText("Latest saved (seller-declared): Possession pending");
+  await expect(page.getByTestId("conflict-approval_authority")).toContainText("Latest saved (seller-declared): Capital Development Authority (CDA)");
+  await expect(page.getByTestId("conflict-road_width_ft")).toContainText("Latest saved: 45.50");
+  await expect(page.getByTestId("conflict-sewerage")).toHaveCount(0); // untouched: takes the latest, no row
+  await expect(detail(page, "Sewerage")).toHaveValue("true");
+  await expect(page.locator('[data-testid^="conflict-"]')).toHaveCount(4);
+  await expect(detail(page, "Plot width (feet)")).toHaveValue("36");
+  await expect(declaredTag(page, "possession_status")).toBeVisible(); // the claims keep their label in the conflict
+  await expect(detail(page, "Possession status")).toHaveAttribute("aria-describedby", /possession_status-declared-tag possession_status-declared possession_status-hint possession_status-latest/);
+  await page.getByRole("button", { name: "Use latest for Plot width (feet)" }).click();
+  await expect(detail(page, "Plot width (feet)")).toHaveValue("40.00");
+  await page.getByRole("button", { name: "Keep mine for Possession status" }).click();
+  await page.getByRole("button", { name: "Use latest for Approval authority" }).click();
+  await expect(detail(page, "Approval authority")).toHaveValue("cda");
+  await expect(conflictBanner(page)).toHaveText(CONFLICT);
+  await page.getByRole("button", { name: "Keep mine for Road width (feet)" }).click();
+  await expect(conflictBanner(page)).toHaveCount(0);
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[1]).toEqual({ base_revision: 3, fields: { possession_status: null, road_width_ft: null } });
+  expect(await storedFields(request)).toMatchObject({ plot_width: "40.00", possession_status: null, approval_authority: "cda", road_width_ft: null, sewerage: true });
+});
+
+test("commercial conflict: the latest feet and kW are padded to their scale, and a value left equal to the owner's is already saved", async ({ page, request }) => {
+  await openDraft(page, request, "shop_details");
+  await otherSession(request, id(1), { frontage_ft: "20.00", power_load_kw: "1200.50", business_use: "restaurant" });
+  await detail(page, "Frontage (feet)").fill("19");
+  await detail(page, "Power load (kW)").fill("13");
+  await detail(page, "Business use").selectOption("clinic");
+  await saveButton(page).click();
+  await expect(page.getByTestId("conflict-frontage_ft")).toContainText("Latest saved: 20.00");
+  await expect(page.getByTestId("conflict-power_load_kw")).toContainText("Latest saved: 1,200.50");
+  await expect(page.getByTestId("conflict-business_use")).toContainText("Latest saved: Restaurant");
+  await page.getByRole("button", { name: "Use latest for Frontage (feet)" }).click();
+  await page.getByRole("button", { name: "Keep mine for Power load (kW)" }).click();
+  await page.getByRole("button", { name: "Use latest for Business use" }).click();
+  await expect(conflictBanner(page)).toHaveCount(0);
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[1]).toEqual({ base_revision: 3, fields: { power_load_kw: "13" } });
+  // the same amount written another way elsewhere is already saved
+  await otherSession(request, id(1), { frontage_ft: "21.00" });
+  await detail(page, "Frontage (feet)").fill("21");
+  await saveButton(page).click();
+  await expect(conflictBanner(page)).toHaveText(ALREADY_SAVED);
+});
+
+test("registry-driven: the by-subtype map, the by-purpose map and the seller-declared flags come from the registry", async ({ page, request }) => {
+  await registryFields(request, "plotmap");
+  await openDraft(page, request, "plot_details"); // a sale: the Subtype's list narrowed by the purpose's list
+  await expect(detail(page, "Possession status").locator("option")).toHaveText(["Not answered", "Possession pending", "Possession ready (no longer offered)"]);
+  await expect(detail(page, "Possession status")).toHaveValue("possession_ready"); // the stored value stays visible
+  await expect(declaredTag(page, "approval_authority")).toHaveCount(0); // this registry does not flag it
+  await expect(declaredTag(page, "possession_status")).toHaveText(SELLER_DECLARED);
+  await expect(summaryTag(page, "approval_authority")).toHaveCount(0);
+  await otherSession(request, id(1), { subtype: "commercial_plot" }); // its list and the sale list share nothing
+  await page.reload();
+  await expect(detail(page, "Possession status").locator("option")).toHaveText(["Not answered", "Possession ready (no longer offered)"]);
+  await otherSession(request, id(1), { subtype: "plot_file", possession_status: "file_only" });
+  await page.reload();
+  await expect(detail(page, "Possession status").locator("option")).toHaveText(["Not answered", "File only (no possession)", "Possession pending"]);
+  await otherSession(request, id(1), { subtype: "residential_plot", purpose: "rent" }); // rent allows only ready, the Subtype only pending
+  await page.reload();
+  await expect(detail(page, "Possession status").locator("option")).toHaveText(["Not answered", "File only (no possession) (no longer offered)"]);
+  await openDraft(page, request, "shop_blank");
+  await expect(declaredTag(page, "condition")).toHaveText(SELLER_DECLARED); // another registry makes another field a claim, with no code
+  await expect(page.getByTestId("condition-declared-help")).toHaveText(SELLER_HELP);
+});
+
+test("registry-driven: the default registry keeps the whole choice list for a field with no by-subtype map", async ({ page, request }) => {
+  await openDraft(page, request, "shop_blank");
+  await expect(declaredTag(page, "condition")).toHaveCount(0);
+  await expect(detail(page, "Condition").locator("option")).toHaveText(["Not answered", "New", "Excellent", "Good", "Needs renovation"]);
+});
+
+test("plot details: the answers carry no listing data into storage, the console, the title or the address bar", async ({ page, request }) => {
+  const logs: string[] = [];
+  page.on("console", (message) => logs.push(message.text()));
+  page.on("dialog", (dialog) => void dialog.accept());
+  await openDraft(page, request, "plot_blank");
+  await detail(page, "Plot width (feet)").fill("3535.35");
+  await detail(page, "Possession status").selectOption("possession_ready");
+  await detail(page, "Approval authority").selectOption("lda");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  await setMode(request, "listing-patch", "plot_codes");
+  await detail(page, "Road width (feet)").fill("4545.45");
+  await saveButton(page).click();
+  await expect(summary(page)).toBeVisible();
+  await expect(page).toHaveTitle("Draft | EstateAI");
+  expect(new URL(page.url()).search + new URL(page.url()).hash).toBe("");
+  const stored = await page.evaluate(() => JSON.stringify([{ ...localStorage }, { ...sessionStorage }, document.cookie]));
+  for (const secret of ["3535", "4545", "possession_ready", id(1)]) expect(stored).not.toContain(secret);
+  expect(await page.evaluate(() => JSON.stringify([{ ...localStorage }, { ...sessionStorage }]))).toBe("[{},{}]");
+  for (const secret of ["3535", "4545", id(1)]) expect(logs.join("\n")).not.toContain(secret);
+});
+
+test("fail closed: a by-subtype map that is present but empty offers nothing, and so does a purpose the by-purpose map does not list", async ({ page, request }) => {
+  await registryFields(request, "emptymap");
+  await openDraft(page, request, "plot_blank");
+  await expect(detail(page, "Possession status").locator("option")).toHaveText(["Not answered"]);
+  await registryFields(request, "purposegap"); // the map lists rent only; this Draft is a sale
+  await openDraft(page, request, "plot_blank");
+  await expect(detail(page, "Possession status").locator("option")).toHaveText(["Not answered"]);
+  await otherSession(request, id(1), { purpose: "rent" }); // the purpose now listed: the Subtype's list narrows it as usual
+  await page.reload();
+  await expect(detail(page, "Possession status").locator("option")).toHaveText(["Not answered", "Possession ready", "Possession pending"]);
+});
+
+test("registry payload without the Story 2.5 keys: no flag means no label, and a missing by-subtype map falls back to the purpose's list", async ({ page, request }) => {
+  await registryFields(request, "nokeys");
+  await openDraft(page, request, "plot_blank");
+  await expect(page.locator('[data-testid$="-seller-declared"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid$="-declared-help"]')).toHaveCount(0);
+  await expect(detail(page, "Possession status").locator("option")).toHaveText(["Not answered", "Possession ready", "Possession pending", "File only (no possession)"]);
+  await expect(detail(page, "Possession status")).not.toHaveAttribute("aria-describedby", /declared/);
+});
+
+test("a saved possession the Plot File does not offer stays visible and marked, changes nothing until fixed, and the fix is accepted", async ({ page, request }) => {
+  await openDraft(page, request, "plot_file_stale");
+  const possession = detail(page, "Possession status");
+  await expect(possession).toHaveValue("possession_ready");
+  await expect(possession.locator("option")).toHaveText(["Not answered", "File only (no possession)", "Possession ready (no longer offered)"]);
+  await expect(page.locator("#possession_status-hint")).toHaveText("As stated by the seller. A Plot File is never possession-ready. The saved value is not offered for this type of property.");
+  await expect(summaryItem(page, "possession_status")).toHaveText("Possession ready (no longer offered). Seller-declared");
+  await expectNoPlatformBadge(page);
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("No changes to save.");
+  expect((await patches(request)).count).toBe(0);
+  await possession.selectOption("file_only");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  expect((await patches(request)).bodies[0]).toEqual({ base_revision: 2, fields: { possession_status: "file_only" } });
+  expect((await storedFields(request)).possession_status).toBe("file_only");
+  await expect(page.locator("#possession_status-hint")).toHaveText("As stated by the seller. A Plot File is never possession-ready.");
+  await expect(summaryItem(page, "possession_status")).toHaveText("File only (no possession). Seller-declared");
+});
+
+test("seller-declared: the accessible description reads the tag, the helper and the hint in that order, and a hand-built field a registry flags gets them too", async ({ page, request }) => {
+  await openDraft(page, request, "plot_blank");
+  await expect(detail(page, "Possession status")).toHaveAccessibleDescription(`${SELLER_DECLARED} ${SELLER_HELP} As stated by the seller. A Plot File is never possession-ready.`);
+  await expect(detail(page, "Approval authority")).toHaveAccessibleDescription(`${SELLER_DECLARED} ${SELLER_HELP}`);
+  await expect(detail(page, "Plot width (feet)")).not.toHaveAccessibleDescription(/Seller-declared/);
+  await registryFields(request, "claimprice");
+  await openDraft(page, request, "titled");
+  await expect(declaredTag(page, "asking_price")).toHaveText(SELLER_DECLARED);
+  await expect(page.getByTestId("asking_price-declared-help")).toHaveText(SELLER_HELP);
+  await expect(priceInput(page)).toHaveAccessibleDescription(new RegExp(`^${SELLER_DECLARED} ${SELLER_HELP} Required before you publish`));
+  await expect(declaredTag(page, "title")).toHaveCount(0);
+});
+
+test("decimals: every decimal but the two areas is padded to its registry scale, and a saved value with more decimals than the scale is no change when typed without the zeros", async ({ page, request }) => {
+  await openDraft(page, request, "plot_details");
+  await otherSession(request, id(1), { plot_width: "10.5000" }); // saved by an older rule
+  await page.reload();
+  await expect(detail(page, "Plot width (feet)")).toHaveValue("10.5000");
+  await expect(summaryItem(page, "plot_width")).toHaveText("10.5000");
+  await detail(page, "Plot width (feet)").fill("10.5");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("No changes to save.");
+  expect((await patches(request)).count).toBe(0);
+  await detail(page, "Plot width (feet)").fill("10.50000"); // more than the saved text carries: sent for the server to judge
+  await saveButton(page).click();
+  await expect(page.locator("#plot_width-error")).toHaveText(`Error: ${MEASURE_LIMITS}`);
+  expect((await patches(request)).count).toBe(1);
+  await openDraft(page, request, "plot_details");
+  await detail(page, "Plot width (feet)").fill("35.0000");
+  await saveButton(page).click();
+  await expect(page.locator("#plot_width-error")).toHaveText(`Error: ${MEASURE_LIMITS}`);
+});
+
+test("decimals: the areas keep the trimmed form while another decimal of the registry shows its scale", async ({ page, request }) => {
+  await registryFields(request, "extra");
+  await openDraft(page, request, "house_details");
+  await expect(summaryItem(page, "covered_area_sqft")).toHaveText("2,400.5");
+  await detail(page, "Garden area sqft").fill("120.5");
+  await saveButton(page).click();
+  await expect(live(page)).toHaveText("Saved");
+  await expect(summaryItem(page, "garden_area_sqft")).toHaveText("120.50");
+});
+
+test("commercial label: a made-up commercial Subtype inherits Furnishing or fit-out from its Category", async ({ page, request }) => {
+  await registryFields(request, "kiosk");
+  await openDraft(page, request, "kiosk_blank");
+  await expect(detail(page, "Furnishing or fit-out")).toBeVisible();
+  await expect(detail(page, "Furnishing")).toHaveCount(0);
+  await openDraft(page, request, "apartment_blank");
+  await expect(detail(page, "Furnishing")).toBeVisible();
+  await expect(detail(page, "Furnishing or fit-out")).toHaveCount(0);
+});
+
+test("furnishing on a Shop: an invalid choice and a conflict name the field by its fit-out label in the summary link and the buttons", async ({ page, request }) => {
+  await openDraft(page, request, "shop_details");
+  await setMode(request, "listing-patch", "commercial_codes");
+  await detail(page, "Frontage (feet)").fill("19");
+  await saveButton(page).click();
+  await expect(page.locator("#furnishing-error")).toHaveText(`Error: ${CHOICE_INVALID}`);
+  await expect(summary(page).getByRole("link", { name: "Furnishing or fit-out" })).toBeVisible();
+  await setMode(request, "listing-patch", "ok");
+  await openDraft(page, request, "shop_details");
+  await otherSession(request, id(1), { furnishing: "furnished" });
+  await detail(page, "Furnishing or fit-out").selectOption("unfurnished");
+  await saveButton(page).click();
+  await expect(page.getByTestId("conflict-furnishing")).toContainText("Latest saved: Furnished");
+  await expect(page.getByRole("button", { name: "Use latest for Furnishing or fit-out" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Keep mine for Furnishing or fit-out" })).toBeVisible();
+  await expectNoPlatformBadge(page);
+});
+
+test("no platform badge: none appears on a Shop, an Office, with errors, in a conflict or beside a value no longer offered", async ({ page, request }) => {
+  page.on("dialog", (dialog) => void dialog.accept());
+  await openDraft(page, request, "shop_details");
+  await expectNoPlatformBadge(page);
+  await openDraft(page, request, "office_details");
+  await expectNoPlatformBadge(page);
+  await openDraft(page, request, "plot_details");
+  await setMode(request, "listing-patch", "plot_codes");
+  await detail(page, "Plot depth (feet)").fill("71");
+  await saveButton(page).click();
+  await expect(summary(page)).toBeVisible();
+  await expectNoPlatformBadge(page);
+  await setMode(request, "listing-patch", "ok");
+  await otherSession(request, id(1), { approval_authority: "cda", possession_status: "possession_pending" });
+  await detail(page, "Approval authority").selectOption("kda");
+  await saveButton(page).click();
+  await expect(conflictBanner(page)).toBeVisible();
+  await expectNoPlatformBadge(page);
+  await registryFields(request, "plotmap");
+  await openDraft(page, request, "plot_details");
+  await expect(detail(page, "Possession status").locator("option").last()).toHaveText("Possession ready (no longer offered)");
+  await expectNoPlatformBadge(page);
+});
+
+test("the registry's ETag carries the version, a hash of what it serves and the shape, and a registry change changes it", async ({ request }) => {
+  const first = (await request.get(`${STUB}/api/v1/registry`)).headers().etag;
+  expect(first).toMatch(/^"5-[0-9a-f]{8}-4"$/);
+  expect((await request.get(`${STUB}/api/v1/registry`)).headers().etag).toBe(first);
+  await registryFields(request, "plotmap");
+  const changed = (await request.get(`${STUB}/api/v1/registry`)).headers().etag;
+  expect(changed).toMatch(/^"5-[0-9a-f]{8}-4"$/);
+  expect(changed).not.toBe(first);
+});
+
 // ---------------------------------------------------------------- accessibility
 
 for (const viewport of viewports) {
@@ -2328,5 +2966,42 @@ for (const viewport of viewports) {
     await saveButton(page).click();
     await expect(page.getByTestId("conflict-bedrooms")).toBeVisible();
     await expectNoViolations(page, "house details conflict");
+  });
+}
+
+for (const viewport of viewports) {
+  test(`accessibility (${viewport.name}): the Plot, Plot File, Shop and Office details in their states have no axe violations`, async ({ page, request }) => {
+    page.on("dialog", (dialog) => void dialog.accept()); // the page is left with unsaved changes on purpose
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await openDraft(page, request, "plot_blank");
+    await expectNoViolations(page, "empty plot details");
+    await openDraft(page, request, "plot_details");
+    await expectNoViolations(page, "plot with answers and claims");
+    await openDraft(page, request, "plot_file_blank");
+    await expectNoViolations(page, "empty plot file details");
+    await openDraft(page, request, "plot_file_details");
+    await expectNoViolations(page, "plot file with answers");
+    await openDraft(page, request, "shop_details");
+    await expectNoViolations(page, "shop with answers");
+    await openDraft(page, request, "office_blank");
+    await expectNoViolations(page, "empty office details");
+    await openDraft(page, request, "office_details");
+    await expectNoViolations(page, "office with answers");
+    await openDraft(page, request, "plot_details");
+    await setMode(request, "listing-patch", "plot_codes");
+    await detail(page, "Plot depth (feet)").fill("71");
+    await saveButton(page).click();
+    await expect(summary(page)).toBeVisible();
+    await expect(page.locator("#possession_status-error")).toBeVisible();
+    await expectNoViolations(page, "plot with detail errors");
+    await setMode(request, "listing-patch", "ok");
+    await detail(page, "Plot width (feet)").fill("36");
+    await detail(page, "Approval authority").selectOption("kda");
+    await otherSession(request, id(1), { plot_width: "40.00", approval_authority: "cda" });
+    await saveButton(page).click();
+    await expect(conflictBanner(page)).toBeVisible();
+    await expect(page.getByTestId("conflict-plot_width")).toBeVisible();
+    await expect(page.getByTestId("conflict-approval_authority")).toBeVisible();
+    await expectNoViolations(page, "plot details conflict");
   });
 }
