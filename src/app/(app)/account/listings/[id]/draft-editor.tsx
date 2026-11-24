@@ -7,7 +7,7 @@ import { Field } from "@/components/form-field";
 import { getApi } from "@/lib/api";
 import { withCsrf } from "@/lib/csrf";
 import { REJECTED_ERROR, SERVER_ERROR, readErrorBody, withTimeout } from "@/lib/forms";
-import { CROSS_FIELD_GROUPS, answeredDetails, detailLabel, latestDetail, sameDetail, sentDetail, shownDetails } from "@/lib/listing-details";
+import { CROSS_FIELD_GROUPS, SELLER_DECLARED, SELLER_DECLARED_HELP, answeredDetails, detailLabel, latestDetail, sameDetail, sentDetail, shownDetails } from "@/lib/listing-details";
 import {
   NOT_SET,
   areaKey,
@@ -57,8 +57,8 @@ const AREA_FIELDS: FieldName[] = ["area_value", "area_unit", "marla_basis"];
 const FIELD_LABELS: Record<string, string> = { ...Object.fromEntries(FIELD_ORDER.map((name) => [name, label(name)])), area_unit: "Unit" };
 /** What a screen reader hears in the conflict buttons: the unit control is visibly "Unit", its name stays unambiguous. */
 const ACTION_LABELS: Record<string, string> = { ...FIELD_LABELS, area_unit: "Area unit" };
-const labelOf = (name: string): string => (Object.hasOwn(FIELD_LABELS, name) ? FIELD_LABELS[name] : detailLabel(name));
-const actionLabelOf = (name: string): string => (Object.hasOwn(ACTION_LABELS, name) ? ACTION_LABELS[name] : detailLabel(name));
+const labelOf = (name: string, category: string | null): string => (Object.hasOwn(FIELD_LABELS, name) ? FIELD_LABELS[name] : detailLabel(name, category));
+const actionLabelOf = (name: string, category: string | null): string => (Object.hasOwn(ACTION_LABELS, name) ? ACTION_LABELS[name] : detailLabel(name, category));
 /** A value of the form; a detail that was never answered or typed is empty text. */
 const at = (values: Values, name: string): string => (Object.hasOwn(values, name) ? values[name] : "");
 const keysOf = (...records: Values[]): string[] => [...new Set(records.flatMap((record) => Object.keys(record)))];
@@ -537,14 +537,14 @@ export function DraftEditor({
     return (
       <div className="conflict-row" data-testid={`conflict-${name}`}>
         <p id={`${name}-latest`} className="hint">
-          Latest saved: <span className="latest-value">{latestOf(name)}</span>
+          Latest saved{registry?.field(name)?.sellerDeclared ? ` (${SELLER_DECLARED.toLowerCase()})` : ""}: <span className="latest-value">{latestOf(name)}</span>
         </p>
         <div className="conflict-actions">
           <button type="button" className="secondary-button" aria-disabled={busy} onClick={() => keepMine(name)}>
-            Keep mine<span className="sr-only"> for {actionLabelOf(name)}</span>
+            Keep mine<span className="sr-only"> for {actionLabelOf(name, listing.fields.category)}</span>
           </button>
           <button type="button" className="secondary-button" aria-disabled={busy} onClick={() => takeLatest(name)}>
-            Use latest<span className="sr-only"> for {actionLabelOf(name)}</span>
+            Use latest<span className="sr-only"> for {actionLabelOf(name, listing.fields.category)}</span>
           </button>
         </div>
       </div>
@@ -567,14 +567,18 @@ export function DraftEditor({
 
   const purpose = listing.fields.purpose;
   const choices = (name: FieldName, def: FieldDef) => {
-    const offered = def.valuesFor(purpose);
+    const offered = def.valuesFor(purpose, listing.fields.subtype);
     // A stored value the registry no longer offers stays visible instead of silently turning into "Not set".
     return values[name] && !offered.includes(values[name]) ? [...offered, values[name]] : offered;
   };
 
   function control(name: FieldName, def: FieldDef) {
     const errors = fieldErrors[name];
-    const common = { name, label: FIELD_LABELS[name], hint: (name === "marla_basis" ? MARLA_EXPLANATION : hintFor(def)) || undefined, errors };
+    const common = { name, label: FIELD_LABELS[name], hint: (name === "marla_basis" ? MARLA_EXPLANATION : hintFor(def)) || undefined,
+      errors,
+      // A hand-built field a registry flags as the owner's claim gets the same tag and helper as a detail.
+      declared: def.sellerDeclared ? { tag: SELLER_DECLARED, help: SELLER_DECLARED_HELP } : undefined,
+    };
     if (name === "title") {
       return (
         <Field {...common}>
@@ -725,7 +729,17 @@ export function DraftEditor({
           {detailSummary.map((item) => (
             <div key={item.id}>
               <dt>{item.label}</dt>
-              <dd data-testid={`draft-detail-${item.id}`}>{item.text}</dd>
+              <dd data-testid={`draft-detail-${item.id}`}>
+                {item.text}
+                {item.sellerDeclared && (
+                  <>
+                    <span className="sr-only">. </span>
+                    <span className="declared-tag declared-tag-inline" data-testid={`draft-detail-${item.id}-seller-declared`}>
+                      {SELLER_DECLARED}
+                    </span>
+                  </>
+                )}
+              </dd>
             </div>
           ))}
         </dl>
@@ -770,7 +784,7 @@ export function DraftEditor({
               <ErrorSummary
                 ref={summaryRef}
                 order={controls}
-                labels={Object.fromEntries(controls.map((name) => [name, labelOf(name)]))}
+                labels={Object.fromEntries(controls.map((name) => [name, labelOf(name, listing.fields.category)]))}
                 fieldErrors={fieldErrors}
                 formErrors={formErrors}
                 titleId="edit-error-summary-title"
@@ -818,6 +832,8 @@ export function DraftEditor({
                 saved={baseline}
                 errors={fieldErrors}
                 purpose={purpose}
+                category={listing.fields.category}
+                subtype={listing.fields.subtype}
                 onChange={setValue}
                 conflictRow={conflictRow}
                 inConflict={showConflict}

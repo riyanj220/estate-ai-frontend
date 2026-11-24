@@ -127,6 +127,7 @@ export const DETAIL_MESSAGES: Record<string, Record<string, string>> = {
   decimal: {
     invalid: "Enter digits only, with an optional decimal point. Do not use commas, signs or units, for example 1200 or 10.5.",
     invalid_area: "Enter an amount above zero within the allowed range, with no more decimal places than allowed.",
+    invalid_measure: "Enter a number above zero within the allowed range, using digits and an optional decimal point.",
     not_applicable: DETAIL_NOT_APPLICABLE,
     not_editable: NOT_EDITABLE,
   },

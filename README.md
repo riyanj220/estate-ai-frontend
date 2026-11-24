@@ -703,6 +703,39 @@ applicability by Subtype; integer bounds are served as text, "0" and "50").
   version is now 4. Tests are in `tests/e2e/listing-edit.spec.ts` ("details" tests, one or more per row of the story's matrix, axe at
   desktop and mobile on the Details states).
 
+## Details: Plot and Commercial, and seller-declared labels (Story 2.5)
+
+Frontend half of Story 2.5 on the same generic Details section: registry version 5 (served payload gains `seller_declared` and
+`allowed_values_by_subtype` on every field; plot and commercial fields; `invalid_measure`). The contract is the backend's `docs/listings.md` and
+`docs/registry.md`. Adding the fields needed labels only.
+
+- **Labels**: `DETAIL_LABELS` has the new ids (feet fields end with "(feet)", power load "(kW)"); `CATEGORY_LABELS` gives the commercial Category
+  "Furnishing or fit-out" for `furnishing`, keyed by Category (`CATEGORY_LABELS`, so a new commercial Subtype inherits it); `CHOICE_LABELS` in `listing-labels.ts` has the readable options (approval authorities such as "Lahore
+  Development Authority (LDA)", orientation, balloting, possession). Anything without an entry is the humanised id.
+- **Enum options** (`FieldDef.valuesFor(purpose, subtype)`): fail closed. When the payload has an `allowed_values_by_subtype` map (even an empty
+  or malformed one) the options are the Subtype's list, intersected with the purpose's list when a by-purpose map is present (a Subtype with no
+  entry, or a purpose that map does not list, offers nothing). Only an absent key (the server serves `null`) falls back to the purpose's list, else
+  `allowed_values`. A stored value not offered stays visible, marked "(no longer offered)" in the list and the summary, and the field hint adds
+  "The saved value is not offered for this type of property." A Plot File is therefore offered only `file_only` for possession, and the form never pre-selects it.
+- **Seller-declared**: a field with registry `seller_declared: true` shows a "Seller-declared" tag beside its label (`<id>-seller-declared`) and the
+  helper line "You are stating this. EstateAI has not checked it." (`<id>-declared`), both in the control's `aria-describedby`; the Draft summary
+  adds the same tag to those details (`draft-detail-<id>-seller-declared`). There is no platform badge, check icon or verification wording
+  anywhere (a test scans the page, labels and generated content for them). The "Latest saved" line of a conflict says "(seller-declared)", the
+  summary tag is separated from the value for screen readers, and a hand-built field a registry flags gets the same tag and helper. A payload
+  without the `seller_declared` key means no flag, so no label.
+- **Decimals**: feet and kW are strict text at the registry scale (compared by amount with at most `scale` decimals, so "35.0" is "35.00" and
+  "35.001" is sent for the server to refuse; no commas, never `Number`). `invalid_measure` has its own text. Display rule (the payload carries no error code or marker): every decimal shows its value grouped and padded to
+  its registry scale ("1,200.50") except `area_value` and `covered_area_sqft` (`TRIMMED_DECIMALS`), which keep the trimmed form. A saved value
+  with more decimals than the scale ("10.5000") is compared at the larger of the two, so typing "10.5" is no change. Floors, integers, money and conflict
+  rows behave as in Story 2.4 for Shops and Offices too (the floor rule links the two floor fields).
+- **Playwright stub**: registry version 5 (ETag `<version>-<hash>-<shape>`, the real descriptions, every new id null when unanswered) with all 25 plot, commercial and utility fields, the widened applicability, the by-subtype map for
+  `possession_status` and the `seller_declared` flags exactly as the backend serves them; PATCH mirrors the backend (Plot File versus
+  possession values, applicability, measure shapes, scales and ranges with `invalid_measure`, the floor rule for shops and offices, null a no-op).
+  Presets `plot_blank`, `plot_file_blank`, `shop_blank`, `office_blank`, `plot_details`, `plot_file_details`, `shop_details`, `office_details`;
+  registry variant `plotmap` (another by-subtype and by-purpose map, other seller-declared flags); patch modes `plot_codes` and `commercial_codes`.
+  Tests are in `tests/e2e/listing-edit.spec.ts` (plot, plot file, shop, office, seller-declared, by-subtype options, errors, conflicts, registry-driven,
+  privacy, axe at desktop and mobile).
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),

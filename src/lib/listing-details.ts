@@ -1,6 +1,5 @@
 import {
   HAND_BUILT_KEYS,
-  areaKey,
   choiceLabel,
   formatArea,
   label,
@@ -16,6 +15,9 @@ import type { FieldDef, Registry } from "@/lib/use-registry";
 
 /** The registry ids the editor builds by hand (Stories 2.2 and 2.3) or that are never input: the Details section skips them. */
 const NOT_DETAILS = HAND_BUILT_KEYS;
+
+/** The decimal details shown in their trimmed form (areas); every other decimal is shown padded to its registry scale. */
+export const TRIMMED_DECIMALS = ["area_value", "covered_area_sqft"];
 
 /** The registry types the Details section has a control for; a field of another type gets none. */
 const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money"];
@@ -52,10 +54,50 @@ const DETAIL_LABELS: Record<string, string> = {
   building_lobby: "Building lobby",
   intercom: "Intercom",
   maintenance_charges: "Maintenance charges (PKR per month)",
+  electricity: "Electricity",
+  water: "Water",
+  gas: "Gas",
+  plot_width: "Plot width (feet)",
+  plot_depth: "Plot depth (feet)",
+  possession_status: "Possession status",
+  corner_plot: "Corner plot",
+  road_width_ft: "Road width (feet)",
+  balloting_status: "Balloting status",
+  sewerage: "Sewerage",
+  development_status: "Development status",
+  approval_authority: "Approval authority",
+  park_facing: "Park facing",
+  main_boulevard: "On a main boulevard",
+  boundary_wall: "Boundary wall",
+  orientation: "Orientation",
+  plot_file_status: "Plot file status",
+  business_use: "Business use",
+  frontage_ft: "Frontage (feet)",
+  road_access: "Road access",
+  ceiling_height_ft: "Ceiling height (feet)",
+  power_load_kw: "Power load (kW)",
+  three_phase_electricity: "Three-phase electricity",
+  conference_rooms: "Conference rooms",
+  business_centre_facilities: "Business centre facilities",
 };
 
-/** The label of a detail: the map's text, else the id humanised ("construction_year" would read "Construction year"). */
-export const detailLabel = (id: string): string => (Object.hasOwn(DETAIL_LABELS, id) ? DETAIL_LABELS[id] : label(id));
+/** Labels that differ by Category (so a new Subtype of the Category inherits them): commercial property is fitted out rather than furnished. */
+const CATEGORY_LABELS: Record<string, Record<string, string>> = {
+  furnishing: { commercial: "Furnishing or fit-out" },
+};
+
+/**
+ * The label of a detail: the Category's own text when it has one, else the map's text, else the id humanised ("construction_year"
+ * would read "Construction year").
+ */
+export function detailLabel(id: string, category: string | null = null): string {
+  if (category !== null && Object.hasOwn(CATEGORY_LABELS, id) && Object.hasOwn(CATEGORY_LABELS[id], category)) return CATEGORY_LABELS[id][category];
+  return Object.hasOwn(DETAIL_LABELS, id) ? DETAIL_LABELS[id] : label(id);
+}
+
+/** The visible tag and the helper line of a seller-declared detail (registry `seller_declared`): the owner's claim, never a platform check. */
+export const SELLER_DECLARED = "Seller-declared";
+export const SELLER_DECLARED_HELP = "You are stating this. EstateAI has not checked it.";
 
 /** The details this Draft's form shows, in registry order: usable type, not derived, applicable to its purpose, Category and Subtype. */
 export function shownDetails(registry: Registry, listing: ListingView): FieldDef[] {
@@ -101,6 +143,21 @@ function moneyKey(value: string, scale: number): string {
   return `${match[1]}.${(match[2] ?? "").padEnd(scale, "0")}`;
 }
 
+/**
+ * A comparison key for a decimal at the registry's scale, by string work only. Only text in the real shape (no leading zeros, at
+ * most ten whole digits, at most `scale` decimals) is compared by amount ("35" and "35.00" are the same); any other text (padded,
+ * comma, too many decimals) is its own trimmed plain text and is sent for the server to judge, never swallowed as "no change".
+ */
+function measureKey(value: string, scale: number): string {
+  const plain = value.trim();
+  const match = /^(0|[1-9]\d{0,9})(?:\.(\d+))?$/.exec(plain);
+  if (!match) return plain;
+  const decimals = match[2] ?? "";
+  if (decimals.length > scale) return plain;
+  const kept = decimals.replace(/0+$/, "");
+  return kept ? `${match[1]}.${kept}` : match[1];
+}
+
 /** The whole part grouped in threes and the decimals padded to the scale ("3000" is "3,000.00" at scale 2), never a number. */
 function formatMoney(value: string, scale: number): string {
   const match = /^(\d+)(?:\.(\d+))?$/.exec(value);
@@ -113,7 +170,13 @@ function formatMoney(value: string, scale: number): string {
 export function sameDetail(def: FieldDef, a: string, b: string): boolean {
   if (a === b) return true; // the same text is never a change
   if (def.type === "integer") return a.trim() === b.trim();
-  if (def.type === "decimal") return areaKey(a, def.scale ?? 4) === areaKey(b, def.scale ?? 4);
+  if (def.type === "decimal") {
+    // `b` is the saved text: a saved value may carry more decimals than the scale (an older rule), and typing it without the trailing
+    // zeros is no change. Typed text beyond the larger of the two limits is its own key and is sent for the server to judge.
+    const stored = /^\d+\.(\d+)$/.exec(b.trim());
+    const limit = Math.max(def.scale ?? 4, stored ? stored[1].length : 0);
+    return measureKey(a, limit) === measureKey(b, limit);
+  }
   if (def.type === "money") return moneyKey(a, def.scale ?? 2) === moneyKey(b, def.scale ?? 2);
   return false;
 }
@@ -138,7 +201,9 @@ export function latestDetail(def: FieldDef, value: string): string {
   if (value === "") return NOT_ANSWERED;
   if (def.type === "boolean") return value === "true" ? "Yes" : value === "false" ? "No" : value;
   if (def.type === "enum") return choiceLabel(def.id, value);
-  if (def.type === "decimal") return formatArea(value);
+  // Every decimal shows its registry scale ("35.00", "1,200.50") except the area fields, the hand-listed exceptions that keep the trimmed
+  // form ("2,400.5"). The payload carries no marker for them, so this list is the rule (documented in the README).
+  if (def.type === "decimal") return TRIMMED_DECIMALS.includes(def.id) || def.scale === null ? formatArea(value) : formatMoney(value, def.scale);
   if (def.type === "money") return `${def.currency ?? "PKR"} ${formatMoney(value, def.scale ?? 2)}`;
   return value;
 }
@@ -161,8 +226,24 @@ export function detailHint(def: FieldDef): string {
 }
 
 /** The summary's answered details, in registry order: "Bedrooms: 3". Unanswered details are left out. */
-export function answeredDetails(defs: FieldDef[], listing: ListingView): { id: string; label: string; text: string }[] {
+export function answeredDetails(
+  defs: FieldDef[],
+  listing: ListingView,
+): { id: string; label: string; text: string; sellerDeclared: boolean }[] {
   return defs
     .filter((def) => Object.hasOwn(listing.details, def.id))
-    .map((def) => ({ id: def.id, label: detailLabel(def.id), text: latestDetail(def, listing.details[def.id]) }));
+    .map((def) => ({
+      id: def.id,
+      label: detailLabel(def.id, listing.fields.category),
+      text: latestDetail(def, listing.details[def.id]) + (notOffered(def, listing.details[def.id], listing) ? ` ${NO_LONGER_OFFERED}` : ""),
+      sellerDeclared: def.sellerDeclared,
+    }));
+}
+
+export const NO_LONGER_OFFERED = "(no longer offered)";
+export const NOT_OFFERED_HINT = "The saved value is not offered for this type of property.";
+
+/** Whether a saved enum answer is outside what the registry offers this Draft (a changed registry, or a value from before a rule). */
+export function notOffered(def: FieldDef, saved: string | undefined, listing: { fields: { purpose: string | null; subtype: string | null } }): boolean {
+  return def.type === "enum" && typeof saved === "string" && saved !== "" && !def.valuesFor(listing.fields.purpose, listing.fields.subtype).includes(saved);
 }

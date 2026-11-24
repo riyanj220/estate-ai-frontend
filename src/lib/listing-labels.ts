@@ -156,10 +156,41 @@ export const isMarlaUnit = (unit: string | null | undefined): boolean => typeof 
 
 const UNIT_LABELS: Record<string, string> = { sqft: "Square feet", sqyd: "Square yards", marla: "Marla", kanal: "Kanal", acre: "Acre" };
 
+/** Readable option texts of enum details, by field id then value; a value without an entry reads as the humanised id. */
+const CHOICE_LABELS: Record<string, Record<string, string>> = {
+  approval_authority: {
+    lda: "Lahore Development Authority (LDA)",
+    cda: "Capital Development Authority (CDA)",
+    kda: "Karachi Development Authority (KDA)",
+    rda: "Rawalpindi Development Authority (RDA)",
+    fda: "Faisalabad Development Authority (FDA)",
+    mda: "Multan Development Authority (MDA)",
+    gda: "Gujranwala Development Authority (GDA)",
+    bda: "Bahawalpur Development Authority (BDA)",
+    peshawar_development_authority: "Peshawar Development Authority",
+    private_society: "Private society",
+    none: "None",
+    other: "Other",
+  },
+  orientation: {
+    north: "North",
+    south: "South",
+    east: "East",
+    west: "West",
+    north_east: "North-east",
+    north_west: "North-west",
+    south_east: "South-east",
+    south_west: "South-west",
+  },
+  balloting_status: { not_applicable: "Not applicable", balloting_pending: "Balloting pending", balloted: "Balloted" },
+  possession_status: { possession_ready: "Possession ready", possession_pending: "Possession pending", file_only: "File only (no possession)" },
+};
+
 /** The text of one choice of an enum field: the area units and the marla basis have their own wording, the rest derive from the id. */
 export function choiceLabel(field: string, value: string): string {
   if (field === "area_unit") return Object.hasOwn(UNIT_LABELS, value) ? UNIT_LABELS[value] : label(value);
   if (field === "marla_basis") return `${value} sq ft`;
+  if (Object.hasOwn(CHOICE_LABELS, field) && Object.hasOwn(CHOICE_LABELS[field], value)) return CHOICE_LABELS[field][value];
   return label(value);
 }
 

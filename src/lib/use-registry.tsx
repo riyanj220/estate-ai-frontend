@@ -45,8 +45,13 @@ export type FieldDef = {
   /** The registry's short explanation of what a value means, when it documents one. */
   description: string | null;
   allowedValues: string[];
-  /** The values a purpose allows: the purpose's own list when the registry narrows it, else every allowed value. */
-  valuesFor: (purpose: string | null) => string[];
+  /** The registry marks the field as the owner's own claim, never checked by EstateAI (Story 2.5): the form says so next to it. */
+  sellerDeclared: boolean;
+  /**
+   * The values offered for a purpose and Subtype: the Subtype's own list when the registry narrows it (intersected with the
+   * purpose's list when both exist; nothing when the Subtype has no entry), else the purpose's list, else every allowed value.
+   */
+  valuesFor: (purpose: string | null, subtype?: string | null) => string[];
   /** Whether the field applies to a Listing of this purpose, Category and Subtype (an empty list means all). */
   appliesTo: (purpose: string | null, category: string | null, subtype: string | null) => boolean;
 };
@@ -73,10 +78,20 @@ function readFields(value: unknown): Map<string, FieldDef> {
     if (!isToken(id) || fields.has(id) || typeof type !== "string") continue;
     const allowed = choices(raw.allowed_values) ?? [];
     const narrowed = new Map<string, string[]>();
+    const hasPurposeMap = typeof raw.allowed_values_by_purpose === "object" && raw.allowed_values_by_purpose !== null;
     if (typeof raw.allowed_values_by_purpose === "object" && raw.allowed_values_by_purpose !== null) {
       for (const [purpose, list] of Object.entries(raw.allowed_values_by_purpose)) {
         const values = choices(list);
         if (isToken(purpose) && values) narrowed.set(purpose, values);
+      }
+    }
+    const bySubtype = new Map<string, string[]>();
+    // A map that is present (even empty or malformed) always filters; only an absent key (the server serves null) means "no narrowing".
+    const hasSubtypeMap = raw.allowed_values_by_subtype !== null && raw.allowed_values_by_subtype !== undefined;
+    if (hasSubtypeMap && typeof raw.allowed_values_by_subtype === "object" && !Array.isArray(raw.allowed_values_by_subtype)) {
+      for (const [subtype, list] of Object.entries(raw.allowed_values_by_subtype as Record<string, unknown>)) {
+        const values = choices(list);
+        if (isToken(subtype) && values) bySubtype.set(subtype, values);
       }
     }
     const applicability = typeof raw.applicability === "object" && raw.applicability !== null ? (raw.applicability as Record<string, unknown>) : {};
@@ -96,7 +111,16 @@ function readFields(value: unknown): Map<string, FieldDef> {
       derived: raw.derived === true,
       description: typeof raw.description === "string" && raw.description.trim() ? raw.description : null,
       allowedValues: allowed,
-      valuesFor: (purpose) => (purpose !== null && narrowed.has(purpose) ? (narrowed.get(purpose) ?? allowed) : allowed),
+      sellerDeclared: raw.seller_declared === true,
+      valuesFor: (purpose, subtype = null) => {
+        const byPurpose = purpose !== null && narrowed.has(purpose) ? (narrowed.get(purpose) ?? allowed) : null;
+        if (!hasSubtypeMap) return byPurpose ?? allowed;
+        // Fail closed like the backend: with a by-subtype map, a Subtype it does not list offers nothing, and a purpose a present
+        // by-purpose map does not list intersects with nothing.
+        const own = subtype !== null && bySubtype.has(subtype) ? (bySubtype.get(subtype) ?? []) : [];
+        if (byPurpose) return own.filter((value) => byPurpose.includes(value));
+        return hasPurposeMap ? [] : own;
+      },
       appliesTo: (purpose, category, subtype) => covers(purposes, purpose) && covers(categories, category) && covers(subtypes, subtype),
     });
   }

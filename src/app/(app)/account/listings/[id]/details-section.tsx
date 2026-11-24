@@ -1,7 +1,7 @@
 "use client";
 
 import { Field } from "@/components/form-field";
-import { NOT_ANSWERED, detailHint, detailLabel, groupDetails } from "@/lib/listing-details";
+import { NOT_ANSWERED, NOT_OFFERED_HINT, NO_LONGER_OFFERED, SELLER_DECLARED, SELLER_DECLARED_HELP, detailHint, detailLabel, groupDetails, notOffered } from "@/lib/listing-details";
 import { choiceLabel } from "@/lib/listing-labels";
 import type { FieldDef } from "@/lib/use-registry";
 
@@ -10,7 +10,8 @@ import type { FieldDef } from "@/lib/use-registry";
  * requirement, each group a fieldset with its legend. It holds no state and no rules: the editor owns the values, the errors,
  * the comparison and the saving, and passes the conflict row for a field. A control follows the registry type (integer: a text
  * input for digits; boolean: Not answered, Yes, No; enum: Not answered first, then the registry's choices; decimal and money:
- * text inputs). Stories 2.5 and 2.6 add registry fields (and their labels), not code here.
+ * text inputs). Stories 2.5 and 2.6 add registry fields (and their labels), not code here. A registry field flagged `seller_declared` shows the
+ * "Seller-declared" tag and its helper line (the owner's claim, never a platform check).
  */
 export function DetailsSection({
   fields,
@@ -18,6 +19,8 @@ export function DetailsSection({
   saved,
   errors,
   purpose,
+  category,
+  subtype,
   onChange,
   conflictRow,
   inConflict,
@@ -28,6 +31,8 @@ export function DetailsSection({
   saved: Record<string, string>;
   errors: Record<string, string[]>;
   purpose: string | null;
+  category: string | null;
+  subtype: string | null;
   onChange: (id: string, value: string) => void;
   conflictRow: (id: string) => React.ReactNode;
   inConflict: (id: string) => boolean;
@@ -37,8 +42,16 @@ export function DetailsSection({
   function control(def: FieldDef) {
     const id = def.id;
     const value = Object.hasOwn(values, id) ? values[id] : "";
+    const stale = notOffered(def, Object.hasOwn(saved, id) ? saved[id] : undefined, { fields: { purpose, subtype } });
+    const hint = [detailHint(def), stale ? NOT_OFFERED_HINT : ""].filter(Boolean).join(" ");
     return (
-      <Field name={id} label={detailLabel(id)} hint={detailHint(def) || undefined} errors={errors[id]}>
+      <Field
+        name={id}
+        label={detailLabel(id, category)}
+        hint={hint || undefined}
+        errors={errors[id]}
+        declared={def.sellerDeclared ? { tag: SELLER_DECLARED, help: SELLER_DECLARED_HELP } : undefined}
+      >
         {(props) => {
           const shared = {
             ...props,
@@ -61,7 +74,7 @@ export function DetailsSection({
             );
           }
           if (def.type === "enum") {
-            const offered = def.valuesFor(purpose);
+            const offered = def.valuesFor(purpose, subtype);
             // The saved value the registry no longer offers stays in the list, marked, for as long as it is the saved one, so the
             // owner who picks another option can still restore it.
             const kept = Object.hasOwn(saved, id) && saved[id] && !offered.includes(saved[id]) ? saved[id] : null;
@@ -74,7 +87,7 @@ export function DetailsSection({
                       {choiceLabel(id, choice)}
                     </option>
                   ))}
-                  {kept !== null && <option value={kept}>{choiceLabel(id, kept)} (no longer offered)</option>}
+                  {kept !== null && <option value={kept}>{`${choiceLabel(id, kept)} ${NO_LONGER_OFFERED}`}</option>}
                 </select>
                 {conflictRow(id)}
               </>

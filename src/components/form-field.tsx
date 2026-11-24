@@ -15,20 +15,39 @@ export function Field({
   label,
   hint,
   errors,
+  declared,
   children,
 }: {
   name: string;
   label: string;
   hint?: string;
   errors?: string[];
+  /** Seller-declared text next to the label and its helper line (Story 2.5); the owner's claim, never a platform check. */
+  declared?: { tag: string; help: string };
   children: (props: InputProps) => React.ReactNode;
 }) {
   const hintId = `${name}-hint`;
   const errorId = `${name}-error`;
-  const describedBy = [hint ? hintId : null, errors?.length ? errorId : null].filter(Boolean).join(" ");
+  const declaredId = `${name}-declared`;
+  const tagId = `${name}-declared-tag`;
+  const describedBy = [declared ? tagId : null, declared ? declaredId : null, hint ? hintId : null, errors?.length ? errorId : null].filter(Boolean).join(" ");
   return (
     <div className="field">
-      <label htmlFor={name}>{label}</label>
+      {declared ? (
+        <div className="label-row">
+          <label htmlFor={name}>{label}</label>
+          <span id={tagId} className="declared-tag" data-testid={`${name}-seller-declared`}>
+            {declared.tag}
+          </span>
+        </div>
+      ) : (
+        <label htmlFor={name}>{label}</label>
+      )}
+      {declared && (
+        <p id={declaredId} className="hint" data-testid={`${name}-declared-help`}>
+          {declared.help}
+        </p>
+      )}
       {hint && (
         <p id={hintId} className="hint">
           {hint}
