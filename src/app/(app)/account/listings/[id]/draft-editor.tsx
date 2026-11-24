@@ -38,6 +38,8 @@ import {
   CHOICES_APPLIED,
   NO_CHANGES,
   SAVED,
+  SAVE_PAUSED,
+  SAVE_WAIT,
 } from "@/lib/listing-messages";
 import { mapKnownCodes } from "@/lib/password-messages";
 import { failureMessage, thrownMessage } from "@/lib/request-errors";
@@ -45,6 +47,7 @@ import { useSession } from "@/lib/session";
 import { useFormFeedback } from "@/lib/use-form-feedback";
 import { useRegistry, type FieldDef, type Registry } from "@/lib/use-registry";
 import { DetailsSection } from "./details-section";
+import { ImagesSection } from "./images-section";
 
 type FieldName = "title" | "description" | "asking_price" | "price_basis" | "rental_period" | "area_value" | "area_unit" | "marla_basis";
 /** The form's text per control: the hand-built fields always, the registry details (keyed by id) only when answered; read them with `at`. */
@@ -187,6 +190,8 @@ export function DraftEditor({
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [alert, setAlert] = useState<Alert | null>(null);
   const [alertTick, setAlertTick] = useState(0);
+  // An image action is running: Save waits (and says so), so a field save never races an image change for the revision.
+  const [imagesBusy, setImagesBusy] = useState(false);
   const [conflict, setConflict] = useState<Conflict | null>(null);
   // The fields a problem between two fields (the floor rule) is shown under: editing either clears them all.
   const [linked, setLinked] = useState<string[]>([]);
@@ -232,6 +237,33 @@ export function DraftEditor({
     return () => window.removeEventListener("beforeunload", guard);
   }, [dirty]);
 
+  /**
+   * A Listing an image change answered with (or a read after an upload or delete). When nothing but the images and the revision
+   * moved, the page takes them as they are, so the next field save is checked against the right revision. When the fields
+   * moved too (another session edited them), it is a field conflict like any other: the latest data loads and what was typed stays.
+   */
+  function applyImages(next: ListingView) {
+    const current = listingRef.current;
+    if (next.id !== current.id || !hasRevision(next)) return;
+    if (current.revision !== null && next.revision < current.revision) return; // an older answer arriving late
+    const before = toValues(current);
+    const after = toValues(next);
+    const unchanged =
+      next.status === current.status &&
+      keysOf(before, after).every((name) => at(before, name) === at(after, name)) &&
+      JSON.stringify(current.fields) === JSON.stringify(next.fields);
+    if (unchanged) {
+      setListing((now) => ({ ...now, revision: next.revision, media: next.media }));
+      return;
+    }
+    // Without the registry nothing can be compared: only the revision and the images move, typed values are never touched.
+    if (registry) {
+      applyConflict(next);
+      return;
+    }
+    setListing((now) => (now.revision !== null && next.revision < now.revision ? now : { ...now, revision: next.revision, media: next.media }));
+  }
+
   /** A date input says whether it is incomplete: a finished or cleared one drops its flag (the flag is only ever raised by Save). */
   function onDateInput(name: string, partial: boolean) {
     if (!partial) setIncomplete((current) => (current.includes(name) ? current.filter((other) => other !== name) : current));
@@ -275,7 +307,11 @@ export function DraftEditor({
   }
 
   /** A save succeeded: the answer is the new baseline; fields typed after the request keep what was typed. */
-  function applySaved(next: ListingView, submitted: Values) {
+  function applySaved(answer: ListingView, submitted: Values) {
+    // An answer older than what the page already holds (an image change landed after the request left) never moves the revision or
+    // the images back: it brings its fields and keeps the newer revision and media.
+    const held = listingRef.current;
+    const next = held.revision !== null && answer.revision !== null && answer.revision < held.revision ? { ...answer, revision: held.revision, media: held.media } : answer;
     const fresh = toValues(next);
     setListing(next);
     setValues((current) => {
@@ -298,8 +334,11 @@ export function DraftEditor({
    * a field the owner had not changed takes the latest value (it was never the owner's input). Fields where the owner's
    * value differs from the latest one get "Latest saved" with a choice.
    */
-  function applyConflict(latest: ListingView) {
-    if (!registry) return;
+  function applyConflict(latest: ListingView): boolean {
+    if (!registry) return false;
+    // Never go back to an older answer (revision and images only ever move forward).
+    const held = listingRef.current;
+    if (held.revision !== null && latest.revision !== null && latest.revision < held.revision) return false;
     const before = toValues(listingRef.current);
     const typed = valuesRef.current;
     const fresh = toValues(latest);
@@ -341,6 +380,7 @@ export function DraftEditor({
         .filter(Boolean)
         .join(" "),
     });
+    return true;
   }
 
   /** When the last open conflict row is resolved the banner goes and the choices are announced once in the live region. */
@@ -403,6 +443,10 @@ export function DraftEditor({
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting.current || !registry) return;
+    if (imagesBusy) {
+      announce(SAVE_WAIT);
+      return;
+    }
     setInfo("");
     setAlert(null);
     // A partly typed date reads as "" (a clear). Nothing is sent while one is open: the save is blocked with the summary.
@@ -466,10 +510,16 @@ export function DraftEditor({
       if (response.status === 409) {
         const current = typeof error === "object" && error !== null ? readListing((error as { current?: unknown }).current) : null;
         const usable = hasRevision(current) && current.id === listing.id && current.revision > baseRevision ? current : null;
-        if (usable) return applyConflict(usable);
+        if (usable) {
+          if (!applyConflict(usable)) showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
+          return;
+        }
         // No usable data in the answer: read the Draft again and keep what was typed.
         const again = await fetchLatest();
-        if (again.kind === "found" && hasRevision(again.listing)) return applyConflict(again.listing);
+        if (again.kind === "found" && hasRevision(again.listing)) {
+          if (!applyConflict(again.listing)) showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
+          return;
+        }
         if (again.kind === "gone") return await onSessionGone();
         if (again.kind === "missing") return onNotFound();
         showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
@@ -768,6 +818,17 @@ export function DraftEditor({
           ))}
         </dl>
       </section>
+      <ImagesSection
+        listingId={listing.id}
+        revision={listing.revision}
+        media={listing.media}
+        onListing={applyImages}
+        locked={pending}
+        onBusyChange={setImagesBusy}
+        refresh={fetchLatest}
+        onSessionGone={onSessionGone}
+        onNotFound={onNotFound}
+      />
       <section className="card" aria-labelledby="draft-edit-title" style={{ marginBottom: "var(--space)" }}>
         <h2 id="draft-edit-title" className="section-title">
           Edit details
@@ -863,7 +924,17 @@ export function DraftEditor({
                 conflictRow={conflictRow}
                 inConflict={showConflict}
               />
-              <button type="submit" className="primary-button" aria-disabled={pending ? true : undefined}>
+              {imagesBusy && (
+                <p id="save-paused" className="hint" data-testid="save-paused">
+                  {SAVE_PAUSED}
+                </p>
+              )}
+              <button
+                type="submit"
+                className="primary-button"
+                aria-disabled={pending || imagesBusy ? true : undefined}
+                aria-describedby={imagesBusy ? "save-paused" : undefined}
+              >
                 {pending ? "Saving…" : "Save changes"}
               </button>
             </form>

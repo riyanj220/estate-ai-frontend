@@ -172,3 +172,41 @@ export const NEW_LISTING_PATH = "/account/listings/new";
 export function signInPathFor(next: string, admin: boolean): string {
   return admin ? "/admin/sign-in?next=%2Fadmin" : `/sign-in?next=${encodeURIComponent(next)}`;
 }
+
+// ---- Images (Story 2.10). Known codes only: anything else is the generic text, never the server's own words.
+export const MAX_IMAGES = 10;
+export const IMAGES_EMPTY = "No images yet. A listing can be saved as a Draft without images, but needs at least one to be published.";
+export const IMAGES_HINT = "JPEG, PNG or WebP, up to 5 MB each, up to 10 images. The first image you add becomes the cover.";
+export const IMAGES_LIMIT_REACHED = "A listing can have at most 10 images.";
+export const IMAGES_CONFLICT = "Your images were changed in another session. We loaded the latest order.";
+export const IMAGES_FORBIDDEN = "Your account cannot change images right now.";
+export const IMAGES_UNREADABLE = "We could not read the answer. Reload the page to see your images.";
+export const IMAGES_REFRESH_FAILED = "We could not check your images. Reload the page to see the latest.";
+export const IMAGES_ALREADY_GONE = "That image is already gone. We loaded the latest images.";
+export const IMAGES_ONE_AT_A_TIME = "Wait for the current action to finish.";
+
+/** The codes of `error.fields.file` for an upload (a 400), by code. */
+export const UPLOAD_FILE_MESSAGES: Record<string, string> = {
+  too_large: "Images must be 5 MB or smaller.",
+  unsupported_type: "Only JPEG, PNG and WebP images can be added.",
+  too_large_dimensions: "This image is too large in pixels. Use one up to 10,000 pixels on each side.",
+  too_small: "This image is too small. Each side must be at least 200 pixels.",
+  invalid_image: "This file could not be read as an image.",
+  required: "Choose an image file.",
+  invalid: "Choose an image file.",
+};
+/** The codes of a 409 on an upload (`error.code`). */
+export const UPLOAD_CONFLICT_MESSAGES: Record<string, string> = {
+  storage_cap_exceeded: "You have used all of your image storage. Delete an image to upload more.",
+  too_many_images: IMAGES_LIMIT_REACHED,
+};
+export const UPLOAD_BUSY = "Images are busy being processed.";
+/** The codes of `error.fields.order` and `error.fields.cover_id` for a reorder (a 400). */
+export const ORDER_CHANGED = "The images changed. We loaded the latest order, so try again.";
+export const IMAGES_LIST_FULL = "Not added: the list is full.";
+export const IMAGES_UNKNOWN = "It may have been added: check the list.";
+export const IMAGE_LOAD_FAILED = "This image could not be loaded.";
+export const SAVE_PAUSED = "Saving is paused while images are being changed.";
+export const SAVE_WAIT = "Wait for the image changes to finish, then save.";
+/** The most a single upload body may be (the backend's cap); a bigger file is refused here and never sent. */
+export const MAX_UPLOAD_BYTES = 6 * 1024 * 1024;

@@ -3,6 +3,8 @@ import type { components } from "@/api/schema";
 /** Helpers shared by the public forms. No business rules: only reading and presenting server answers. */
 
 export const REQUEST_TIMEOUT_MS = 20_000;
+/** An image upload sends up to 6 MiB and the server may spend 20 seconds processing it: it gets a longer deadline. */
+export const UPLOAD_TIMEOUT_MS = 60_000;
 export const SERVER_ERROR = "Something went wrong on our side. Please try again in a moment.";
 export const REJECTED_ERROR = "This request could not be submitted. Please try again.";
 export const TIMEOUT_ERROR = "The server took too long to answer. Please try again.";
@@ -35,9 +37,9 @@ export function readErrorBody(body: unknown): ErrorBody | null {
 }
 
 /** Runs a request with an abort signal that fires after the timeout; the timer is always cleared. */
-export async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+export async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), ms);
   try {
     return await run(controller.signal);
   } finally {

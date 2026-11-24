@@ -478,3 +478,78 @@ body {
 .declared-tag-inline {
   margin-left: 0.5rem;
 }
+
+/* Images section of the Draft page (Story 2.10) */
+.image-add {
+  margin-bottom: var(--space);
+}
+.image-add label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.image-add input[type="file"] {
+  max-width: 100%;
+}
+.image-add input[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.upload-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space);
+}
+.upload-list li {
+  padding: 0.25rem 0;
+}
+.upload-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.image-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space);
+}
+.image-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  background: var(--color-surface);
+}
+.image-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--color-bg);
+  border-radius: var(--radius);
+}
+.image-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+  font-weight: 600;
+}
+.cover-badge {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-radius: var(--radius);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.875rem;
+}
+.image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.image-confirm-text {
+  flex-basis: 100%;
+  margin: 0;
+}

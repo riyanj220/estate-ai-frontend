@@ -47,7 +47,34 @@ export type ListingView = {
    * answered (null) is absent. Whether an id has a control is the registry's decision, never this list's.
    */
   details: Record<string, string>;
+  /** The images in position order (Story 2.10). Always checked: see `readMedia`. */
+  media: MediaItem[];
 };
+
+/** One image of a Draft as the page needs it. The `url` is the relative path of the media endpoint, never anything else. */
+export type MediaItem = { id: string; position: number; isCover: boolean; url: string };
+
+/**
+ * The images of the Listing `listingId`, or null when the list cannot be trusted (not a list, an item that is not an image of THIS
+ * Listing, a position that is not a non-negative integer or does not strictly increase, a repeated id, or more than one cover).
+ * Fails closed. Positions need not be 0..n-1 and a list may have no cover: the backend repairs ghost links lazily, so a list in
+ * that state is still shown and usable (a reorder sends only the ids). The url must be exactly the media endpoint of this image.
+ */
+export function readMedia(value: unknown, listingId: string): MediaItem[] | null {
+  if (!Array.isArray(value)) return null;
+  const items: MediaItem[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) return null;
+    const { id, position, is_cover, url } = entry as Record<string, unknown>;
+    if (typeof id !== "string" || !isListingId(id) || items.some((item) => item.id === id)) return null;
+    if (typeof position !== "number" || !Number.isSafeInteger(position) || position < 0) return null;
+    if (items.length > 0 && position <= items[items.length - 1].position) return null;
+    if (typeof is_cover !== "boolean" || url !== `/api/v1/listings/${listingId}/images/${id}/file`) return null;
+    items.push({ id, position, isCover: is_cover, url });
+  }
+  if (items.filter((item) => item.isCover).length > 1) return null;
+  return items;
+}
 
 const text = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value : null);
 const decimalString = (value: unknown): string | null => (typeof value === "string" && /^\d+(\.\d+)?$/.test(value) ? value : null);
@@ -80,6 +107,8 @@ export function readListing(value: unknown): ListingView | null {
   const { id, status, revision, registry_version, fields } = value as Record<string, unknown>;
   if (typeof id !== "string" || !id) return null;
   const known = typeof fields === "object" && fields !== null ? (fields as Record<string, unknown>) : {};
+  const media = readMedia((value as Record<string, unknown>).media, id);
+  if (media === null) return null;
   return {
     id,
     status: text(status),
@@ -102,6 +131,7 @@ export function readListing(value: unknown): ListingView | null {
       area_sqft: decimalString(known.area_sqft),
     },
     details: readDetails(known),
+    media,
   };
 }
 

@@ -780,6 +780,80 @@ story spec grouped terms by applicability, the registry's explicit `section` mar
   `tests/e2e/listing-terms.spec.ts` (one or more per row of the story's matrix, time zones, the stub's own rules, axe at desktop and mobile);
   the Story 2.4 and 2.5 tests in `listing-edit.spec.ts` now scope their Details group lookups to the Details block.
 
+## Images: upload, order, cover and delete (Story 2.10)
+
+Frontend half of Story 2.10 (the contract is the backend's `docs/media.md`, `docs/listings.md` and `docs/rate-limits.md`). The Draft page has an
+**Images** section between the summary and the editor form (`images-section.tsx`). It is its own component with its own state and never shares
+the field form's Save.
+
+- **List**: `ListingView.media` (`readMedia` in `listing-labels.ts`) fails closed: a `media` that is not a list, an item whose `url` is not exactly
+  `/api/v1/listings/<this listing>/images/<its id>/file`, positions that are not non-negative integers in strictly increasing order, a repeated
+  id, or more than one cover makes the whole Listing unreadable (the page shows its load error), because a reorder sends the complete list of ids.
+  Gappy positions and no cover at all are trusted (the backend repairs ghost links lazily, so a list may be in that state). Each image is a plain
+  same-origin `<img src={url}>` (the browser sends the session cookie; the answer is `private, no-store`) with `alt` "Image N of M" and a visible
+  "Cover image" marker on the cover. No preview URL is created (`URL.createObjectURL` is never called), no file name or image is stored (storage,
+  caches, IndexedDB) or logged, and the page title and address carry nothing.
+- **Upload**: `<input type="file" multiple accept="image/jpeg,image/png,image/webp">` with the visible label "Add images". Choosing files starts
+  the upload at once, **one file at a time** (`withCsrf`, multipart `FormData` with a single `file` part, a 60 second deadline), each with its own
+  status (Waiting, Uploading, Uploaded, Not uploaded plus the reason). A refused file (400 with a code under `file`) does not stop the others; any
+  other failure (409, 429, 503, 5xx, a lost answer, 403) stops the batch and the rest are marked "not sent". At 10 images the picker is
+  `aria-disabled` and a file chosen anyway is refused on the page (a hint only: the server decides, and its `too_many_images` 409 is mapped too).
+  Codes are mapped by a table of known codes (`UPLOAD_FILE_MESSAGES`, `UPLOAD_CONFLICT_MESSAGES` in `listing-messages.ts`): any other code, key or
+  sentence is the generic text, never the server's words. `Retry-After` of a 503 is shown as text only ("Try again in 7 seconds.").
+- **Revision sync**: an upload or a delete answers without a revision (201 Image, 204), so the section reads the Draft again (`GET`) after each one
+  and hands the Listing to the editor; a reorder or cover choice answers with the Listing resource. The editor (`applyImages`) takes the new
+  `revision` and `media` when nothing else changed, so a field save that follows is checked against the right revision (no spurious 409, typed
+  text untouched). When the fields changed elsewhere too, it is a normal field conflict (latest data loads, typed text stays). A field-editor
+  conflict reload and a successful field save carry `media` as well.
+- **Reorder and cover**: "Move earlier", "Move later" (`aria-disabled` at the ends) and "Set as cover" (shown only on non-cover images) send
+  `PATCH /api/v1/listings/{id}/images` with `{base_revision, order[, cover_id]}`; the list shown is the answer. Focus stays on the pressed button
+  (or moves to the image after a cover choice) and the result is announced. A `409` replaces the list with `current.media` (or a fresh read when
+  the answer carries none), shows "Your images were changed in another session. We loaded the latest order." and keeps focus sensible; the notice
+  goes when the person acts again. `invalid` on `order` or `cover_id` reads the Draft again with a try-again message.
+- **Delete**: "Delete" opens an inline confirmation (focus on Cancel; Escape cancels), then `DELETE`; the cover is promoted by the server and the
+  list is read again. Focus goes to the image that took its place, or to the picker when none is left. 404 reads the Draft again ("already gone").
+- **Errors and states**: 401 signs out (sign-in with `next`), 404 is the Draft not-found state, 403 is the account message only when the session
+  says suspended (else generic), 429 the wait in minutes, 5xx and network text as elsewhere (a 5xx after a delete or an upload also reads the
+  list again, because the proxy answers 5xx when the backend drops a connection). The empty state is "No images yet. A listing can be saved as a
+  Draft without images, but needs at least one to be published."
+- **Accessibility**: one polite live region (`role="status"`) holds the notice and the announcements (counts and results; per-file progress is in
+  the visible list, announced once at the end); every control is a native button or input, `aria-disabled` (never `disabled`) while an action runs
+  or at an end; visible focus; the list is an ordered list. axe is clean at desktop and mobile in the empty, uploading, populated, upload-error,
+  delete-confirmation, conflict and reorder-error states.
+- **Exclusion and races**: an image action (upload batch, reorder, cover, delete) and a field save never run together. While images change, Save
+  is `aria-disabled` with the text "Saving is paused while images are being changed." (`aria-describedby`; a click announces "Wait for the image
+  changes to finish, then save."); while a field save is in flight the image actions and the picker are `aria-disabled`. A module-level lock
+  (`src/lib/image-lock.ts`) also stops a second batch after a remount (for example a back-forward cache restore). The editor never moves the
+  revision or the images back to an older answer (a late field-save answer keeps the newer revision and media; a stale conflict answer is
+  ignored), and without the registry an image answer only moves the revision and media, never typed values. A conflict that also changed
+  fields raises the editor's own alert, which takes focus (its effect runs after this section's focus move); the images notice stays in the
+  section's live region.
+- **Upload details**: a file over 6 MiB is refused on the page as "too large" and never sent (the batch goes on), as is a server 413. A lost
+  answer, a timeout or a 5xx makes the row "Unknown" (it may have been stored: check the list) and the Draft is read again. Files beyond the
+  free slots are "Not added: the list is full." Every row ends in a final state (nothing stays Waiting). Leaving the page aborts the batch
+  (nothing more is sent and nothing is handed to the gone page); a `beforeunload` guard asks first while a batch runs. Files dropped on the
+  picker while an action runs get a visible, announced "Wait for the current action to finish."
+- **Thumbnails**: `loading="lazy"`; the cover's alt is "Image N of M, cover image" (plus the visible badge). An image that cannot load shows
+  "This image could not be loaded." with a Retry that mounts a fresh `<img>` (no cache-buster: the endpoint is `no-store`).
+  Focus returns to the acted image's button or item after any failed move, cover or delete, and never falls to the page.
+- **Proxy**: `/api/*` is a Next.js rewrite and the page proxy (`src/proxy.ts`) does not run for it (`matcher` excludes `api/`), but Next.js still buffers a proxied request body up to
+  `experimental.proxyClientMaxBodySize` (default 10 MB, beyond which it answers 500): `next.config.ts` raises it to 32 MB so the backend's own
+  6 MiB cap answers (`400 file: too_large`) instead of the proxy; binary responses pass through untouched. Verified with
+  `npm run check:prod-listings` (a real `next build` and `next start`): a 5 MB upload arrives whole, a body just over 6 MiB reaches the backend
+  (which answers `file: too_large`), a body of 11 MB also arrives whole (no proxy cap below the backend's), and the image bytes and `private, no-store` header come back unchanged; a Visitor gets 404.
+- **Playwright stub**: images per Draft (presets `images_none`, `images_one`, `images_three` (cover is the second), `images_nine`, `images_ten`);
+  `POST .../images` parses the multipart body (one `file` part, anything else `unknown_field`/`required`), mirrors the 6 MiB body cap, the 5 MB
+  file cap, the type by magic bytes (PNG, JPEG, WebP), the 10-image limit (judged before processing), and bumps the revision; `PATCH .../images`
+  mirrors the shape errors, the stale check (409 with `current`), the exact-set rule and the cover rules; `DELETE` promotes the cover and keeps
+  positions 0..n-1; `GET .../file` serves a 68 byte PNG to the owner only (`private, no-store`, `nosniff`). Modes: `/__image-mode` (`ok`, `slow`,
+  `too_small`, `too_large_dimensions`, `invalid_image`, `too_many`, `cap`, `busy`, `busy_no_retry`, `rate_limited`, `rate_none`, `forbidden`,
+  `session_gone`, `not_found`, `unsupported_media`, `csrf_once`, `csrf_always`, `lost_once`, `error`, `broken`, `hang`), `/__image-order-mode`
+  (adds `conflict_no_current`, `order_invalid`, `unreadable`), `/__image-delete-mode`, `/__image-file-mode`, `/__image-wire-mode` (media the page
+  must refuse, and the trusted ghost states `ghost_gap` and `ghost_no_cover`); upload modes also include `payload_too_large` (413) and `not_editable`
+  (a 403 with a valid token); order modes add `cover_invalid`, `revision_invalid`, `order_unknown`; `/__image-stats` also counts `attempts` (every upload request). `/__image-stats` returns the upload records (part names, sizes, sniffed type), PATCH bodies, deletes, file GETs and the server's
+  images; `/__other-images?id=&op=reverse|add|delete_first|cover_last` simulates another session. Tests are in
+  `tests/e2e/listing-images.spec.ts` (every row of the story's frontend matrix; files are small in-memory PNGs built in the test).
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),
