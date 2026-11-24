@@ -188,6 +188,70 @@ export interface paths {
         patch: operations["update_listing"];
         trace?: never;
     };
+    "/api/v1/listings/{listing_id}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add an image to one of the signed-in account's own Drafts
+         * @description Needs `X-CSRFToken` and a `multipart/form-data` body with exactly one part, `file` (any other part, a non-file `file` or more than one file is `validation_error`). The request body may be at most 6 MB and the image at most 5 MB (5,242,880 bytes). The file name and declared content type are ignored and never stored: the type is decided from the decoded image (JPEG, PNG or WebP only; animated images, GIF, SVG, TIFF, BMP, HEIC and the like are refused). The image is decoded, rotated by its EXIF orientation, stripped of ALL metadata (EXIF, GPS, XMP, comments, colour profile) and encoded again, with its long side at most 2,048 px; the response describes that stored file. `400 validation_error` carries a code under `fields.file`: `too_large`, `unsupported_type`, `too_large_dimensions` (above 10,000 px on a side or 40 megapixels), `too_small` (below 200 x 200), `invalid_image`, `required` or `invalid`. Another account's, an unknown or a malformed Listing is `404 not_found`; an account that may not edit, or a Listing that is not an editable Draft, is `403 forbidden`. `409` carries `too_many_images` (a Listing holds at most 10) or `storage_cap_exceeded` (200 MB for an Individual, 1 GB for an Agency, counted on the stored size). `429` is the upload limit (30 per hour per account) with `Retry-After`. `503 busy` (with `Retry-After`) means image processing is at capacity or too slow: retry. The Listing `revision` rises by one, so a concurrent editor gets `409 stale_revision`. Never cached. The first image of a Listing becomes its cover; a later upload never changes it.
+         */
+        post: operations["upload_listing_image"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reorder the images of an own Draft and/or choose its cover
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, order, cover_id?}` and nothing else (any other key is `validation_error` `unknown_field`). `order` is the full list of the Listing's image ids in the wanted order, each exactly once; the positions become 0..n-1 in that order. `cover_id` (optional; null or omitted keeps the cover) must be one of the Listing's images. The Listing always has exactly one cover while it has images. `400 validation_error` carries `invalid` under `fields.order` (a missing, duplicate, unknown or another Listing's id, or not a list of ids), `fields.cover_id` or `fields.base_revision` (`required` or `invalid`). A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a replay is also a 409: reload). A request that changes nothing is `200` and keeps the revision; otherwise the revision rises by one. Another account's, an unknown or a malformed Listing is `404 not_found`; an account that may not edit, or a Listing that is not an editable Draft, is `403 forbidden`. The body may be at most 64 KiB (`400` with `fields.order` `invalid`) and the `image_order` limit (120 per hour per account) applies: `429` with `Retry-After`. Files are never touched. Never cached.
+         */
+        patch: operations["set_listing_image_order"];
+        trace?: never;
+    };
+    "/api/v1/listings/{listing_id}/images/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove an image from one of the signed-in account's own Drafts
+         * @description Needs `X-CSRFToken`. Deletes the image and its stored file, gives its bytes back to the account's storage, renumbers the other images 0..n-1 (removing the cover makes the image with the lowest remaining position the cover) and raises the Listing `revision` by one. `204` has no body. Another account's, an unknown or an already removed image or Listing is `404 not_found`; an account that may not edit, or a Listing that is not an editable Draft, is `403 forbidden`. Never cached.
+         */
+        delete: operations["delete_listing_image"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/listings/{listing_id}/images/{image_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The bytes of one image of one of the signed-in account's own Drafts
+         * @description The media endpoint: the only place an image is served. Applied at request time: a Draft's image goes only to the owning account (Suspended and Email-unverified owners included, a Deactivated one not). Anyone else (another account, an administrator, a Visitor), an unknown or malformed id, another Listing's image and a Listing that is not a Draft get the same `404 not_found` (a Visitor gets 404, never 401). The body is the stored, re-encoded image with its stored `Content-Type` (`image/jpeg`, `image/png` or `image/webp`), `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` (no file name) and `Content-Security-Policy: default-src 'none'; sandbox`; no cookie is set. `HEAD` answers the same headers without a body. `Range` is ignored (always `200`, the whole file) and there is no `ETag`. `Accept` is ignored.
+         */
+        get: operations["get_listing_image_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -709,15 +773,18 @@ export interface components {
          *     * `method_not_allowed` - method_not_allowed
          *     * `not_acceptable` - not_acceptable
          *     * `stale_revision` - stale_revision
+         *     * `storage_cap_exceeded` - storage_cap_exceeded
+         *     * `too_many_images` - too_many_images
          *     * `link_used` - link_used
          *     * `link_expired` - link_expired
          *     * `unsupported_media_type` - unsupported_media_type
          *     * `idempotency_key_reused` - idempotency_key_reused
          *     * `throttled` - throttled
          *     * `server_error` - server_error
+         *     * `busy` - busy
          * @enum {string}
          */
-        CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error";
+        CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
         /**
          * @description * `new` - new
          *     * `excellent` - excellent
@@ -737,6 +804,13 @@ export interface components {
          * @enum {string}
          */
         ConstructionStatusEnum: "completed" | "under_construction" | "grey_structure";
+        /**
+         * @description * `image/jpeg` - image/jpeg
+         *     * `image/png` - image/png
+         *     * `image/webp` - image/webp
+         * @enum {string}
+         */
+        ContentTypeEnum: "image/jpeg" | "image/png" | "image/webp";
         CsrfToken: {
             csrf_token: string;
         };
@@ -845,6 +919,44 @@ export interface components {
          */
         HealthUnavailableStatusEnum: "unavailable";
         /**
+         * @description An attached image (AD-24). `url` is the relative path of the media endpoint; the asset id,
+         *     the storage key and the owner never appear.
+         */
+        Image: {
+            /** Format: uuid */
+            id: string;
+            /** @description 0-based and contiguous: 0 is the first image. */
+            position: number;
+            /** @description Exactly one image of a Listing is the cover. */
+            is_cover: boolean;
+            content_type: components["schemas"]["ContentTypeEnum"];
+            width: number;
+            height: number;
+            /** @description Size of the stored (re-encoded) file. */
+            bytes: number;
+            /** @description Relative path of the media endpoint, `/api/v1/listings/{id}/images/{image_id}/file`. */
+            url: string;
+        };
+        ImageOrderRequest: {
+            /** @description The `revision` of the Listing the client last read. */
+            base_revision: number;
+            /** @description Every image id of the Listing, exactly once, in the wanted order. */
+            order: string[];
+            /**
+             * Format: uuid
+             * @description The image to make the cover; null or omitted keeps the current cover.
+             */
+            cover_id?: string | null;
+        };
+        /** @description Documentation of the multipart body: exactly one part, named `file`. */
+        ImageUploadRequest: {
+            /**
+             * Format: binary
+             * @description A JPEG, PNG or WebP image of up to 5 MB (5,242,880 bytes).
+             */
+            file: string;
+        };
+        /**
          * @description Strict allowlist of the four fields. Rules come from `identity.validation`; every failing
          *     field is reported at once, and an unknown field (such as `role`) is refused.
          */
@@ -870,10 +982,8 @@ export interface components {
             provenance: {
                 [key: string]: components["schemas"]["ProvenanceEntry"];
             };
-            /** @description Empty until Story 2.10. */
-            media: {
-                [key: string]: unknown;
-            }[];
+            /** @description The images in `position` order; empty when there are none. */
+            media: components["schemas"]["Image"][];
             /** @description Empty until Story 2.8. */
             amenities: string[];
         };
@@ -1592,7 +1702,7 @@ export interface components {
          * @description Stable error code catalogue.
          * @enum {string}
          */
-        ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error";
+        ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
         ErrorEnvelope: {
             error: components["schemas"]["ErrorBody"];
         };
@@ -2387,6 +2497,357 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListingConflict"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    upload_listing_image: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["ImageUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description The stored image */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Image"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `too_many_images` or `storage_cap_exceeded` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `busy`: image processing is at capacity; retry */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    set_listing_image_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImageOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description The Listing, with its media */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Listing"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stale revision: the Listing changed; `current` holds it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingConflict"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete_listing_image: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_listing_image_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored image bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Too many requests */
