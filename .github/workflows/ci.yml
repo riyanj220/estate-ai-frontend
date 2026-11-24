@@ -15,7 +15,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,6 +26,10 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
+      # Production-mode checks (each builds and starts the app against the stub on its own ports): route guards, and the
+      # proxy passing 5 MB uploads, bodies over 10 MB and binary images through untouched.
+      - run: npm run check:prod-admin
+      - run: npm run check:prod-listings
       # Offline: regenerate the client from the committed spec copy and diff.
       - run: npm run api:check -- --offline
       # Online: the committed spec copy must equal the backend main openapi.yaml.

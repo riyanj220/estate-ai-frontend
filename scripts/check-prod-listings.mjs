@@ -63,6 +63,39 @@ try {
     assert.match(response.headers.get("cache-control") ?? "", /no-store/, `Signed in ${path}: no-store`);
     console.log(`ok  Signed in ${path} -> 200 no-store`);
   }
+
+  // Story 2.10: the production proxy forwards a multipart upload of up to 6 MiB (and more, so the backend's own cap decides) in full,
+  // and returns the binary image answer untouched.
+  const cookie = "estate_session=stub-live";
+  await fetch(`${STUB}/__listings-preset?value=images_none`);
+  const csrf = (await (await fetch(`${APP}/api/v1/csrf`, { headers: { cookie } })).json()).csrf_token;
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  const upload = async (padding) => {
+    const form = new FormData();
+    form.append("file", new Blob([PNG, Buffer.alloc(padding, 0x41)], { type: "image/png" }), "a.png");
+    return fetch(`${APP}/api/v1/listings/${ID}/images`, { method: "POST", body: form, headers: { cookie, "x-csrftoken": csrf } });
+  };
+  const near = await upload(5 * 1024 * 1024 - 1000);
+  assert.equal(near.status, 201, "a 5 MB upload passes the proxy");
+  const created = await near.json();
+  const over = await upload(6 * 1024 * 1024 + 10);
+  assert.equal(over.status, 400, "a body over 6 MiB reaches the backend, which refuses it");
+  assert.deepEqual((await over.json()).error.fields, { file: ["too_large"] });
+  // No proxy cap in the way: a body above 10 MB (the default limit of a buffering proxy) also reaches the backend in full.
+  const huge = await upload(11 * 1024 * 1024);
+  assert.equal(huge.status, 400, "a body over 10 MB reaches the backend, which refuses it");
+  assert.deepEqual((await huge.json()).error.fields, { file: ["too_large"] });
+  const stats = await (await fetch(`${STUB}/__image-stats`)).json();
+  assert.ok(stats.uploads[2].size > 11 * 1024 * 1024, "the whole 11 MB body arrived");
+  assert.equal(stats.uploads[0].fileSize, PNG.length + 5 * 1024 * 1024 - 1000, "the file arrived whole");
+  assert.ok(stats.uploads[1].size > 6 * 1024 * 1024, "the whole oversized body arrived");
+  const file = await fetch(`${APP}${created.url}`, { headers: { cookie } });
+  assert.equal(file.status, 200);
+  assert.equal(file.headers.get("content-type"), "image/png");
+  assert.equal(file.headers.get("cache-control"), "private, no-store");
+  assert.deepEqual(Buffer.from(await file.arrayBuffer()), PNG, "the image bytes are untouched by the proxy");
+  assert.equal((await fetch(`${APP}${created.url}`)).status, 404, "a Visitor gets the not-found answer");
+  console.log("ok  6 MiB upload and binary image through the proxy");
   console.log("Production listings check passed.");
 } finally {
   for (const child of children) child.kill();

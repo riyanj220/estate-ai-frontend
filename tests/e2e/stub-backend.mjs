@@ -654,8 +654,43 @@ const makeListing = (seq, owner, fields, revision = 1) => ({
   revision,
   registryVersion: 1,
   provenance: {},
+  images: [],
   fields: { purpose: "sale", category: "house", subtype: "house", ...EMPTY_EDITABLE, ...fields },
 });
+// Story 2.10: images of a Draft, in position order (0-based, contiguous, exactly one cover while there are any). The stub serves one
+// tiny valid PNG for every image, so `bytes` and the sizes below are only what the wire reports.
+const IMAGE_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+const imageId = (seq) => `00000000-0000-4000-a000-${String(seq).padStart(12, "0")}`;
+const MAX_IMAGES = 10;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_UPLOAD_BODY = 6 * 1024 * 1024;
+const newImage = (seq, position, cover, type = "image/png") => ({ id: imageId(seq), position, is_cover: cover, content_type: type, width: 800, height: 600, bytes: 12345 });
+const withImages = (item, count, coverAt = 0) => {
+  item.images = Array.from({ length: count }, (_, index) => newImage(index + 1, index, index === coverAt));
+  return item;
+};
+// A wire the page must refuse to build on (the list is not trusted): set with /__image-wire-mode, only the media of the answer changes.
+let imageWireMode = "ok";
+const spoilMedia = (media) => {
+  if (imageWireMode === "not_list") return "none";
+  if (media.length === 0) return media;
+  const copy = media.map((entry) => ({ ...entry }));
+  if (imageWireMode === "bad_url") copy[0].url = "https://elsewhere.example/a.png";
+  if (imageWireMode === "other_listing_url") copy[0].url = copy[0].url.replace(/listings\/[^/]+/, "listings/00000000-0000-4000-9000-000000000099");
+  if (imageWireMode === "two_covers") copy.forEach((entry) => (entry.is_cover = true));
+  // Ghost repair states the backend may serve (still trusted): gappy positions, no cover.
+  if (imageWireMode === "ghost_gap") copy.forEach((entry, index) => (entry.position = index * 2));
+  if (imageWireMode === "ghost_no_cover") copy.forEach((entry) => (entry.is_cover = false));
+  // Positions that cannot be trusted.
+  if (imageWireMode === "dup_position" && copy.length > 1) copy[1].position = copy[0].position;
+  if (imageWireMode === "decreasing" && copy.length > 1) copy[0].position = 5;
+  if (imageWireMode === "negative_position") copy[0].position = -1;
+  if (imageWireMode === "string_position") copy[0].position = "0";
+  if (imageWireMode === "dup_id" && copy.length > 1) copy[1].id = copy[0].id;
+  if (imageWireMode === "bad_id") copy[0].id = "not-an-id";
+  return copy;
+};
+const publicImage = (item, image) => ({ ...image, url: `/api/v1/listings/${item.id}/images/${image.id}/file` });
 const publicListing = (item) => ({
   id: item.id,
   status: "draft",
@@ -664,7 +699,7 @@ const publicListing = (item) => ({
   registry_version: item.registryVersion,
   fields: item.fields,
   provenance: item.provenance,
-  media: [],
+  media: spoilMedia(item.images.map((image) => publicImage(item, image))),
   amenities: [],
 });
 const LISTING_PRESETS = {
@@ -762,6 +797,12 @@ const LISTING_PRESETS = {
       2,
     ),
   ],
+  // Story 2.10: a Draft (revision 2, with a title so the form shows) with no images, one, three (the cover is the second) and the limit of ten.
+  images_none: () => [makeListing(1, "mine", { title: "Corner house with garden" }, 2)],
+  images_one: () => [withImages(makeListing(1, "mine", { title: "Corner house with garden" }, 2), 1)],
+  images_three: () => [withImages(makeListing(1, "mine", { title: "Corner house with garden" }, 2), 3, 1)],
+  images_ten: () => [withImages(makeListing(1, "mine", { title: "Corner house with garden" }, 2), 10)],
+  images_nine: () => [withImages(makeListing(1, "mine", { title: "Corner house with garden" }, 2), 9)],
   rent: () => [makeListing(1, "mine", { purpose: "rent", category: "apartment", subtype: "apartment" })],
   // Story 2.6: a sale Draft and a rent Draft with terms (revision 2), and a rent Draft with nothing set (no rental period, no terms). False
   // and zero are answers. Low-entropy fake values only.
@@ -823,6 +864,20 @@ let patchLostSpent = false;
 let detailGets = 0;
 let lastDetailId = null;
 const pending = []; // responses held open by the hang mode
+// Story 2.10 image stand-ins: three modes (upload, order, delete) plus the media endpoint, with counters for the tests.
+let imageMode = "ok";
+let imageOrderMode = "ok";
+let imageDeleteMode = "ok";
+let imageFileMode = "ok";
+let imageSeq = 100;
+let imageLostSpent = false;
+let imageAttempts = 0; // every upload request that reached the stub, refused or not
+let imageUploads = []; // what each upload attempt carried: part names, size and the type the stub read from the magic bytes
+let imageOrderBodies = [];
+let imageDeletes = [];
+let imageFileGets = 0;
+let imageFileHeads = 0;
+let imageTokens = [];
 
 createServer((req, res) => {
   const url = new URL(req.url, "http://stub");
@@ -1632,6 +1687,253 @@ createServer((req, res) => {
       return answer();
     });
   }
+  // ---- Images (Story 2.10): upload, reorder and cover, delete and the media endpoint, mirroring the backend's rules.
+  if (url.pathname === "/__image-mode") {
+    return choose("imageMode", ["ok", "slow", "too_small", "too_large_dimensions", "invalid_image", "too_many", "cap", "busy", "busy_no_retry", "rate_limited", "rate_none", "forbidden", "session_gone", "not_found", "unsupported_media", "payload_too_large", "not_editable", "csrf_once", "csrf_always", "lost_once", "error", "broken", "hang"], (v) => {
+      imageMode = v;
+      imageLostSpent = false;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__image-order-mode") {
+    return choose("imageOrderMode", ["ok", "slow", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "conflict_no_current", "order_invalid", "cover_invalid", "revision_invalid", "order_unknown", "not_editable", "csrf_once", "csrf_always", "lost_once", "unreadable", "error", "broken", "hang"], (v) => {
+      imageOrderMode = v;
+      imageLostSpent = false;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__image-delete-mode") {
+    return choose("imageDeleteMode", ["ok", "slow", "not_found", "not_editable", "forbidden", "session_gone", "csrf_once", "csrf_always", "lost_once", "error", "broken", "hang"], (v) => {
+      imageDeleteMode = v;
+      imageLostSpent = false;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__image-wire-mode") return choose("imageWireMode", ["ok", "not_list", "bad_url", "other_listing_url", "two_covers", "ghost_gap", "ghost_no_cover", "dup_position", "decreasing", "negative_position", "string_position", "dup_id", "bad_id"], (v) => (imageWireMode = v));
+  if (url.pathname === "/__image-file-mode") return choose("imageFileMode", ["ok", "not_found", "broken"], (v) => (imageFileMode = v));
+  if (url.pathname === "/__image-stats") {
+    return json(200, {
+      attempts: imageAttempts,
+      uploads: imageUploads,
+      orderBodies: imageOrderBodies,
+      deletes: imageDeletes,
+      fileGets: imageFileGets,
+      fileHeads: imageFileHeads,
+      tokens: imageTokens,
+      images: Object.fromEntries(listings.map((item) => [item.id, { revision: item.revision, images: item.images.map((image) => ({ id: image.id, position: image.position, is_cover: image.is_cover, content_type: image.content_type })) }])),
+    });
+  }
+  // Simulates another session changing the images of a Draft (the revision moves): reverse the order, add one, delete the first, cover the last.
+  if (url.pathname === "/__other-images") {
+    const target = listings.find((item) => item.id === url.searchParams.get("id"));
+    if (!target) return json(404, { error: "unknown listing" });
+    const op = url.searchParams.get("op");
+    const renumber = () => target.images.forEach((image, index) => (image.position = index));
+    if (op === "reverse") target.images.reverse();
+    else if (op === "add") target.images.push(newImage(++imageSeq, target.images.length, target.images.length === 0));
+    else if (op === "delete_first") {
+      const [gone] = target.images.splice(0, 1);
+      if (gone?.is_cover && target.images[0]) target.images[0].is_cover = true;
+    } else if (op === "cover_last") target.images.forEach((image, index) => (image.is_cover = index === target.images.length - 1));
+    else return json(400, { error: "unknown op" });
+    renumber();
+    target.revision += 1;
+    return json(200, { revision: target.revision });
+  }
+  const imagesRoute = /^\/api\/v1\/listings\/([^/]+)\/images$/.exec(url.pathname);
+  const imageRoute = /^\/api\/v1\/listings\/([^/]+)\/images\/([^/]+)$/.exec(url.pathname);
+  const imageFileRoute = /^\/api\/v1\/listings\/([^/]+)\/images\/([^/]+)\/file$/.exec(url.pathname);
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const ownDraft = (raw) => (sessionAdmin ? undefined : listings.find((item) => item.id === decodeURIComponent(raw) && item.owner === "mine"));
+  const failFields = (fields) => json(400, envelope("validation_error", "The request contains invalid values.", fields));
+  const notFound = () => json(404, envelope("not_found", "Not found."));
+  // Parses a multipart body (a Buffer) into its parts; null when the boundary is missing.
+  const parseMultipart = (body, contentType) => {
+    const boundary = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType ?? "");
+    if (!boundary) return null;
+    const delimiter = Buffer.from(`--${boundary[1] ?? boundary[2]}`);
+    const parts = [];
+    let at = body.indexOf(delimiter);
+    while (at !== -1) {
+      const start = at + delimiter.length;
+      if (body.subarray(start, start + 2).toString() === "--") break;
+      const next = body.indexOf(delimiter, start);
+      if (next === -1) break;
+      const chunk = body.subarray(start + 2, next - 2); // minus the CRLF after the delimiter and before the next one
+      const split = chunk.indexOf("\r\n\r\n");
+      const head = chunk.subarray(0, split).toString("latin1");
+      parts.push({ name: /name="([^"]*)"/.exec(head)?.[1] ?? "", data: chunk.subarray(split + 4) });
+      at = next;
+    }
+    return parts;
+  };
+  const sniffType = (data) => {
+    if (data.length >= 8 && data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+    if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return "image/jpeg";
+    if (data.length >= 12 && data.subarray(0, 4).toString("latin1") === "RIFF" && data.subarray(8, 12).toString("latin1") === "WEBP") return "image/webp";
+    return null;
+  };
+  if (imagesRoute && req.method === "POST") {
+    const chunks = [];
+    let size = 0;
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size <= MAX_UPLOAD_BODY + 1) chunks.push(chunk);
+    });
+    req.on("end", () => {
+      const sentToken = req.headers["x-csrftoken"] ?? null;
+      imageAttempts += 1;
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(imageMode, sentToken)) return;
+      unsafeCount += 1;
+      imageTokens.push(sentToken);
+      const record = { size, type: req.headers["content-type"]?.split(";")[0] ?? null, parts: [], fileSize: null, sniffed: null };
+      imageUploads.push(record);
+      const target = ownDraft(imagesRoute[1]);
+      if (!target || imageMode === "not_found") return notFound();
+      if (imageMode === "error" || imageMode === "broken" || imageMode === "hang") return serverFailure(imageMode);
+      if (imageMode === "not_editable") return json(403, envelope("forbidden", "Forbidden.")); // a valid token, a Draft that cannot be edited
+      if (imageMode === "payload_too_large") return json(413, envelope("payload_too_large", "Too large."));
+      // The body cap comes first (the real middleware refuses before any parsing).
+      if (size > MAX_UPLOAD_BODY) return failFields({ file: ["too_large"] });
+      if (imageMode === "unsupported_media" || record.type !== "multipart/form-data") return json(415, envelope("unsupported_media_type", "Unsupported media type."));
+      const parts = parseMultipart(Buffer.concat(chunks), req.headers["content-type"]);
+      if (!parts) return failFields({ file: ["required"] });
+      record.parts = parts.map((part) => part.name);
+      const files = parts.filter((part) => part.name === "file");
+      if (parts.length !== files.length) return failFields({ non_field_errors: ["unknown_field"] });
+      if (files.length === 0) return failFields({ file: ["required"] });
+      if (files.length > 1) return failFields({ file: ["invalid"] });
+      const data = files[0].data;
+      record.fileSize = data.length;
+      // The size checks come first (the byte length is read before anything else), then the 10-image limit, then the content.
+      if (data.length === 0) return failFields({ file: ["required"] });
+      if (data.length > MAX_IMAGE_BYTES) return failFields({ file: ["too_large"] });
+      if (target.images.length >= MAX_IMAGES || imageMode === "too_many") return json(409, envelope("too_many_images", "Too many images."));
+      const type = sniffType(data);
+      record.sniffed = type;
+      if (!type) return failFields({ file: ["unsupported_type"] });
+      if (imageMode === "too_small") return failFields({ file: ["too_small"] });
+      if (imageMode === "too_large_dimensions") return failFields({ file: ["too_large_dimensions"] });
+      if (imageMode === "invalid_image") return failFields({ file: ["invalid_image"] });
+      if (imageMode === "busy" || imageMode === "busy_no_retry") {
+        res.writeHead(503, { "content-type": "application/json", ...(imageMode === "busy" ? { "retry-after": "7" } : {}) });
+        return res.end(JSON.stringify(envelope("busy", "Busy.")));
+      }
+      if (imageMode === "cap") return json(409, envelope("storage_cap_exceeded", "Storage cap."));
+      const image = newImage(++imageSeq, target.images.length, target.images.length === 0, type);
+      image.bytes = data.length;
+      target.images.push(image);
+      target.revision += 1;
+      if (imageMode === "lost_once" && !imageLostSpent) {
+        imageLostSpent = true;
+        return req.socket.destroy(); // the image was stored, the answer is lost
+      }
+      const answer = () => json(201, publicImage(target, image));
+      return imageMode === "slow" ? void setTimeout(answer, 600) : answer();
+    });
+    return;
+  }
+  if (imagesRoute && req.method === "PATCH") {
+    return readBody((parsed) => {
+      const sentToken = req.headers["x-csrftoken"] ?? null;
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(imageOrderMode, sentToken)) return;
+      unsafeCount += 1;
+      imageTokens.push(sentToken);
+      imageOrderBodies.push(parsed);
+      const target = ownDraft(imagesRoute[1]);
+      if (!target || imageOrderMode === "not_found") return notFound();
+      if (imageOrderMode === "error" || imageOrderMode === "broken" || imageOrderMode === "hang") return serverFailure(imageOrderMode);
+      if (imageOrderMode === "not_editable") return json(403, envelope("forbidden", "Forbidden."));
+      if (imageOrderMode === "revision_invalid") return failFields({ base_revision: ["invalid"] });
+      const body = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+      const shape = {};
+      if (Object.keys(body).some((key) => !["base_revision", "order", "cover_id"].includes(key))) shape.non_field_errors = ["unknown_field"];
+      if (!Number.isInteger(body.base_revision) || body.base_revision < 1) shape.base_revision = [body.base_revision === undefined ? "required" : "invalid"];
+      if (body.order === undefined) shape.order = ["required"];
+      else if (!Array.isArray(body.order) || body.order.length > MAX_IMAGES || body.order.some((entry) => typeof entry !== "string" || !UUID.test(entry))) shape.order = ["invalid"];
+      if (body.cover_id !== undefined && body.cover_id !== null && (typeof body.cover_id !== "string" || !UUID.test(body.cover_id))) shape.cover_id = ["invalid"];
+      if (Object.keys(shape).length > 0) return failFields(shape);
+      const conflictMessage = "This listing was changed since you loaded it.";
+      if (imageOrderMode === "conflict_no_current") return json(409, envelope("stale_revision", conflictMessage));
+      if (body.base_revision !== target.revision) {
+        const conflict = () => json(409, { ...envelope("stale_revision", conflictMessage), current: publicListing(target) });
+        return imageOrderMode === "slow" ? void setTimeout(conflict, 600) : conflict();
+      }
+      const ids = target.images.map((image) => image.id);
+      const problems = {};
+      if (imageOrderMode === "order_invalid") problems.order = ["invalid"];
+      if (imageOrderMode === "cover_invalid") problems.cover_id = ["invalid"];
+      if (imageOrderMode === "order_unknown") problems.order = ["mystery_code"];
+      if (body.order.length !== ids.length || new Set(body.order).size !== body.order.length || !body.order.every((entry) => ids.includes(entry))) problems.order = ["invalid"];
+      if (typeof body.cover_id === "string" && !ids.includes(body.cover_id)) problems.cover_id = ["invalid"];
+      if (Object.keys(problems).length > 0) return failFields(problems);
+      const sorted = body.order.map((entry) => target.images.find((image) => image.id === entry));
+      const coverId = typeof body.cover_id === "string" ? body.cover_id : (target.images.find((image) => image.is_cover)?.id ?? null);
+      const changed = sorted.some((image, index) => image.position !== index) || sorted.some((image) => image.is_cover !== (image.id === coverId));
+      if (changed) {
+        sorted.forEach((image, index) => {
+          image.position = index;
+          image.is_cover = image.id === coverId;
+        });
+        target.images = sorted;
+        target.revision += 1;
+      }
+      if (imageOrderMode === "lost_once" && !imageLostSpent) {
+        imageLostSpent = true;
+        return req.socket.destroy();
+      }
+      const answer = () => json(200, imageOrderMode === "unreadable" ? { status: "draft" } : publicListing(target));
+      return imageOrderMode === "slow" ? void setTimeout(answer, 600) : answer();
+    });
+  }
+  if (imageFileRoute && (req.method === "GET" || req.method === "HEAD")) {
+    if (req.method === "GET") imageFileGets += 1;
+    else imageFileHeads += 1;
+    res.setHeader("cache-control", "private, no-store");
+    // A Visitor, another account, an administrator and an unknown id are one answer.
+    const target = hasSession() ? ownDraft(imageFileRoute[1]) : undefined;
+    const image = target?.images.find((entry) => entry.id === decodeURIComponent(imageFileRoute[2]));
+    if (!image || imageFileMode === "not_found") return notFound();
+    if (imageFileMode === "broken") return req.socket.destroy();
+    res.writeHead(200, {
+      "content-type": "image/png",
+      "content-length": String(IMAGE_PNG.length),
+      "cache-control": "private, no-store",
+      "x-content-type-options": "nosniff",
+      "content-disposition": "inline",
+      "content-security-policy": "default-src 'none'; sandbox",
+    });
+    return res.end(req.method === "HEAD" ? undefined : IMAGE_PNG);
+  }
+  if (imageRoute && req.method === "DELETE") {
+    const sentToken = req.headers["x-csrftoken"] ?? null;
+    res.setHeader("cache-control", "no-store");
+    if (signedInUnsafe(imageDeleteMode, sentToken)) return;
+    unsafeCount += 1;
+    imageTokens.push(sentToken);
+    imageDeletes.push(decodeURIComponent(imageRoute[2]));
+    const target = ownDraft(imageRoute[1]);
+    const at = target ? target.images.findIndex((entry) => entry.id === decodeURIComponent(imageRoute[2])) : -1;
+    if (!target || imageDeleteMode === "not_found" || at < 0) return notFound();
+    if (imageDeleteMode === "error" || imageDeleteMode === "broken" || imageDeleteMode === "hang") return serverFailure(imageDeleteMode);
+    if (imageDeleteMode === "not_editable") return json(403, envelope("forbidden", "Forbidden."));
+    const [gone] = target.images.splice(at, 1);
+    target.images.forEach((image, index) => (image.position = index));
+    // The cover goes: the lowest remaining position takes over (none left: no cover).
+    if (gone.is_cover && target.images[0]) target.images[0].is_cover = true;
+    target.revision += 1;
+    if (imageDeleteMode === "lost_once" && !imageLostSpent) {
+      imageLostSpent = true;
+      return req.socket.destroy();
+    }
+    const answer = () => {
+      res.writeHead(204);
+      res.end();
+    };
+    return imageDeleteMode === "slow" ? void setTimeout(answer, 600) : answer();
+  }
   if (url.pathname === "/api/v1/me/listings" && req.method === "GET") {
     listingsGets += 1;
     listingQueries.push(url.search);
@@ -2140,6 +2442,15 @@ createServer((req, res) => {
     patchBodies = [];
     patchTokens = [];
     patchLostSpent = false;
+    imageMode = imageOrderMode = imageDeleteMode = imageFileMode = imageWireMode = "ok";
+    imageSeq = 100;
+    imageLostSpent = false;
+    imageAttempts = 0;
+    imageUploads = [];
+    imageOrderBodies = [];
+    imageDeletes = [];
+    imageFileGets = imageFileHeads = 0;
+    imageTokens = [];
     registryMode = listingsMode = createMode = detailMode = "ok";
     registryGets = registryNotModified = listingsGets = createCount = detailGets = 0;
     lastRegistryConditional = lastCreate = lastCreateToken = lastDetailId = null;
