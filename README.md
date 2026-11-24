@@ -854,6 +854,56 @@ the field form's Save.
   images; `/__other-images?id=&op=reverse|add|delete_first|cover_last` simulates another session. Tests are in
   `tests/e2e/listing-images.spec.ts` (every row of the story's frontend matrix; files are small in-memory PNGs built in the test).
 
+## Profile picture and Agency logo (Story 2.11)
+
+A "Profile picture" section (Individual, `/account/profile`) and an "Agency logo" section (Agency, the Business profile page) sit above the
+text form on each profile page. Each is its own component (`src/app/(app)/account/profile/image-section.tsx`, one component for both kinds) with its own state and no
+shared Save. Backend routes: `PUT`/`DELETE /api/v1/me/profile/image` and `GET .../image/file` (Individual), the same under
+`/api/v1/me/agency-profile/image` (Agency), and the public `GET /api/v1/agencies/{agency_id}/logo` (anyone, only while the Agency is Active,
+`public, max-age=60`). The profile answers carry `image` (`null` or `{content_type, width, height, bytes, url}`); the Agency answer also carries
+`agency_id` and `logo_url`, which are validated but never shown.
+
+- **What is shown**: the current image from the owner route (a same-origin `<img>`, alt "Your profile picture" / "Your agency logo", `loading="lazy"`)
+  or a neutral, text-free placeholder with "No picture yet." / "No logo yet.". Choosing a file uploads it at once (one file, JPEG/PNG/WebP, the
+  picker is labelled "Choose a picture" / "Choose a logo"); a file over 6 MiB is refused in the page and never sent (the server's own 5 MB rule answers
+  for anything between). "Remove picture" / "Remove logo" asks first ("Yes, remove" / "Cancel", Escape cancels, focus goes to Cancel).
+- **Errors**: known codes only (`file`: `too_large`, `unsupported_type`, `too_large_dimensions`, `too_small`, `invalid_image`, `required`; `409
+  storage_cap_exceeded` ("You have reached your storage limit. Free up space and try again."); `503 busy` with the wait; `429` in minutes; 401 goes to sign-in; 403 says "Your account cannot change images right now." only
+  when the session itself is Suspended, else the generic text; network and timeout text). The mapping is shared with the Draft's Images section
+  (`src/lib/upload-errors.ts`), as are the busy lock (`src/lib/image-lock.ts`, now keyed by scope: "listing" and "profile") and the `<img>` with its
+  load-failure Retry (`src/components/retry-image.tsx`). A 5xx or a lost answer may have changed the image: the profile is read again and the text
+  says "It may have been saved: check the image shown." (a removal that meets 404 or 409 also reads the profile and says "We loaded the latest image."; a 503 means nothing changed and gets no such suffix). A read that a newer read superseded is not a failure.
+- **One live region** (`role="status"`) holds the result or failure and the sr-only "Uploading your picture." announcement. Controls are
+  `aria-disabled` (never `disabled`) while an action runs. Focus: the picker after an upload or a removal, Cancel when asking, Remove (or the
+  picker when no image is left) after any failure, and never the page.
+- **Mutual exclusion**: while an image action runs, the text form's Save is `aria-disabled`, says "Saving is paused while images are being
+  changed." and does nothing (it announces "Wait for the image changes to finish, then save."); while a text save is in flight the picture actions
+  wait ("Wait for your changes to be saved, then change the image."). A module-level lock (scope "profile") is held for the whole action; when the section unmounts the request is aborted and the lock is released (so a remount can start a new action at once), and a stale instance that finishes later no longer holds the lock and does not touch the page's busy flag. The text save sets its own module-level flag synchronously in the submit, so a choice made in the very next event already waits. A second choice, a double click on "Yes, remove" or a too-large file while an action of this very section runs is ignored quietly (no notice, focus stays); a request blocked by a text save or another action says why; `beforeunload` asks first while an upload runs; a back-forward cache restore checks the session,
+  closes an open prompt and reads the profile again.
+- **Never regress**: every profile read takes a stamp before it asks (`src/lib/read-stamp.ts`) and a finished change takes one when its answer
+  arrives; an older read never replaces a newer picture, a read started after a change does (a change made in another tab appears). The shown
+  address carries a counter (`?r=N`) after a change, because the owner route itself never changes and a browser would reuse the old bytes. The
+  PATCH answer's `image` is ignored (a text save never touches the image). The wire carries no identity of the bytes, so the first read that is newer than a change this page made itself mounts the image afresh (one extra image request); this also catches a same-size replacement made in another tab right after, but a same-size replacement in another tab with no change of our own is only noticed when the type, size or dimensions differ (accepted limitation).
+- **Wire shapes fail closed**: an `image` that is not exactly the documented shape with the owner route as its `url` (or an Agency `agency_id` that
+  is not a UUID, or a `logo_url` that is not its own public route) makes the whole profile read unreadable ("We could not load your profile" with
+  Retry); nothing is rendered from it.
+- **Privacy**: no file name is read, no preview URL is made, nothing is stored (no local/session storage), no URL is shown as text.
+- **Production check**: `npm run check:prod-profile` (`scripts/check-prod-profile.mjs`, ports 3220/4130, run in CI) builds the app and proves, through
+  the real proxy, that a 5 MB upload arrives whole on both owner routes, bodies over 6 MiB and 11 MB reach the backend (`file: too_large`), the binary
+  image comes back untouched with `private, no-store`, and the public logo is `public, max-age=60`, cookie-free for a Visitor, and 404 when the
+  Agency is not active.
+- **Playwright stub**: `PUT`/`DELETE`/`GET .../file` for both kinds with the real validation (multipart with one `file` part, magic bytes, 5 MB, 6 MiB,
+  account type checked before the body, the 10-uploads-an-hour limit counted per `PUT`), the uploaded bytes served back, the profile answers
+  with `image` (the Agency's also `agency_id` `55555555-5555-4555-8555-555555555555` and `logo_url`), and a public logo route that serves only while
+  `/__logo-mode` is `active` (`suspended` makes it 404). Modes: `/__profile-image-mode` (`ok`, `hold` (the answer waits for `/__profile-image-release`),
+  `slow`, the error modes of `/__image-mode`, `lost_once`, `error`, `broken`, `hang`), `/__profile-image-delete-mode`, `/__profile-image-file-mode`
+  (`ok`, `not_found`, `broken`), `/__profile-image-wire-mode` (`string_image`, `bad_url`, `other_route`, `bad_type`, `zero_dims`, `bad_agency_id`,
+  `bad_logo_url`), `hold` for `/__profile-mode` and `/__agency-profile-mode` (a read whose answer waits for `/__profile-release`), `/__profile-image-set`
+  (a picture stored "elsewhere", `clear=1` removes it) and `/__profile-image-stats` (attempts, uploads, deletes, tokens, stored image, public-logo
+  requests with their cookie). A suspended session is `/__signin-mode?value=suspended` (the stub session then reports `suspended`).
+  Tests: `tests/e2e/profile-image.spec.ts` (every row of the story's matrix for both kinds; axe at desktop and mobile in empty, populated,
+  asking, uploading, error and image-failed states; Playwright treats `aria-disabled` as disabled, so clicks on such a control use `force`).
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),

@@ -14,7 +14,8 @@
     "api:sync": "node scripts/sync-api.mjs",
     "api:check": "node scripts/check-api.mjs",
     "check:prod-admin": "node scripts/check-prod-admin.mjs",
-    "check:prod-listings": "node scripts/check-prod-listings.mjs"
+    "check:prod-listings": "node scripts/check-prod-listings.mjs",
+    "check:prod-profile": "node scripts/check-prod-profile.mjs"
   },
   "dependencies": {
     "next": "16.4.6",

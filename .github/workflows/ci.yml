@@ -30,6 +30,7 @@ jobs:
       # proxy passing 5 MB uploads, bodies over 10 MB and binary images through untouched.
       - run: npm run check:prod-admin
       - run: npm run check:prod-listings
+      - run: npm run check:prod-profile
       # Offline: regenerate the client from the committed spec copy and diff.
       - run: npm run api:check -- --offline
       # Online: the committed spec copy must equal the backend main openapi.yaml.

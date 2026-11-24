@@ -879,6 +879,50 @@ let imageFileGets = 0;
 let imageFileHeads = 0;
 let imageTokens = [];
 
+// Story 2.11 profile picture and Agency logo stand-ins. The stub keeps the uploaded bytes and serves them back, like the backend (which
+// re-encodes: this one does not). The Agency's public id is a fixed low-entropy UUID; the public logo is served only while `logoMode` is "active".
+const AGENCY_PUBLIC_ID = "55555555-5555-4555-8555-555555555555";
+let profileImages = { individual: null, agency: null }; // { type, data } once set
+let profileImageMode = "ok";
+let profileImageDeleteMode = "ok";
+let profileImageFileMode = "ok";
+let profileImageWireMode = "ok";
+let logoMode = "active";
+let profileImageAttempts = 0; // every upload request that reached the stub, refused or not
+let profileImagePuts = 0; // the ones the 10-per-hour limit counts
+let profileImageUploads = [];
+let profileImageDeletes = [];
+let profileImageFileGets = 0;
+let profileImageFileHeads = 0;
+let profileImageTokens = [];
+let profileImageLostSpent = false;
+let profileImageAborted = 0; // held uploads whose client gave up before the answer
+let logoRequests = [];
+let heldImageAnswers = []; // answers held open by the "hold" modes until /__profile-image-release
+let heldProfileReads = []; // profile reads held open by the "hold" profile modes until /__profile-release
+const ownerImageUrl = (kind) => (kind === "individual" ? "/api/v1/me/profile/image/file" : "/api/v1/me/agency-profile/image/file");
+function wireImage(kind) {
+  const stored = profileImages[kind];
+  if (!stored) return null;
+  const image = { content_type: stored.type, width: 800, height: 600, bytes: stored.data.length, url: ownerImageUrl(kind) };
+  if (profileImageWireMode === "string_image") return "none";
+  if (profileImageWireMode === "bad_url") image.url = "https://elsewhere.example/a.png";
+  if (profileImageWireMode === "other_route") image.url = ownerImageUrl(kind === "individual" ? "agency" : "individual");
+  if (profileImageWireMode === "bad_type") image.content_type = "image/gif";
+  if (profileImageWireMode === "zero_dims") image.width = 0;
+  return image;
+}
+const profileBody = () => ({ ...profile, image: wireImage("individual") });
+const agencyIdentifiers = () => ({
+  agency_id: profileImageWireMode === "bad_agency_id" ? "not-a-uuid" : profileImageWireMode === "upper_ids" ? AGENCY_PUBLIC_ID.toUpperCase() : AGENCY_PUBLIC_ID,
+  logo_url:
+    profileImageWireMode === "bad_logo_url"
+      ? "https://elsewhere.example/logo"
+      : profileImages.agency
+        ? `/api/v1/agencies/${profileImageWireMode === "upper_ids" ? AGENCY_PUBLIC_ID.toUpperCase() : AGENCY_PUBLIC_ID}/logo`
+        : null,
+});
+
 createServer((req, res) => {
   const url = new URL(req.url, "http://stub");
   const json = (status, body) => {
@@ -1250,7 +1294,7 @@ createServer((req, res) => {
     });
   }
   if (url.pathname === "/__profile-mode") {
-    return choose("profileMode", ["ok", "forbidden", "flaky", "session_gone", "malformed", "error", "broken", "hang"], (v) => {
+    return choose("profileMode", ["ok", "forbidden", "flaky", "session_gone", "malformed", "hold", "error", "broken", "hang"], (v) => {
       profileMode = v;
       profileGets = 0;
     });
@@ -1298,7 +1342,11 @@ createServer((req, res) => {
     if (profileMode === "flaky" && profileGets === 1) return json(500, envelope("server_error", "Internal detail that must not show."));
     if (profileMode === "malformed") return json(200, { full_name: 7 });
     if (profileMode === "error" || profileMode === "broken" || profileMode === "hang") return serverFailure(profileMode);
-    return json(200, profile);
+    if (profileMode === "hold") {
+      heldProfileReads.push({ res, body: JSON.stringify(profileBody()) }); // the answer as it is NOW, sent when released
+      return;
+    }
+    return json(200, profileBody());
   }
   // Signed-in unsafe calls share the session, CSRF self-heal and session-gone behaviour.
   // Answers the shared failures and returns true when it has already sent the response.
@@ -1934,6 +1982,201 @@ createServer((req, res) => {
     };
     return imageDeleteMode === "slow" ? void setTimeout(answer, 600) : answer();
   }
+  // ---- Profile picture and Agency logo (Story 2.11): owner upload, remove and file routes, and the public logo, mirroring the backend's rules.
+  if (url.pathname === "/__profile-image-mode") {
+    return choose("profileImageMode", ["ok", "hold", "slow", "too_small", "too_large_dimensions", "invalid_image", "cap", "busy", "busy_no_retry", "rate_limited", "rate_none", "forbidden", "session_gone", "not_found", "unsupported_media", "payload_too_large", "csrf_once", "csrf_always", "lost_once", "error", "broken", "hang"], (v) => {
+      profileImageMode = v;
+      profileImageLostSpent = false;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__profile-image-delete-mode") {
+    return choose("profileImageDeleteMode", ["ok", "hold", "slow", "not_found", "conflict", "busy", "forbidden", "session_gone", "rate_limited", "csrf_once", "csrf_always", "lost_once", "error", "broken", "hang"], (v) => {
+      profileImageDeleteMode = v;
+      profileImageLostSpent = false;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__profile-image-file-mode") return choose("profileImageFileMode", ["ok", "not_found", "broken"], (v) => (profileImageFileMode = v));
+  if (url.pathname === "/__profile-image-wire-mode") return choose("profileImageWireMode", ["ok", "string_image", "bad_url", "other_route", "bad_type", "zero_dims", "bad_agency_id", "bad_logo_url", "upper_ids"], (v) => (profileImageWireMode = v));
+  if (url.pathname === "/__logo-mode") return choose("logoMode", ["active", "suspended"], (v) => (logoMode = v));
+  // Test-only: a picture or logo that was stored elsewhere (another tab or device), and the release of held answers.
+  if (url.pathname === "/__profile-image-set") {
+    const kind = url.searchParams.get("kind") === "agency" ? "agency" : "individual";
+    const type = url.searchParams.get("type") ?? "image/png";
+    const padding = Number(url.searchParams.get("padding") ?? 0);
+    profileImages[kind] = url.searchParams.get("clear") === "1" ? null : { type, data: Buffer.concat([IMAGE_PNG, Buffer.alloc(padding, 0x41)]) };
+    return json(200, { kind, stored: profileImages[kind] !== null });
+  }
+  if (url.pathname === "/__profile-image-release") {
+    const answers = heldImageAnswers;
+    heldImageAnswers = [];
+    for (const answer of answers) answer();
+    return json(200, { released: answers.length });
+  }
+  if (url.pathname === "/__profile-release") {
+    const reads = heldProfileReads;
+    heldProfileReads = [];
+    for (const read of reads) {
+      read.res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+      read.res.end(read.body);
+    }
+    return json(200, { released: reads.length });
+  }
+  if (url.pathname === "/__profile-image-stats") {
+    return json(200, {
+      attempts: profileImageAttempts,
+      puts: profileImagePuts,
+      uploads: profileImageUploads,
+      deletes: profileImageDeletes,
+      fileGets: profileImageFileGets,
+      fileHeads: profileImageFileHeads,
+      tokens: profileImageTokens,
+      logoRequests,
+      held: heldImageAnswers.length,
+      aborted: profileImageAborted,
+      heldReads: heldProfileReads.length,
+      stored: Object.fromEntries(Object.entries(profileImages).map(([kind, value]) => [kind, value ? { type: value.type, bytes: value.data.length } : null])),
+    });
+  }
+  const ownerImageRoute = /^\/api\/v1\/me\/(profile|agency-profile)\/image(\/file)?$/.exec(url.pathname);
+  const logoRoute = /^\/api\/v1\/agencies\/([^/]+)\/logo$/.exec(url.pathname);
+  const sessionKind = () => (sessionAdmin ? "admin" : meMode.startsWith("agency") ? "agency" : "individual");
+  const mediaHeaders = (type, length, cache) => ({
+    "content-type": type,
+    "content-length": String(length),
+    "cache-control": cache,
+    "x-content-type-options": "nosniff",
+    "content-disposition": "inline",
+    "content-security-policy": "default-src 'none'; sandbox",
+  });
+  if (logoRoute && (req.method === "GET" || req.method === "HEAD")) {
+    logoRequests.push({ method: req.method, cookie: req.headers.cookie ?? null });
+    const stored = profileImages.agency;
+    // The public logo: anyone, but only while the Agency is Active; every other case is the same 404.
+    if (!stored || logoMode !== "active" || decodeURIComponent(logoRoute[1]) !== AGENCY_PUBLIC_ID) {
+      res.setHeader("cache-control", "no-store");
+      return json(404, envelope("not_found", "Not found."));
+    }
+    res.writeHead(200, mediaHeaders(stored.type, stored.data.length, "public, max-age=60"));
+    return res.end(req.method === "HEAD" ? undefined : stored.data);
+  }
+  if (ownerImageRoute && ownerImageRoute[2] && (req.method === "GET" || req.method === "HEAD")) {
+    if (req.method === "GET") profileImageFileGets += 1;
+    else profileImageFileHeads += 1;
+    res.setHeader("cache-control", "private, no-store");
+    const kind = ownerImageRoute[1] === "profile" ? "individual" : "agency";
+    // A Visitor, another account type, an administrator, no image and a lost file are one answer.
+    const stored = hasSession() && sessionKind() === kind ? profileImages[kind] : null;
+    if (!stored || profileImageFileMode === "not_found") return notFound();
+    if (profileImageFileMode === "broken") return req.socket.destroy();
+    res.writeHead(200, mediaHeaders(stored.type, stored.data.length, "private, no-store"));
+    return res.end(req.method === "HEAD" ? undefined : stored.data);
+  }
+  if (ownerImageRoute && !ownerImageRoute[2] && req.method === "PUT") {
+    const chunks = [];
+    let size = 0;
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size <= MAX_UPLOAD_BODY + 1) chunks.push(chunk);
+    });
+    req.on("end", () => {
+      const sentToken = req.headers["x-csrftoken"] ?? null;
+      const kind = ownerImageRoute[1] === "profile" ? "individual" : "agency";
+      profileImageAttempts += 1;
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(profileImageMode, sentToken)) return;
+      unsafeCount += 1;
+      profileImageTokens.push(sentToken);
+      const record = { kind, size, type: req.headers["content-type"]?.split(";")[0] ?? null, parts: [], fileSize: null, sniffed: null };
+      profileImageUploads.push(record);
+      // The account type is checked before the body is read, and before the 10-per-hour limit counts.
+      if (sessionKind() !== kind) return json(403, envelope("forbidden", "Forbidden."));
+      if (profileImageMode === "not_found") return notFound();
+      if (profileImageMode === "error" || profileImageMode === "broken" || profileImageMode === "hang") return serverFailure(profileImageMode);
+      if (profileImageMode === "payload_too_large") return json(413, envelope("payload_too_large", "Too large."));
+      profileImagePuts += 1;
+      if (profileImagePuts > 10) {
+        res.writeHead(429, { "content-type": "application/json", "retry-after": "3600" });
+        return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+      }
+      // The body cap comes first (the real middleware refuses before any parsing).
+      if (size > MAX_UPLOAD_BODY) return failFields({ file: ["too_large"] });
+      if (profileImageMode === "unsupported_media" || record.type !== "multipart/form-data") return json(415, envelope("unsupported_media_type", "Unsupported media type."));
+      const parts = parseMultipart(Buffer.concat(chunks), req.headers["content-type"]);
+      if (!parts) return failFields({ file: ["required"] });
+      record.parts = parts.map((part) => part.name);
+      const files = parts.filter((part) => part.name === "file");
+      if (parts.length !== files.length) return failFields({ non_field_errors: ["unknown_field"] });
+      if (files.length === 0) return failFields({ file: ["required"] });
+      if (files.length > 1) return failFields({ file: ["invalid"] });
+      const data = files[0].data;
+      record.fileSize = data.length;
+      if (data.length === 0) return failFields({ file: ["required"] });
+      if (data.length > MAX_IMAGE_BYTES) return failFields({ file: ["too_large"] });
+      const type = sniffType(data);
+      record.sniffed = type;
+      if (!type) return failFields({ file: ["unsupported_type"] });
+      if (profileImageMode === "too_small") return failFields({ file: ["too_small"] });
+      if (profileImageMode === "too_large_dimensions") return failFields({ file: ["too_large_dimensions"] });
+      if (profileImageMode === "invalid_image") return failFields({ file: ["invalid_image"] });
+      if (profileImageMode === "busy" || profileImageMode === "busy_no_retry") {
+        res.writeHead(503, { "content-type": "application/json", ...(profileImageMode === "busy" ? { "retry-after": "7" } : {}) });
+        return res.end(JSON.stringify(envelope("busy", "Busy.")));
+      }
+      if (profileImageMode === "cap") return json(409, envelope("storage_cap_exceeded", "Storage cap."));
+      const commit = () => {
+        profileImages[kind] = { type, data };
+      };
+      // A held upload is stored only when its answer is released, and not at all when the client gave up on it meanwhile.
+      if (profileImageMode === "hold") {
+        res.on("close", () => {
+          if (!res.writableEnded) profileImageAborted += 1;
+        });
+        return void heldImageAnswers.push(() => {
+          if (res.socket?.destroyed) return;
+          commit();
+          json(200, wireImage(kind));
+        });
+      }
+      commit();
+      if (profileImageMode === "lost_once" && !profileImageLostSpent) {
+        profileImageLostSpent = true;
+        return req.socket.destroy(); // the image was stored, the answer is lost
+      }
+      const answer = () => json(200, wireImage(kind));
+      return profileImageMode === "slow" ? void setTimeout(answer, 600) : answer();
+    });
+    return;
+  }
+  if (ownerImageRoute && !ownerImageRoute[2] && req.method === "DELETE") {
+    const sentToken = req.headers["x-csrftoken"] ?? null;
+    const kind = ownerImageRoute[1] === "profile" ? "individual" : "agency";
+    res.setHeader("cache-control", "no-store");
+    if (signedInUnsafe(profileImageDeleteMode, sentToken)) return;
+    unsafeCount += 1;
+    profileImageTokens.push(sentToken);
+    profileImageDeletes.push(kind);
+    if (sessionKind() !== kind) return json(403, envelope("forbidden", "Forbidden."));
+    if (profileImageDeleteMode === "not_found") return notFound();
+    if (profileImageDeleteMode === "conflict") return json(409, envelope("conflict", "Conflict."));
+    if (profileImageDeleteMode === "busy") {
+      res.writeHead(503, { "content-type": "application/json", "retry-after": "7" });
+      return res.end(JSON.stringify(envelope("busy", "Busy.")));
+    }
+    if (profileImageDeleteMode === "error" || profileImageDeleteMode === "broken" || profileImageDeleteMode === "hang") return serverFailure(profileImageDeleteMode);
+    profileImages[kind] = null; // a repeat is a harmless 204
+    if (profileImageDeleteMode === "lost_once" && !profileImageLostSpent) {
+      profileImageLostSpent = true;
+      return req.socket.destroy();
+    }
+    const answer = () => {
+      res.writeHead(204);
+      res.end();
+    };
+    if (profileImageDeleteMode === "hold") return void heldImageAnswers.push(answer);
+    return profileImageDeleteMode === "slow" ? void setTimeout(answer, 600) : answer();
+  }
   if (url.pathname === "/api/v1/me/listings" && req.method === "GET") {
     listingsGets += 1;
     listingQueries.push(url.search);
@@ -2172,7 +2415,7 @@ createServer((req, res) => {
       if (profilePatchMode === "error" || profilePatchMode === "broken" || profilePatchMode === "hang") return serverFailure(profilePatchMode);
       if (parsed && typeof parsed.full_name === "string") profile = { ...profile, full_name: parsed.full_name };
       if (parsed && typeof parsed.phone === "string") profile = { ...profile, phone: parsed.phone };
-      return json(200, profile);
+      return json(200, profileBody());
     });
   }
   if (url.pathname === "/api/v1/me/email-change" && req.method === "POST") {
@@ -2217,7 +2460,7 @@ createServer((req, res) => {
     });
   }
   if (url.pathname === "/__agency-profile-mode") {
-    return choose("agencyProfileMode", ["ok", "forbidden", "flaky", "session_gone", "malformed", "inactive_city", "verified", "odd_status", "error", "broken", "hang"], (v) => {
+    return choose("agencyProfileMode", ["ok", "forbidden", "flaky", "session_gone", "malformed", "inactive_city", "verified", "odd_status", "hold", "error", "broken", "hang"], (v) => {
       agencyProfileMode = v;
       agencyProfileGets = 0;
       if (v === "inactive_city") agencyProfile = { ...agencyProfile, city_id: INACTIVE_CITY }; // a later save of another city replaces it
@@ -2247,6 +2490,8 @@ createServer((req, res) => {
   }
   const agencyProfileBody = () => ({
     ...agencyProfile,
+    image: wireImage("agency"),
+    ...agencyIdentifiers(),
     email: profile.email,
     pending_email: profile.pending_email,
     verification_status: agencyProfileMode === "verified" ? "verified" : agencyProfileMode === "odd_status" ? "<b>Odd Status</b>" : "unverified",
@@ -2263,6 +2508,10 @@ createServer((req, res) => {
     if (agencyProfileMode === "flaky" && agencyProfileGets === 1) return json(500, envelope("server_error", "Internal detail that must not show."));
     if (agencyProfileMode === "malformed") return json(200, { agency_name: 7 });
     if (agencyProfileMode === "error" || agencyProfileMode === "broken" || agencyProfileMode === "hang") return serverFailure(agencyProfileMode);
+    if (agencyProfileMode === "hold") {
+      heldProfileReads.push({ res, body: JSON.stringify(agencyProfileBody()) }); // the answer as it is NOW, sent when released
+      return;
+    }
     return json(200, agencyProfileBody());
   }
   if (url.pathname === "/api/v1/me/agency-profile" && req.method === "PATCH") {
@@ -2451,6 +2700,20 @@ createServer((req, res) => {
     imageDeletes = [];
     imageFileGets = imageFileHeads = 0;
     imageTokens = [];
+    profileImages = { individual: null, agency: null };
+    profileImageMode = profileImageDeleteMode = profileImageFileMode = profileImageWireMode = "ok";
+    logoMode = "active";
+    profileImageAttempts = profileImagePuts = profileImageFileGets = profileImageFileHeads = 0;
+    profileImageUploads = [];
+    profileImageDeletes = [];
+    profileImageTokens = [];
+    profileImageLostSpent = false;
+    profileImageAborted = 0;
+    logoRequests = [];
+    for (const answer of heldImageAnswers) answer();
+    heldImageAnswers = [];
+    for (const read of heldProfileReads) read.res.end(read.body);
+    heldProfileReads = [];
     registryMode = listingsMode = createMode = detailMode = "ok";
     registryGets = registryNotModified = listingsGets = createCount = detailGets = 0;
     lastRegistryConditional = lastCreate = lastCreateToken = lastDetailId = null;
