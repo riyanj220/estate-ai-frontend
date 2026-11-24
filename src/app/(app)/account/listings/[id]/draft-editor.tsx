@@ -7,7 +7,7 @@ import { Field } from "@/components/form-field";
 import { getApi } from "@/lib/api";
 import { withCsrf } from "@/lib/csrf";
 import { REJECTED_ERROR, SERVER_ERROR, readErrorBody, withTimeout } from "@/lib/forms";
-import { CROSS_FIELD_GROUPS, SELLER_DECLARED, SELLER_DECLARED_HELP, answeredDetails, detailLabel, latestDetail, sameDetail, sentDetail, shownDetails } from "@/lib/listing-details";
+import { CROSS_FIELD_GROUPS, NOT_ANSWERED, SELLER_DECLARED, SELLER_DECLARED_HELP, answeredDetails, detailLabel, latestDetail, sameDetail, sentDetail, shownDetails } from "@/lib/listing-details";
 import {
   NOT_SET,
   areaKey,
@@ -32,6 +32,13 @@ import {
   EDIT_FIELD_MESSAGES,
   EDIT_FORBIDDEN,
   INCOMPLETE_DATE,
+  ANOTHER_LOCALITY,
+  LOADING_VALUE,
+  LOCALITY_CLEARED,
+  LOCALITY_DROPPED,
+  LOCALITY_NEEDS_CITY,
+  SAVED_CHOICE_GONE,
+  mapLocationCodes,
   BASIS_DROPPED,
   LATEST_NOT_LOADED,
   MARLA_EXPLANATION,
@@ -41,10 +48,11 @@ import {
   SAVE_PAUSED,
   SAVE_WAIT,
 } from "@/lib/listing-messages";
-import { mapKnownCodes } from "@/lib/password-messages";
+import { GENERIC_FIELD_MESSAGE, mapKnownCodes } from "@/lib/password-messages";
 import { failureMessage, thrownMessage } from "@/lib/request-errors";
 import { useSession } from "@/lib/session";
 import { useFormFeedback } from "@/lib/use-form-feedback";
+import { useLocationLists } from "@/lib/use-reference";
 import { useRegistry, type FieldDef, type Registry } from "@/lib/use-registry";
 import { DetailsSection } from "./details-section";
 import { ImagesSection } from "./images-section";
@@ -143,6 +151,14 @@ function latestText(name: FieldName, value: string): string {
   return value;
 }
 
+/** The text of the codes of one detail: location fields have their own (Story 2.7); every other type uses the texts of its type. */
+function codeTexts(def: FieldDef | undefined, key: string, codes: string[], fallback: string, cityChosen = true): string[] {
+  // `invalid` on a locality means "choose a city first" only while no city is chosen; with one it is an ordinary bad choice.
+  if (def?.section === "location" && key === "locality" && !cityChosen) return [...new Set(codes.map((code) => (code === "invalid" ? LOCALITY_NEEDS_CITY : mapLocationCodes(key, def.type, [code], fallback)[0])))];
+  if (def?.section === "location") return mapLocationCodes(key, def.type, codes, fallback);
+  return mapKnownCodes(codes, detailMessages(def), fallback);
+}
+
 /** The texts of the codes for a registry detail, by its type; a field the registry does not define has none (every code is generic). */
 function detailMessages(def: FieldDef | undefined): Record<string, string> {
   return def && Object.hasOwn(DETAIL_MESSAGES, def.type) ? DETAIL_MESSAGES[def.type] : {};
@@ -222,6 +238,8 @@ export function DraftEditor({
   const shown = registry ? shownFields(registry, listing, values.area_unit) : [];
   const detailDefs = registry ? shownDetails(registry, listing) : [];
   const detailIds = detailDefs.map((def) => def.id);
+  // The reference lists load only when the registry gives this Draft location fields; the localities follow the city the form has now.
+  const lists = useLocationLists(at(values, "city"), detailDefs.some((def) => def.section === "location"));
   const controls: string[] = [...shown, ...detailIds];
   const baseline = toValues(listing);
   const dirty = controls.some((name) => !same(name, at(values, name), at(baseline, name)));
@@ -271,11 +289,22 @@ export function DraftEditor({
 
   function setValue(name: string, value: string) {
     // Moving the unit away from marla and kanal drops what was typed for the basis (it is hidden and never sent; the server clears it).
-    setValues((current) => ({
-      ...current,
-      [name]: value,
-      ...(name === "area_unit" && !isMarlaUnit(value) ? { marla_basis: baseline.marla_basis } : {}),
-    }));
+    // Changing or clearing the City clears the Locality at once (the server does the same, so a stale pair is never saved).
+    // Going back to the saved city within the same editing session brings the saved locality back; any other change empties it.
+    const cityChanged = name === "city" && value !== at(valuesRef.current, "city") && at(valuesRef.current, "locality") !== "";
+    setValues((current) => {
+      let locality: { locality: string } | Record<string, never> = {};
+      if (name === "city" && value !== at(current, "city")) {
+        locality = { locality: value !== "" && value === at(baseline, "city") && at(current, "locality") === "" ? at(baseline, "locality") : "" };
+      }
+      return {
+        ...current,
+        [name]: value,
+        ...(name === "area_unit" && !isMarlaUnit(value) ? { marla_basis: baseline.marla_basis } : {}),
+        ...locality,
+      };
+    });
+    if (cityChanged) announce(LOCALITY_CLEARED);
     setInfo("");
     // The last open conflict row hidden by typing the latest value by hand ends the banner, like resolving it with a button.
     if (conflict && conflict.fields.length > 0 && alert?.kind === "conflict") {
@@ -297,11 +326,12 @@ export function DraftEditor({
     if (together.length > 0) setLinked([]);
     setFieldErrors((current) => {
       const away = name === "area_unit" && !isMarlaUnit(value);
-      if (!current[name] && !(away && current.marla_basis) && !together.some((other) => current[other])) return current;
+      if (!current[name] && !(away && current.marla_basis) && !(cityChanged && current.locality) && !together.some((other) => current[other])) return current;
       const next = { ...current };
       delete next[name];
       for (const other of together) delete next[other]; // a floor problem belongs to both floor fields
       if (away) delete next.marla_basis; // its control goes: no error text and no summary link to it
+      if (cityChanged) delete next.locality; // the cleared locality has no value an error could be about
       return next;
     });
   }
@@ -345,7 +375,14 @@ export function DraftEditor({
     // The basis row follows the unit the form will have: the owner's own when changed, else the latest one.
     const unitTyped = !same("area_unit", typed.area_unit, before.area_unit);
     const visible: string[] = [...shownFields(registry, latest, unitTyped ? typed.area_unit : fresh.area_unit), ...shownDetails(registry, latest).map((def) => def.id)];
-    const ownerChanged = visible.filter((name) => !same(name, at(typed, name), at(before, name)));
+    // The owner changed only the locality while another session moved the city (the server cleared or replaced the locality): the typed
+    // locality belongs to the old city, so the latest pair is taken whole and the banner says so (never a stale city/locality pair).
+    const localityLost =
+      visible.includes("locality") &&
+      same("city", at(typed, "city"), at(before, "city")) &&
+      !same("city", at(fresh, "city"), at(before, "city")) &&
+      !same("locality", at(typed, "locality"), at(before, "locality"));
+    const ownerChanged = visible.filter((name) => !(name === "locality" && localityLost) && !same(name, at(typed, name), at(before, name)));
     const differing = ownerChanged.filter((name) => !same(name, at(typed, name), at(fresh, name)));
     // "Already saved" only when nothing outside the owner's own changes moved on the server.
     const elsewhere = visible.some((name) => !ownerChanged.includes(name) && !same(name, at(before, name), at(fresh, name)));
@@ -362,6 +399,7 @@ export function DraftEditor({
         if (!ownerChanged.includes(name) && same(name, at(current, name), at(before, name))) merged[name] = at(fresh, name);
       }
       if (basisLost) merged.marla_basis = fresh.marla_basis;
+      if (localityLost) merged.locality = at(fresh, "locality");
       for (const name of detailsLost) merged[name] = at(fresh, name);
       return merged;
     });
@@ -373,8 +411,9 @@ export function DraftEditor({
     showAlert({
       kind: "conflict",
       text: [
-        differing.length === 0 && !elsewhere && !basisLost && detailsLost.length === 0 ? ALREADY_SAVED : CONFLICT_BANNER,
+        differing.length === 0 && !elsewhere && !basisLost && !localityLost && detailsLost.length === 0 ? ALREADY_SAVED : CONFLICT_BANNER,
         basisLost ? BASIS_DROPPED : null,
+        localityLost ? LOCALITY_DROPPED : null,
         detailsLost.length > 0 ? DETAILS_DROPPED : null,
       ]
         .filter(Boolean)
@@ -426,7 +465,15 @@ export function DraftEditor({
     });
     // The latest unit does not need a basis: the typed one goes with its control, to the latest basis (the server cleared it).
     const away = name === "area_unit" && !isMarlaUnit(latest);
-    const extra: Values = away ? { marla_basis: fresh.marla_basis } : {};
+    // The latest city brings its own locality (a stale pair is never built).
+    // A latest locality belongs to the latest city: taking it brings the latest city too, so no stale pair is built.
+    const extra: Values = away
+      ? { marla_basis: fresh.marla_basis }
+      : name === "city"
+        ? { locality: at(fresh, "locality") }
+        : name === "locality" && latest !== "" && at(valuesRef.current, "city") !== at(fresh, "city")
+          ? { city: at(fresh, "city") }
+          : {};
     setValues((current) => ({ ...current, [name]: latest, ...extra }));
     if (away) {
       setFieldErrors((current) => {
@@ -537,9 +584,9 @@ export function DraftEditor({
           if (isFieldName(key) && shown.includes(key)) mapped[key] = mapKnownCodes(codes, EDIT_FIELD_MESSAGES[key]);
           else if (isFieldName(key)) general.push(...mapKnownCodes(codes, EDIT_FIELD_MESSAGES[key], REJECTED_ERROR));
           else if (detailIds.includes(key)) {
-            mapped[key] = mapKnownCodes(codes, detailMessages(registry.field(key)));
+            mapped[key] = codeTexts(registry.field(key), key, codes, GENERIC_FIELD_MESSAGE, at(submitted, "city") !== "");
             for (const code of codes) if (Object.hasOwn(CROSS_FIELD_GROUPS, code)) together.push(...CROSS_FIELD_GROUPS[code]);
-          } else general.push(...mapKnownCodes(codes, detailMessages(registry.field(key)), REJECTED_ERROR));
+          } else general.push(...codeTexts(registry.field(key), key, codes, REJECTED_ERROR));
         }
         // What was typed after the request went out is not what was judged: its errors (and a problem between fields that
         // touches it) are dropped, so no text points at a value the server never saw.
@@ -601,6 +648,16 @@ export function DraftEditor({
   function latestOf(name: string): string {
     if (isFieldName(name)) return latestText(name, baseline[name]);
     const def = registry?.field(name);
+    if (def?.type === "reference" && def.reference !== null) {
+      const latest = at(baseline, name);
+      if (latest === "") return NOT_ANSWERED;
+      if (def.reference === "locality") {
+        // The localities loaded are those of the form's city: the latest one is only named from them while the latest city is that city.
+        if (at(values, "city") !== at(baseline, "city")) return ANOTHER_LOCALITY;
+        if (lists.locality.status === "loading" || lists.locality.status === "idle") return LOADING_VALUE;
+      } else if (lists.city.status === "loading" || lists.city.status === "idle") return LOADING_VALUE;
+      return lists.nameOf(def.reference, latest) ?? SAVED_CHOICE_GONE;
+    }
     return def ? latestDetail(def, at(baseline, name)) : at(baseline, name) || NOT_SET;
   }
 
@@ -917,6 +974,7 @@ export function DraftEditor({
                 saved={baseline}
                 errors={shownErrors}
                 onDateInput={onDateInput}
+                lists={lists}
                 purpose={purpose}
                 category={listing.fields.category}
                 subtype={listing.fields.subtype}

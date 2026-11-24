@@ -80,11 +80,11 @@ try {
   const created = await near.json();
   const over = await upload(6 * 1024 * 1024 + 10);
   assert.equal(over.status, 400, "a body over 6 MiB reaches the backend, which refuses it");
-  assert.deepEqual((await over.json()).error.fields, { file: ["too_large"] });
+  assert.deepEqual((await over.json()).error.fields, { file: ["The image is too large. Use a file of up to 5 MB."] });
   // No proxy cap in the way: a body above 10 MB (the default limit of a buffering proxy) also reaches the backend in full.
   const huge = await upload(11 * 1024 * 1024);
   assert.equal(huge.status, 400, "a body over 10 MB reaches the backend, which refuses it");
-  assert.deepEqual((await huge.json()).error.fields, { file: ["too_large"] });
+  assert.deepEqual((await huge.json()).error.fields, { file: ["The image is too large. Use a file of up to 5 MB."] });
   const stats = await (await fetch(`${STUB}/__image-stats`)).json();
   assert.ok(stats.uploads[2].size > 11 * 1024 * 1024, "the whole 11 MB body arrived");
   assert.equal(stats.uploads[0].fileSize, PNG.length + 5 * 1024 * 1024 - 1000, "the file arrived whole");
@@ -96,6 +96,25 @@ try {
   assert.deepEqual(Buffer.from(await file.arrayBuffer()), PNG, "the image bytes are untouched by the proxy");
   assert.equal((await fetch(`${APP}${created.url}`)).status, 404, "a Visitor gets the not-found answer");
   console.log("ok  6 MiB upload and binary image through the proxy");
+  // Story 2.7: the reference lists pass through the proxy, an unknown city is 404, and the owner's Draft (private address included) is
+  // never cacheable and is not served to a Visitor.
+  await fetch(`${STUB}/__listings-preset?value=location_filled`);
+  const cities = await fetch(`${APP}/api/v1/reference/cities`);
+  assert.equal(cities.status, 200, "the city list passes the proxy");
+  const karachi = (await cities.json()).items[0].id;
+  const localities = await fetch(`${APP}/api/v1/reference/cities/${karachi}/localities`);
+  assert.equal(localities.status, 200, "the locality list passes the proxy");
+  assert.ok((await localities.json()).items.every((item) => ["area", "society"].includes(item.kind)), "localities carry a closed kind");
+  assert.equal((await fetch(`${APP}/api/v1/reference/cities/00000000-0000-4000-8000-000000000000/localities`)).status, 404);
+  const owner = await fetch(`${APP}/api/v1/listings/${ID}`, { headers: { cookie } });
+  assert.equal(owner.status, 200);
+  assert.match(owner.headers.get("cache-control") ?? "", /no-store/, "the owner's Draft read is no-store");
+  assert.equal((await owner.json()).fields.street, "Cedar Lane", "the owner reads the private address");
+  const visitor = await fetch(`${APP}/api/v1/listings/${ID}`);
+  // 401, not 404: the route requires a session (the backend answers a Visitor with `unauthenticated`); the 404 is for signed-in non-owners.
+  assert.equal(visitor.status, 401, "a Visitor gets no Draft");
+  assert.ok(!(await visitor.text()).includes("Cedar Lane"), "no private value in the Visitor's answer");
+  console.log("ok  location routes and the private Draft read through the proxy");
   console.log("Production listings check passed.");
 } finally {
   for (const child of children) child.kill();

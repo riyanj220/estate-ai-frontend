@@ -45,6 +45,11 @@ export type FieldDef = {
   currency: string | null;
   /** The decimal places a decimal field allows (decimal fields only). */
   scale: number | null;
+  /**
+   * A decimal whose lower bound is negative (the coordinates). The registry serves no `signed` marker yet, so this is read from the bounds
+   * (a negative `min` and a present `max`): only such a field accepts a leading minus when texts are compared.
+   */
+  signed: boolean;
   /** A derived field is computed by the server and is never input (Story 2.3). */
   derived: boolean;
   /** The registry's short explanation of what a value means, when it documents one. */
@@ -52,8 +57,12 @@ export type FieldDef = {
   allowedValues: string[];
   /** The registry marks the field as the owner's own claim, never checked by EstateAI (Story 2.5): the form says so next to it. */
   sellerDeclared: boolean;
-  /** Where a form groups the field (Story 2.6): `terms` for the sale and rent terms, else `details`; a missing or unknown marker is `details`. */
-  section: "terms" | "details";
+  /** Where a form groups the field (Stories 2.6 and 2.7): `terms` for the sale and rent terms, `location` for the location, else `details`; a missing or unknown marker is `details`. */
+  section: "terms" | "location" | "details";
+  /** What a `reference` field points at (Story 2.7): `city` or `locality`; null for every other type and for a reference this client does not know (no control then). */
+  reference: "city" | "locality" | null;
+  /** `private` fields are only ever shown to their owner. Anything that is not exactly `public` counts as private (fail closed). */
+  visibility: "public" | "private";
   /**
    * The values offered for a purpose and Subtype: the Subtype's own list when the registry narrows it (intersected with the
    * purpose's list when both exist; nothing when the Subtype has no entry), else the purpose's list, else every allowed value.
@@ -71,10 +80,11 @@ const isChoice = (value: unknown): value is string => isToken(value) || (typeof 
 const choices = (value: unknown): string[] | null => (Array.isArray(value) ? [...new Set(value.filter(isChoice))] : null);
 
 const limit = (value: unknown): number | null => (typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null);
-const decimalText = (value: unknown): string | null => (typeof value === "string" && /^\d{1,16}(\.\d{1,8})?$/.test(value) ? value : null);
+// A bound: ISO text for a date, decimal text for every other type; only a decimal bound may be negative (the coordinates: -90 and -180).
+const decimalText = (value: unknown, negative: boolean): string | null =>
+  typeof value === "string" && (negative ? /^-?\d{1,16}(\.\d{1,8})?$/ : /^\d{1,16}(\.\d{1,8})?$/).test(value) ? value : null;
 const dateText = (value: unknown): string | null => (typeof value === "string" && isIsoDate(value) ? value : null);
-/** A bound of this field type: ISO text for a date, decimal text for every other type. Anything else is no bound. */
-const bound = (type: string, value: unknown): string | null => (type === "date" ? dateText(value) : decimalText(value));
+const bound = (type: string, value: unknown): string | null => (type === "date" ? dateText(value) : decimalText(value, type === "decimal"));
 const covers = (list: string[], value: string | null) => list.length === 0 || (value !== null && list.includes(value));
 
 /** Reads the field definitions; an entry that is not usable is skipped, and a missing or odd list is simply no definitions. */
@@ -124,12 +134,15 @@ function readFields(value: unknown): Map<string, FieldDef> {
       min,
       max,
       currency: typeof raw.currency === "string" && /^[A-Z]{3}$/.test(raw.currency) ? raw.currency : null,
+      signed: type === "decimal" && min !== null && max !== null && min.startsWith("-"),
       scale: typeof raw.scale === "number" && Number.isInteger(raw.scale) && raw.scale >= 1 && raw.scale <= 8 ? raw.scale : null,
       derived: raw.derived === true,
       description: typeof raw.description === "string" && raw.description.trim() ? raw.description : null,
       allowedValues: allowed,
       sellerDeclared: raw.seller_declared === true,
-      section: raw.section === "terms" ? "terms" : "details",
+      section: raw.section === "terms" ? "terms" : raw.section === "location" ? "location" : "details",
+      reference: type === "reference" && (raw.reference === "city" || raw.reference === "locality") ? raw.reference : null,
+      visibility: raw.class === "public" ? "public" : "private",
       valuesFor: (purpose, subtype = null) => {
         const byPurpose = purpose !== null && narrowed.has(purpose) ? (narrowed.get(purpose) ?? allowed) : null;
         if (!hasSubtypeMap) return byPurpose ?? allowed;

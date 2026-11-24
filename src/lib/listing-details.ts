@@ -3,6 +3,7 @@ import {
   choiceLabel,
   formatArea,
   label,
+  normalizeText,
   type ListingView,
 } from "@/lib/listing-labels";
 import type { FieldDef, Registry } from "@/lib/use-registry";
@@ -21,6 +22,13 @@ export const TRIMMED_DECIMALS = ["area_value", "covered_area_sqft"];
 
 /** The registry types the Details section has a control for; a field of another type gets none. */
 const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money", "date"];
+
+/**
+ * Whether a field has a control in the generic sections. The location section (Story 2.7) also has controls for plain text and for a
+ * `reference` (a city or locality chosen from a list); a text field elsewhere has none, and a reference this client does not know has none.
+ */
+const hasControl = (def: FieldDef): boolean =>
+  DETAIL_TYPES.includes(def.type) || (def.section === "location" && (def.type === "text" || (def.type === "reference" && def.reference !== null)));
 
 /** Labels by registry id. The registry carries ids only; text a person reads lives here. */
 const DETAIL_LABELS: Record<string, string> = {
@@ -92,6 +100,16 @@ const DETAIL_LABELS: Record<string, string> = {
   utility_internet_included: "Internet included",
   pets_allowed: "Pets allowed",
   occupant_restrictions: "Occupant restrictions",
+  city: "City",
+  locality: "Locality",
+  society: "Society",
+  phase: "Phase",
+  sector: "Sector",
+  block: "Block",
+  street: "Street",
+  house_number: "House number",
+  latitude: "Latitude",
+  longitude: "Longitude",
 };
 
 /** Labels that differ by Category (so a new Subtype of the Category inherits them): commercial property is fitted out rather than furnished. */
@@ -121,16 +139,31 @@ export function shownDetails(registry: Registry, listing: ListingView): FieldDef
       (def) =>
         !NOT_DETAILS.has(def.id) &&
         !(def.id in Object.prototype) &&
-        DETAIL_TYPES.includes(def.type) &&
+        hasControl(def) &&
         !def.derived &&
         def.appliesTo(purpose, category, subtype),
     );
 }
 
-/** The sale and rent terms (registry `section: terms`) go in their own fieldset, never guessed from applicability; every other detail stays in Details. */
-export function splitTerms(defs: FieldDef[]): { terms: FieldDef[]; details: FieldDef[] } {
-  return { terms: defs.filter((def) => def.section === "terms"), details: defs.filter((def) => def.section !== "terms") };
+/**
+ * The sale and rent terms (registry `section: terms`) and the location (`section: location`, Story 2.7) go in their own blocks, never
+ * guessed from applicability; every other detail stays in Details. The location splits by the registry's `class`: the public part and the
+ * private address (a field whose class is not exactly `public` is private).
+ */
+export function splitTerms(defs: FieldDef[]): { terms: FieldDef[]; details: FieldDef[]; publicLocation: FieldDef[]; privateAddress: FieldDef[] } {
+  const location = defs.filter((def) => def.section === "location");
+  return {
+    terms: defs.filter((def) => def.section === "terms"),
+    details: defs.filter((def) => def.section !== "terms" && def.section !== "location"),
+    publicLocation: location.filter((def) => def.visibility === "public"),
+    privateAddress: location.filter((def) => def.visibility !== "public"),
+  };
 }
+
+export const PUBLIC_LOCATION = "Public location";
+export const PUBLIC_LOCATION_HELP = "Shown to everyone on your listing.";
+export const PRIVATE_ADDRESS = "Private address (only you can see this)";
+export const PRIVATE_ADDRESS_HELP = "Never shown to buyers. Only you can see this.";
 
 /** The title of the Terms fieldset by the Draft's purpose; a purpose this client does not know gets the plain "Terms". */
 export function termsTitle(purpose: string | null): string {
@@ -171,14 +204,16 @@ function moneyKey(value: string, scale: number): string {
  * most ten whole digits, at most `scale` decimals) is compared by amount ("35" and "35.00" are the same); any other text (padded,
  * comma, too many decimals) is its own trimmed plain text and is sent for the server to judge, never swallowed as "no change".
  */
-function measureKey(value: string, scale: number): string {
+function measureKey(value: string, scale: number, signed = false): string {
   const plain = value.trim();
-  const match = /^(0|[1-9]\d{0,9})(?:\.(\d+))?$/.exec(plain);
+  // A leading minus is part of the shape only for a signed field (the coordinates); "-0" and "0" are the same amount there.
+  const match = (signed ? /^(-?)(0|[1-9]\d{0,9})(?:\.(\d+))?$/ : /^()(0|[1-9]\d{0,9})(?:\.(\d+))?$/).exec(plain);
   if (!match) return plain;
-  const decimals = match[2] ?? "";
+  const decimals = match[3] ?? "";
   if (decimals.length > scale) return plain;
   const kept = decimals.replace(/0+$/, "");
-  return kept ? `${match[1]}.${kept}` : match[1];
+  const amount = kept ? `${match[2]}.${kept}` : match[2];
+  return match[1] && amount !== "0" ? `-${amount}` : amount;
 }
 
 /** The whole part grouped in threes and the decimals padded to the scale ("3000" is "3,000.00" at scale 2), never a number. */
@@ -198,10 +233,12 @@ export function sameDetail(def: FieldDef, a: string, b: string): boolean {
     // zeros is no change. Typed text beyond the larger of the two limits is its own key and is sent for the server to judge.
     const stored = /^\d+\.(\d+)$/.exec(b.trim());
     const limit = Math.max(def.scale ?? 4, stored ? stored[1].length : 0);
-    return measureKey(a, limit) === measureKey(b, limit);
+    return measureKey(a, limit, def.signed) === measureKey(b, limit, def.signed);
   }
   if (def.type === "money") return moneyKey(a, def.scale ?? 2) === moneyKey(b, def.scale ?? 2);
   if (def.type === "date") return a.trim() === b.trim(); // ISO text compared as text: no Date, no time zone
+  if (def.type === "text") return normalizeText(a, false) === normalizeText(b, false); // as the server normalises a line of text
+  if (def.type === "reference") return a.trim() === b.trim(); // an id: exact text
   return false;
 }
 
@@ -215,7 +252,7 @@ export function sentDetail(def: FieldDef, value: string): string | number | bool
   if (!text) return null;
   if (def.type === "integer") return INTEGER_TEXT.test(text) ? Number(text) : text;
   if (def.type === "boolean") return text === "true" ? true : text === "false" ? false : null;
-  return text;
+  return text; // a line of text, a reference id and a decimal all go as trimmed text: the server judges them
 }
 
 export const NOT_ANSWERED = "Not answered";
@@ -247,6 +284,7 @@ export function detailHint(def: FieldDef): string {
     if (limits) parts.push(limits);
   }
   if (def.type === "date" && limits) parts.push(limits); // the bounds are ISO text; the registry's own description names the format
+  if (def.type === "text" && def.maxLength !== null) parts.push(`Up to ${def.maxLength} characters.`);
   return parts.join(" ");
 }
 

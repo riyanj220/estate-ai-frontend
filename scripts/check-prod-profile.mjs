@@ -91,7 +91,7 @@ try {
   assert.deepEqual(profile.image, image, "the profile carries the image");
   const over = await upload(PICTURE, 6 * 1024 * 1024 + 10);
   assert.equal(over.status, 400, "a body over 6 MiB reaches the backend, which refuses it");
-  assert.deepEqual((await over.json()).error.fields, { file: ["too_large"] });
+  assert.deepEqual((await over.json()).error.fields, { file: ["The image is too large. Use a file of up to 5 MB."] });
   const huge = await upload(PICTURE, 11 * 1024 * 1024);
   assert.equal(huge.status, 400, "a body over 10 MB reaches the backend in full, which refuses it");
   const state = await stats();

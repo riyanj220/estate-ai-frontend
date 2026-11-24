@@ -780,6 +780,61 @@ story spec grouped terms by applicability, the registry's explicit `section` mar
   `tests/e2e/listing-terms.spec.ts` (one or more per row of the story's matrix, time zones, the stub's own rules, axe at desktop and mobile);
   the Story 2.4 and 2.5 tests in `listing-edit.spec.ts` now scope their Details group lookups to the Details block.
 
+## Location and private address (Story 2.7)
+
+Frontend half of Story 2.7 on the same generic section code: registry version 7 (shape 6: every field serves `reference`, `section: location`
+joins `terms` and `details`, class `public` | `private`). The contract is the backend's `docs/registry.md`, `docs/listings.md` and
+`docs/reference-data.md`.
+
+- **Generic renderer**: `reference` is a registry field type like any other. `DetailsSection` (`details-section.tsx`) renders it as a real
+  `<select>` (`ReferenceSelect`); `text` fields of `section: location` get a text input (a text field in another section still has no
+  control). `splitTerms` returns `publicLocation` and `privateAddress` by the registry's `class` (anything that is not exactly `public` counts
+  as private, fail closed). Nothing about city, locality or the ten fields is hard-coded beyond their labels (`DETAIL_LABELS`).
+- **Layout**: a "Location" h3 before the Terms block with two fieldsets, "Public location" (helper "Shown to everyone on your listing.":
+  City, Locality, Society, Phase, Sector, Block) and "Private address (only you can see this)" (own heading, a 2px border, helper "Never
+  shown to buyers. Only you can see this.": Street, House number, Latitude, Longitude). The location is not part of the "What exists so far"
+  summary (nothing of the location, public or private, is listed there).
+- **Reference lists** (`src/lib/use-reference.ts`): cities from `/api/v1/reference/cities`, the localities of the form's current city from
+  `/api/v1/reference/cities/{city_id}/localities` (requested only for a canonical uuid, Areas and Societies as `optgroup`s). Fail-closed
+  parsing: an item needs a canonical uuid, a name of 1 to 80 code points (trimmed) and (localities) kind `area` | `society`; unusable items are
+  dropped, a list with nothing usable is a failure. Each list has loading, empty (a `404` counts as empty only when the body is the backend's
+  `not_found` envelope; any other 404 is a failure) and failed states in a status
+  line, with a Retry that stays mounted (and `aria-disabled`) while it reloads. Only the latest request wins. Lists are never cached or stored.
+- **Selects**: both are `aria-disabled` (never `disabled`) and offer only their placeholder until usable; the Locality placeholder reads
+  "Choose a city first". A saved value the list does not hold stays selectable, marked "Saved choice (not in the current list)".
+- **City clears Locality**: changing or clearing the city empties the locality in the form at once (announced), mirroring the server rule;
+  the save then sends the city and `locality: null`. Returning to the saved city in the same editing session restores the saved locality. In
+  a conflict the city and locality always move as a pair: "Use latest" for the city takes the latest locality, "Use latest" for the locality
+  takes the latest city, and when the owner changed only the locality while another session moved the city the latest pair is taken whole
+  (the banner says so). A "Latest saved" locality is named only from the form's own list when the latest city is the form's city; otherwise
+  it reads "Another locality" (or "Loading…").
+- **Signed decimals**: the registry serves no `signed` marker yet, so a decimal is treated as signed only when its `min` is negative and it
+  has a `max` (the coordinates); only then does a leading minus count when texts are compared, and the input mode is text so a keypad can
+  type the minus. Every other measure keeps rejecting a minus.
+- **Errors** (`LOCATION_MESSAGES`, `mapLocationCodes`): codes `invalid`, `locality_not_in_city`, `contains_contact_details`, `too_long`,
+  `out_of_range`, `not_applicable`, `not_editable`, each with the client's own text per field; anything else is the generic text. The
+  coordinate pairing error appears on the field that is empty ("Enter a decimal number such as 24.860000. Latitude and longitude go
+  together."); `invalid` on a locality reads "Choose a locality from the list." while a city is chosen and "Choose a city first." otherwise.
+- **The real wire is sentences, not codes**: the backend reports `error.fields` as arrays of static SENTENCES (`FIELD_MESSAGES` in
+  `apps/kernel/errors.py`). `src/lib/error-sentences.ts` holds the complete reverse table (sentence to code; where two codes share a
+  sentence the first, the one the mappers key on, is kept) and `readErrorBody` (`forms.ts`) applies it once, so a known sentence becomes its code
+  before any mapper of any page runs; a value that is already a code, or a sentence not in the table, passes through unchanged. The register, resend-link and admin sign-in forms, which show the server's own sentence, read the body raw (`readErrorBody(body, true)`). The stub sends
+  the real sentences by default (`/__wire-mode?value=codes` switches to codes; `tests/e2e/field-sentences.json` is the forward table) and
+  `tests/e2e/error-sentences.spec.ts` fails when either table disagrees with the backend file (it skips with a message when the sibling
+  repository is not at `../estate-ai-backend`; set `BACKEND_ERRORS_PY` to point elsewhere).
+- **Privacy**: the private values live only in the form's React state: no web storage, IndexedDB, console output, URL or history state; inputs
+  use `autocomplete="off"`, `autocorrect="off"`, `autocapitalize="off"` and `spellcheck="false"`; the only request that carries them is the
+  owner's own save. A Playwright test checks web storage, IndexedDB, cookies, the address, `history.state`, the title, the console and every
+  request body after saves, a refusal and a conflict. A field with no `class` or an unknown one is shown in the private group.
+- **Playwright stub**: registry version 7 / shape 6 with the ten fields (`section: location`, class), reference routes (cities, localities
+  per city: Karachi areas and societies, Islamabad two, Lahore none, unknown 404; modes via `/__localities-mode`: `error`, `flaky`, `slow`,
+  `malformed`, `partial`, `empty`), PATCH validation that mirrors the backend (`locality_not_in_city`, locality without a city, clearing the
+  locality when the city changes, coordinate pairing, bounds and scale, `contains_contact_details`, `too_long`), patch modes
+  `location_codes`, `location_sentences`, `location_unknown`, presets `location_filled` and `location_gone`. The stub only has the owner's
+  resource, the only shape that carries private values; one test in the spec is a stub self-test (not frontend coverage) of its pair rules.
+  Tests: `tests/e2e/listing-location.spec.ts`. `npm run check:prod-listings` also checks
+  the production proxy for the new routes and the no-store Draft read.
+
 ## Images: upload, order, cover and delete (Story 2.10)
 
 Frontend half of Story 2.10 (the contract is the backend's `docs/media.md`, `docs/listings.md` and `docs/rate-limits.md`). The Draft page has an

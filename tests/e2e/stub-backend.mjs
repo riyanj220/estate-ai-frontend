@@ -1,6 +1,19 @@
 // Minimal stand-in for the Django backend, used only by the Playwright tests.
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
+
+// The real API reports `error.fields` as arrays of static SENTENCES (backend `FIELD_MESSAGES`), not codes. The stub keeps the stories' codes
+// in its handlers and turns them into the real sentences on the wire (`wireMode` "sentences", the default); "codes" sends them as they are.
+// A value that is not a known code (a made-up sentence, an odd key) is sent unchanged either way.
+const FIELD_SENTENCES = JSON.parse(readFileSync(new URL("./field-sentences.json", import.meta.url), "utf8"));
+let wireMode = "sentences";
+const wireFields = (fields) =>
+  wireMode === "codes" || typeof fields !== "object" || fields === null
+    ? fields
+    : Object.fromEntries(
+        Object.entries(fields).map(([key, values]) => [key, Array.isArray(values) ? values.map((value) => (typeof value === "string" && Object.hasOwn(FIELD_SENTENCES, value) ? FIELD_SENTENCES[value] : value)) : values]),
+      );
 
 let mode = "up";
 let lastCookie = "";
@@ -60,6 +73,24 @@ const CITIES = [
   { id: "22222222-2222-4222-8222-222222222222", name: "Lahore" },
   { id: "33333333-3333-4333-8333-333333333333", name: "Islamabad" },
 ];
+// Localities (Story 2.7): Karachi has areas and societies, Islamabad one of each, Lahore none (an empty list); any other id is unknown (404).
+let localitiesMode = "ok";
+let localitiesCount = 0;
+let localitiesAnswered = 0; // answers actually sent (a slow one counts when it leaves)
+let localityCityIds = [];
+const loc = (seq, name, kind) => ({ id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(seq).padStart(12, "0")}`, name, kind });
+const LOCALITIES = {
+  "11111111-1111-4111-8111-111111111111": [
+    loc(1, "Clifton", "area"),
+    loc(2, "Gulshan-e-Iqbal", "area"),
+    loc(3, "DHA Phase 6", "society"),
+    loc(4, "Bahria Town Karachi", "society"),
+  ],
+  "22222222-2222-4222-8222-222222222222": [],
+  "33333333-3333-4333-8333-333333333333": [loc(11, "Blue Area", "area"), loc(12, "Capital Heights", "society")],
+};
+const KARACHI = "11111111-1111-4111-8111-111111111111";
+const cityOfLocality = (id) => Object.entries(LOCALITIES).find(([, list]) => list.some((entry) => entry.id === id))?.[0] ?? null;
 // Profile and email change stand-ins (Story 1.20). The profile is stateful so a save shows on the next read.
 const PROFILE_START = { full_name: "Ayesha Khan", phone: "+923001234567", email: "ayesha@example.com", pending_email: null };
 let profile = { ...PROFILE_START };
@@ -197,6 +228,7 @@ const fieldDef = (id, type, requirement, extra = {}) => ({
   scale: null,
   derived: false,
   description: null,
+  reference: null,
   class: "public",
   searchable: false,
   sortable: false,
@@ -526,8 +558,35 @@ Object.defineProperty(REGISTRY_FIELDS, "extra", {
     ];
   },
 });
-const REGISTRY_VERSION = 6;
-const REGISTRY_SHAPE = 5;
+// Story 2.7: the location of registry version 7 (shape 6), as the backend defines it: `city` and `locality` are `reference` fields, the
+// public location text is class public, the private address (street, house number, coordinates) is class private. All in `section: location`.
+const locDef = (id, type, requirement, extra = {}) => fieldDef(id, type, requirement, { section: "location", ...extra });
+const LOCATION_DEFS = [
+  locDef("city", "reference", "required_for_publication", { reference: "city", searchable: true }),
+  locDef("locality", "reference", "required_for_publication", { reference: "locality", searchable: true }),
+  ...["society", "phase", "sector", "block"].map((id) => locDef(id, "text", "optional", { min_length: 0, max_length: 60, ai_extractable: true })),
+  locDef("street", "text", "optional", { min_length: 0, max_length: 120, class: "private" }),
+  locDef("house_number", "text", "optional", { min_length: 0, max_length: 30, class: "private" }),
+  locDef("latitude", "decimal", "optional", { min: "-90", max: "90", scale: 6, class: "private" }),
+  locDef("longitude", "decimal", "optional", { min: "-180", max: "180", scale: 6, class: "private" }),
+];
+REGISTRY_FIELDS.default.push(...LOCATION_DEFS);
+// A location field with no `class` and one with an unknown `class`: both must be treated as private (fail closed).
+Object.defineProperty(REGISTRY_FIELDS, "oddclass", {
+  enumerable: true,
+  get() {
+    return this.default.map((entry) => {
+      if (entry.id === "society") {
+        const copy = { ...entry };
+        delete copy.class;
+        return copy;
+      }
+      return entry.id === "phase" ? { ...entry, class: "secret" } : entry;
+    });
+  },
+});
+const REGISTRY_VERSION = 7;
+const REGISTRY_SHAPE = 6;
 let fieldsName = "default";
 let taxonomyName = "default";
 let registryMode = "ok";
@@ -548,6 +607,7 @@ const EMPTY_EDITABLE = {
   ...Object.fromEntries(RESIDENTIAL_IDS.map((id) => [id, null])),
   ...Object.fromEntries(PLOT_COMMERCIAL_DEFS.map((entry) => [entry.id, null])),
   ...Object.fromEntries(TERMS_DEFS.map((entry) => [entry.id, null])),
+  ...Object.fromEntries(LOCATION_DEFS.map((entry) => [entry.id, null])),
 };
 // What a client may send (the derived square feet never): the real service answers `not_editable` for `area_sqft`.
 const INPUT_FIELDS = Object.keys(EMPTY_EDITABLE).filter((key) => key !== "area_sqft");
@@ -642,6 +702,31 @@ const checkDetail = (rule, value, fields) => {
     return (rule.min && value < rule.min) || (rule.max && value > rule.max) ? { code: "invalid_date" } : { value };
   }
   return { code: "invalid" }; // a type with no editor
+};
+/** The real rules for one location field (Story 2.7): [value, code]. Ids are uuid text of a known city or locality; coordinates are signed decimal text. */
+const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const checkLocation = (rule, value) => {
+  if (rule.type === "reference") {
+    const text = typeof value === "string" && UUID_TEXT.test(value.trim()) ? value.trim().toLowerCase() : null;
+    if (text === null) return { code: "invalid" };
+    if (rule.reference === "city") return Object.hasOwn(LOCALITIES, text) ? { value: text } : { code: "invalid" };
+    return cityOfLocality(text) !== null ? { value: text } : { code: "invalid" };
+  }
+  if (rule.type === "text") {
+    if (typeof value !== "string" || /[\u0000-\u001F\u007F]/.test(value)) return { code: "invalid" };
+    const text = value.normalize("NFC").replace(/\s+/g, " ").trim();
+    if (text === "") return { value: null };
+    if (Array.from(text).length > rule.max_length) return { code: "too_long" };
+    if (/@|\b0\d{10}\b|\+\d{8,}/.test(text)) return { code: "contains_contact_details" };
+    return { value: text };
+  }
+  const match = typeof value === "string" && value.length <= 40 ? AREA_TEXT.exec(value.trim()) : null;
+  if (!match) return { code: "invalid" };
+  if ((match[3] ?? "").length > 6) return { code: "out_of_range" };
+  const scaled = toScaled(`${match[2]}.${match[3] ?? ""}`, 6);
+  const signed = match[1] && scaled !== 0n ? -scaled : scaled;
+  if (signed < BigInt(rule.min) * 1000000n || signed > BigInt(rule.max) * 1000000n) return { code: "out_of_range" };
+  return { value: `${signed < 0n ? "-" : ""}${fromScaled(signed < 0n ? -signed : signed, 6)}` };
 };
 const settleArea = (fields) => {
   if (!MARLA_UNITS.includes(fields.area_unit)) fields.marla_basis = null;
@@ -743,6 +828,17 @@ const LISTING_PRESETS = {
       2,
     ),
   ],
+  // Story 2.7: a Draft with the location and the private address set (revision 2).
+  location_filled: () => [
+    makeListing(
+      1,
+      "mine",
+      { city: KARACHI, locality: "aaaaaaaa-aaaa-4aaa-8aaa-000000000003", society: "Palm Society", phase: "Phase Two", sector: "Sector Nine", block: "Block Seven", street: "Cedar Lane", house_number: "Plot 12", latitude: "24.860000", longitude: "67.010000" },
+      2,
+    ),
+  ],
+  // A saved city and locality that are no longer in the lists (deactivated since).
+  location_gone: () => [makeListing(1, "mine", { city: "99999999-9999-4999-8999-999999999999", locality: "99999999-9999-4999-8999-999999999998" }, 2)],
   house_zero: () => [makeListing(1, "mine", { bedrooms: 0, kitchens: 0, basement: false }, 2)],
   // Stored values the form cannot represent: a float for an integer, a JSON number for a decimal, a text for a yes/no, a choice outside the
   // registry, an unsafe integer, and a poisoned key.
@@ -929,7 +1025,13 @@ createServer((req, res) => {
     res.writeHead(status, { "content-type": "application/json" });
     res.end(JSON.stringify(body));
   };
-  const envelope = (code, message, fields = {}) => ({ error: { code, message, fields, request_id: "stub" } });
+  const envelope = (code, message, fields = {}) => ({ error: { code, message, fields: wireFields(fields), request_id: "stub" } });
+  if (url.pathname === "/__wire-mode") {
+    const value = url.searchParams.get("value") ?? "sentences";
+    if (!["sentences", "codes"].includes(value)) return json(400, { error: "unknown mode" });
+    wireMode = value;
+    return json(200, { wireMode });
+  }
   if (url.pathname === "/__confirm-mode") {
     const value = url.searchParams.get("value") ?? "ok";
     if (!["ok", "expired", "used", "invalid", "unknown_code", "expired_status_unknown_code", "invalid_status_no_code", "flaky", "error", "broken", "hang"].includes(value)) {
@@ -1391,7 +1493,7 @@ createServer((req, res) => {
   if (url.pathname === "/__listing-patch-mode") {
     return choose(
       "patchMode",
-      ["ok", "slow", "codes", "hidden", "area_codes", "area_hidden", "area_other_codes", "detail_codes", "plot_codes", "commercial_codes", "detail_floor", "detail_codes_slow", "term_codes", "term_hidden", "detail_not_editable", "detail_not_applicable", "detail_hidden", "detail_unknown", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
+      ["ok", "slow", "codes", "hidden", "area_codes", "area_hidden", "area_other_codes", "detail_codes", "location_codes", "location_invalid", "sentence_all", "location_sentences", "location_unknown", "plot_codes", "commercial_codes", "detail_floor", "detail_codes_slow", "term_codes", "term_hidden", "detail_not_editable", "detail_not_applicable", "detail_hidden", "detail_unknown", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
       (v) => {
         patchMode = v;
         patchLostSpent = false;
@@ -1419,7 +1521,7 @@ createServer((req, res) => {
     }
     settleArea(target.fields);
     target.revision += 1;
-    target.registryVersion = 6;
+    target.registryVersion = REGISTRY_VERSION;
     return json(200, { revision: target.revision });
   }
   if (url.pathname === "/__hand-ids") return json(200, { ids: HAND_IDS });
@@ -1600,6 +1702,11 @@ createServer((req, res) => {
         return patchMode === "slow" ? void setTimeout(conflict, 600) : conflict();
       }
       if (patchMode === "codes") return fail({ title: ["too_short"], description: ["contains_contact_details"], asking_price: ["invalid_price"], price_basis: ["invalid_choice"] });
+      if (patchMode === "location_codes") return fail({ city: ["invalid"], locality: ["locality_not_in_city"], society: ["contains_contact_details"], street: ["too_long"], latitude: ["out_of_range"], longitude: ["invalid"], block: ["mystery_code"] });
+      if (patchMode === "location_sentences") return fail({ locality: ["Choose a locality that belongs to the selected city."], society: ["This text cannot contain phone numbers, email addresses or street addresses."], latitude: ["Enter a number within the allowed range, using digits and a decimal point."], street: ["Some server sentence."] });
+      if (patchMode === "location_invalid") return fail({ locality: ["invalid"] });
+      if (patchMode === "sentence_all") return fail({ title: ["too_short"], asking_price: ["invalid_price"], area_value: ["invalid_area"], floor_number: ["invalid_floor"], building_floors: ["invalid_floor"], lift: ["not_applicable"], bedrooms: ["not_editable"], city: ["invalid"], street: ["too_long"], longitude: ["invalid"] });
+      if (patchMode === "location_unknown") return fail({ city: ["constructor"], phase: ["Some server sentence."], house_number: ["not_applicable"] });
       if (patchMode === "hidden") return fail({ rental_period: ["not_applicable"] });
       if (patchMode === "area_codes") return fail({ area_value: ["invalid_area"], area_unit: ["invalid_choice"], marla_basis: ["not_applicable"] });
       if (patchMode === "area_other_codes") return fail({ area_unit: ["invalid"], area_value: ["not_editable"], marla_basis: ["required"] });
@@ -1684,6 +1791,10 @@ createServer((req, res) => {
         } else if (key === "marla_basis") {
           if (typeof value === "string" && (rule?.allowed_values ?? []).includes(value)) next[key] = value;
           else problems[key] = ["invalid_choice"];
+        } else if (rule?.section === "location") {
+          const result = checkLocation(rule, value);
+          if (result.code) problems[key] = [result.code];
+          else next[key] = result.value;
         } else if (!rule) {
           problems.non_field_errors = ["unknown_field"]; // a detail the current registry does not define
         } else {
@@ -1701,6 +1812,21 @@ createServer((req, res) => {
         if (floor !== null && building !== null && floor > building) {
           problems.floor_number = ["invalid_floor"];
           if (Object.hasOwn(next, "building_floors")) problems.building_floors = ["invalid_floor"];
+        }
+      }
+      // Location (Story 2.7), judged on the resulting state. Changing or clearing the city without sending a locality clears the stored one;
+      // a locality needs a city and must belong to it; the coordinates are both or neither (the code is on the field that ends up empty).
+      if (currentDef("city")) {
+        const now = (key) => (Object.hasOwn(next, key) ? next[key] : (target.fields[key] ?? null));
+        if (Object.hasOwn(next, "city") && next.city !== (target.fields.city ?? null) && !Object.hasOwn(sent, "locality") && target.fields.locality) next.locality = null;
+        if (!problems.locality && now("locality") !== null && (Object.hasOwn(next, "locality") || Object.hasOwn(next, "city"))) {
+          if (now("city") === null) problems.locality = ["invalid"];
+          else if (cityOfLocality(now("locality")) !== now("city")) problems.locality = ["locality_not_in_city"];
+        }
+        if (Object.hasOwn(next, "latitude") || Object.hasOwn(next, "longitude")) {
+          for (const [key, other] of [["latitude", "longitude"], ["longitude", "latitude"]]) {
+            if (!problems[key] && !problems[other] && now(key) === null && now(other) !== null) problems[key] = ["invalid"];
+          }
         }
       }
       // Cross-field, on the resulting state: a basis only while the unit is marla or kanal; a unit moved away clears a stored one.
@@ -1724,7 +1850,7 @@ createServer((req, res) => {
           else target.provenance[key] = { origin: "manual", confirmed: true };
         }
         target.revision += 1;
-        target.registryVersion = 6;
+        target.registryVersion = REGISTRY_VERSION;
       }
       if (patchMode === "lost_once" && !patchLostSpent) {
         patchLostSpent = true;
@@ -2430,7 +2556,7 @@ createServer((req, res) => {
       if (emailChangeMode === "wrong_password") return fail({ current_password: ["incorrect"] });
       if (emailChangeMode === "invalid_email") return fail({ new_email: ["invalid_email"] });
       if (emailChangeMode === "required") return fail({ new_email: ["required"], current_password: ["required"] });
-      if (emailChangeMode === "sentences") return fail({ new_email: ["This address is already registered."], current_password: ["The current password is incorrect."], role: ["Some server sentence."] });
+      if (emailChangeMode === "sentences") return fail({ new_email: ["This address is already registered."], current_password: ["The password you entered is wrong."], role: ["Some server sentence."] });
       if (emailChangeMode === "proto") return fail({ new_email: ["__proto__"], current_password: ["constructor"] });
       if (emailChangeMode === "non_field") return fail({ non_field_errors: ["unknown_field"] });
       if (emailChangeMode === "unknown_code") return fail({ current_password: ["mystery_code"] });
@@ -2570,6 +2696,38 @@ createServer((req, res) => {
     if (citiesMode === "slow") return void setTimeout(() => json(200, { items: CITIES }), 1500);
     return serverFailure(citiesMode);
   }
+  if (url.pathname === "/__localities-mode") {
+    return choose("localitiesMode", ["ok", "error", "flaky", "slow", "hang", "malformed", "partial", "empty", "html404", "emoji"], (v) => {
+      localitiesMode = v;
+      localitiesCount = 0;
+      localitiesAnswered = 0;
+      localityCityIds = [];
+    });
+  }
+  if (url.pathname === "/__last-localities") return json(200, { count: localitiesCount, answered: localitiesAnswered, cityIds: localityCityIds });
+  const localitiesMatch = /^\/api\/v1\/reference\/cities\/([^/]+)\/localities$/.exec(url.pathname);
+  if (localitiesMatch && req.method === "GET") {
+    localitiesCount += 1;
+    const cityId = decodeURIComponent(localitiesMatch[1]);
+    localityCityIds.push(cityId);
+    if (!Object.hasOwn(LOCALITIES, cityId)) return json(404, envelope("not_found", "Not found."));
+    const list = LOCALITIES[cityId];
+    if (localitiesMode === "html404") {
+      res.writeHead(404, { "content-type": "text/html" });
+      return res.end("<html><body>Not Found</body></html>");
+    }
+    if (localitiesMode === "emoji") {
+      return json(200, { items: [{ id: "bbbbbbbb-bbbb-4bbb-8bbb-000000000001", name: "😀".repeat(50), kind: "area" }, { id: "bbbbbbbb-bbbb-4bbb-8bbb-000000000002", name: "😀".repeat(81), kind: "area" }, list[0]] });
+    }
+    if (localitiesMode === "slow") return void setTimeout(() => { localitiesAnswered += 1; json(200, { items: list }); }, 1200);
+    localitiesAnswered += 1;
+    if (localitiesMode === "ok") return json(200, { items: list });
+    if (localitiesMode === "empty") return json(200, { items: [] });
+    if (localitiesMode === "malformed") return json(200, { items: [{ id: 7, name: "Numeric id", kind: "area" }, { id: list[0]?.id ?? "x", name: "Bad kind", kind: "district" }, null] });
+    if (localitiesMode === "partial") return json(200, { items: [...list.slice(0, 1), { id: "not-an-id", name: "Odd", kind: "area" }, { ...list[0] }, { id: "bbbbbbbb-bbbb-4bbb-8bbb-000000000001", name: "Wrong kind", kind: "other" }, ...list.slice(1)] });
+    if (localitiesMode === "flaky") return localitiesCount === 1 ? json(500, envelope("server_error", "Internal detail that must not show.")) : json(200, { items: list });
+    return serverFailure(localitiesMode);
+  }
   if (url.pathname === "/__agency-mode") {
     return choose("agencyMode", [
       "accepted", "existing", "ok_200", "email_sentence", "fields", "required", "sentences", "invalid_city", "mixed", "non_field", "empty_fields",
@@ -2666,8 +2824,13 @@ createServer((req, res) => {
     agencyMode = "accepted";
     agencyCount = 0;
     lastAgency = null;
+    wireMode = "sentences";
     citiesMode = "ok";
     citiesCount = 0;
+    localitiesMode = "ok";
+    localitiesCount = 0;
+    localitiesAnswered = 0;
+    localityCityIds = [];
     profile = { ...PROFILE_START };
     profileMode = profilePatchMode = emailChangeMode = emailConfirmMode = "ok";
     profileGets = profilePatchCount = emailChangeCount = emailConfirmCount = 0;
@@ -2743,7 +2906,7 @@ createServer((req, res) => {
       } catch {
         lastRegistration = null;
       }
-      const envelope = (code, message, fields = {}) => ({ error: { code, message, fields, request_id: "stub" } });
+      const envelope = (code, message, fields = {}) => ({ error: { code, message, fields: wireFields(fields), request_id: "stub" } });
       if (registrationMode === "accepted") return json(202, { status: "check_your_email" });
       if (registrationMode === "ok_200") return json(200, { status: "check_your_email" });
       if (registrationMode === "fields") {

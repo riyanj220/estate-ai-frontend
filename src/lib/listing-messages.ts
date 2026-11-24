@@ -146,6 +146,55 @@ export const DETAIL_MESSAGES: Record<string, Record<string, string>> = {
   },
 };
 
+/**
+ * The location fields (Story 2.7), by registry field: known codes only, with the client's own text. The real API's sentences were already
+ * turned into codes where the error body was read (`error-sentences.ts`).
+ */
+const LOCATION_COMMON: Record<string, string> = { not_applicable: DETAIL_NOT_APPLICABLE, not_editable: NOT_EDITABLE };
+const LOCATION_TEXT: Record<string, string> = {
+  ...LOCATION_COMMON,
+  invalid: "This text contains characters that are not allowed. Remove them and try again.",
+  too_long: "This text is too long. Check the limit shown above.",
+  too_short: "This text is too short.",
+  contains_contact_details: "This text cannot contain phone numbers, email addresses or street addresses.",
+};
+const COORDINATE_RULE = "Enter a decimal number such as 24.860000. Latitude and longitude go together.";
+export const LOCATION_MESSAGES: Record<string, Record<string, string>> = {
+  city: { ...LOCATION_COMMON, invalid: "Choose a city from the list.", invalid_choice: "Choose a city from the list." },
+  locality: {
+    ...LOCATION_COMMON,
+    invalid: "Choose a locality from the list.",
+    invalid_choice: "Choose a locality from the list.",
+    locality_not_in_city: "Choose a locality that belongs to the selected city.",
+  },
+  text: LOCATION_TEXT,
+  latitude: { ...LOCATION_COMMON, invalid: COORDINATE_RULE, out_of_range: "Latitude must be between -90 and 90, with at most 6 decimal places." },
+  longitude: { ...LOCATION_COMMON, invalid: COORDINATE_RULE, out_of_range: "Longitude must be between -180 and 180, with at most 6 decimal places." },
+};
+/** The codes of a location field as the client's own text; anything not known (a prototype key, another sentence) is `fallback`. */
+export function mapLocationCodes(id: string, type: string, values: string[], fallback: string): string[] {
+  const map = Object.hasOwn(LOCATION_MESSAGES, id) ? LOCATION_MESSAGES[id] : Object.hasOwn(LOCATION_MESSAGES, type) ? LOCATION_MESSAGES[type] : {};
+  const text = values.map((value) => {
+    return Object.hasOwn(map, value) ? map[value] : fallback;
+  });
+  return [...new Set(text)];
+}
+
+/** `invalid` on the locality while no city is chosen. */
+export const LOCALITY_NEEDS_CITY = "Choose a city first.";
+export const ANOTHER_LOCALITY = "Another locality";
+export const LOCALITY_DROPPED = "The locality was replaced because the city was changed in another session.";
+export const LOADING_VALUE = "Loading…";
+export const CITIES_LOADING = "Loading cities…";
+export const CITIES_EMPTY = "No cities are available right now.";
+export const CITIES_FAILED = "We could not load the list of cities.";
+export const LOCALITIES_LOADING = "Loading localities…";
+export const LOCALITIES_EMPTY = "No localities are listed for this city.";
+export const LOCALITIES_FAILED = "We could not load the localities.";
+export const CHOOSE_CITY_FIRST = "Choose a city first";
+export const SAVED_CHOICE_GONE = "Saved choice (not in the current list)";
+export const LOCALITY_CLEARED = "The locality was cleared because the city changed. Choose a locality for the new city.";
+
 export const INCOMPLETE_DATE = "Finish the date or clear it.";
 export const EDIT_FORBIDDEN = "Your account cannot edit listings right now.";
 export const SAVED = "Saved";
