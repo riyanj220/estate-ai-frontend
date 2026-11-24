@@ -196,7 +196,7 @@ test("save: only the changed field is sent with the base revision; the revision 
   await saveButton(page).click();
   await expect(live(page)).toHaveText("Saved");
   await expect(revision(page)).toHaveText("4");
-  await expect(page.getByTestId("draft-registry-version")).toHaveText("6");
+  await expect(page.getByTestId("draft-registry-version")).toHaveText("7");
   const sent = await patches(request);
   expect(sent.count).toBe(1);
   expect(sent.bodies[0]).toEqual({ base_revision: 3, fields: { title: "Corner house with a big garden" } });
@@ -912,7 +912,7 @@ test("area: the block is built from the registry, with the hint, the unit choice
     page
       .locator("form")
       .locator("input, select, textarea")
-      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"], [data-testid="terms-block"]')).map((node) => node.id));
+      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"], [data-testid="terms-block"], [data-testid="location-block"]')).map((node) => node.id));
   expect(await controlIds()).toEqual(["title", "description", "asking_price", "price_basis", "area_value", "area_unit"]);
   await unitSelect(page).selectOption("marla");
   expect(await controlIds()).toEqual(["title", "description", "asking_price", "price_basis", "area_value", "area_unit", "marla_basis"]);
@@ -973,7 +973,7 @@ test("area: a registry that gives the value another type, or marks the unit deri
     await page
       .locator("form")
       .locator("input, select, textarea")
-      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"], [data-testid="terms-block"]')).map((node) => node.id)),
+      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"], [data-testid="terms-block"], [data-testid="location-block"]')).map((node) => node.id)),
   ).toEqual(["title", "description", "asking_price", "price_basis"]);
 });
 
@@ -2852,11 +2852,11 @@ test("no platform badge: none appears on a Shop, an Office, with errors, in a co
 
 test("the registry's ETag carries the version, a hash of what it serves and the shape, and a registry change changes it", async ({ request }) => {
   const first = (await request.get(`${STUB}/api/v1/registry`)).headers().etag;
-  expect(first).toMatch(/^"6-[0-9a-f]{8}-5"$/);
+  expect(first).toMatch(/^"7-[0-9a-f]{8}-6"$/);
   expect((await request.get(`${STUB}/api/v1/registry`)).headers().etag).toBe(first);
   await registryFields(request, "plotmap");
   const changed = (await request.get(`${STUB}/api/v1/registry`)).headers().etag;
-  expect(changed).toMatch(/^"6-[0-9a-f]{8}-5"$/);
+  expect(changed).toMatch(/^"7-[0-9a-f]{8}-6"$/);
   expect(changed).not.toBe(first);
 });
 

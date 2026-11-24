@@ -481,7 +481,8 @@ test("change policy errors: new-password codes and same-as-current map to text",
   await expect(next(page)).toHaveAccessibleDescription(/Use at least 8 characters\. This password is too common/);
   await setMode(request, "change", "server_messages");
   await changeSubmit(page).click();
-  await expect(summary(page)).toContainText("Current password: The current password is incorrect.");
+  // The backend's own sentence is a known one: it reads as its code and the page shows its own text for it.
+  await expect(summary(page)).toContainText("Current password: The current password is not correct.");
   await expect(summary(page)).toContainText("New password: Choose a password different from your current one.");
 });
 

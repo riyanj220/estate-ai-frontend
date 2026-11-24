@@ -441,7 +441,7 @@ test("email request: server sentences are never shown; unknown codes, unknown ke
   await expect(box).toContainText(REJECTED); // the unknown key
   await expect(page.locator("body")).not.toContainText("already registered");
   await expect(page.locator("body")).not.toContainText("Some server sentence.");
-  await expect(page.locator("body")).not.toContainText("The current password is incorrect.");
+  await expect(page.locator("body")).not.toContainText("The password you entered is wrong.");
   await setMode(request, "email-change", "proto");
   await requestChange(page);
   await expect(box).toContainText("New email address: Enter a valid email address.");

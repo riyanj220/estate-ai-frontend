@@ -884,6 +884,7 @@ test("registry-driven: a registry with no terms shows no Terms fieldset, and one
 
 test("the stub's rules: a rent term on a sale Draft is not applicable and a null is a no-op before that is judged", async ({ request }) => {
   await preset(request, "sale_terms_blank");
+  await request.get(`${STUB}/__wire-mode?value=codes`); // these test the stub's own rules by code
   await request.get(`${STUB}/__force-session`);
   const csrf = (await (await request.get(`${STUB}/api/v1/csrf`)).json()) as { csrf_token?: string; token?: string };
   const token = csrf.csrf_token ?? csrf.token ?? "";
@@ -912,6 +913,7 @@ test("the stub's rules: a rent term on a sale Draft is not applicable and a null
 
 test("the stub's rules: dates and money are judged like the backend's (shape and window, zero allowed for the deposit and the advance)", async ({ request }) => {
   await preset(request, "rent_terms_blank");
+  await request.get(`${STUB}/__wire-mode?value=codes`); // these test the stub's own rules by code
   await request.get(`${STUB}/__force-session`);
   const csrf = (await (await request.get(`${STUB}/api/v1/csrf`)).json()) as { csrf_token?: string; token?: string };
   const token = csrf.csrf_token ?? csrf.token ?? "";
