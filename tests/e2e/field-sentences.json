@@ -53,5 +53,7 @@
  "invalid_image": "The file is not a usable image.",
  "invalid_floor": "The floor cannot be above the number of floors in the building.",
  "out_of_range": "Enter a number within the allowed range, using digits and a decimal point.",
- "locality_not_in_city": "Choose a locality that belongs to the selected city."
+ "locality_not_in_city": "Choose a locality that belongs to the selected city.",
+ "images_required": "Add at least one image.",
+ "confirm_required": "Confirm this value before publishing."
 }

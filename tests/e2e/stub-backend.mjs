@@ -223,6 +223,17 @@ let unreadCountGets = 0;
 // datetimes carry the +05:00 offset like the real API); `allowanceGets` counts the requests so tests can prove an administrator sends none.
 let allowanceMode = "ok";
 let allowanceGets = 0;
+// Story 2.15: publishing. `publishMode` shapes the answer; `publishUsed` is the counted publications of this month per account (it adds to
+// the allowance route's own base, so the card and the publish route agree); `publishRecords` are the claimed Idempotency-Keys (a refusal
+// claims nothing, like the real transaction); `publishAttempts` lists every request that reached the route.
+let publishMode = "ok";
+let publishUsed = {};
+let publishRecords = new Map();
+let publishAttempts = [];
+let publishLostSpent = false;
+let publishReuseSpent = false;
+let heldPublishAnswers = [];
+const ALLOWANCE_BASE_USED = (limit) => ({ ok: 1, empty: 0, last: limit - 1, exhausted: limit, over: limit + 2, zero: 0 });
 const publicNotification = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key !== "seq"));
 // Listings and the Field registry (Story 2.1). The registry serves the real taxonomy (or another one, to prove the choices
 // come from it) with a strong ETag. Listings are stateful: a created Draft shows in the list and in the detail. Ids are
@@ -850,6 +861,28 @@ const publicListing = (item) => ({
   provenance: item.provenance,
   media: spoilMedia(item.images.map((image) => publicImage(item, image))),
 });
+const publishReady = (seq) =>
+  withImages(
+    makeListing(
+      seq,
+      "mine",
+      {
+        title: "Corner house with garden",
+        asking_price: "1500000.00",
+        price_basis: "total",
+        area_value: "10.0000",
+        area_unit: "marla",
+        marla_basis: "272.25",
+        area_sqft: "2722.5000",
+        bedrooms: 3,
+        bathrooms: 2,
+        city: KARACHI,
+        locality: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001",
+      },
+      4,
+    ),
+    2,
+  );
 const LISTING_PRESETS = {
   empty: () => [],
   few: () => [
@@ -1044,6 +1077,16 @@ const LISTING_PRESETS = {
   shop_rent_blank: () => [makeListing(1, "mine", { purpose: "rent", category: "commercial", subtype: "shop" })],
   plot_rent_blank: () => [makeListing(1, "mine", { purpose: "rent", category: "plot", subtype: "residential_plot" })],
   house_rent_terms_blank: () => [makeListing(1, "mine", { purpose: "rent", category: "house", subtype: "house" })],
+  // Story 2.15: a Draft that can be published (everything the default registry requires, one image), two of them (the second finds the
+  // allowance used up when the allowance is "last"), a bare Draft (nothing required is set), a rent Draft missing only its rental period,
+  // a Draft whose street was filled in by the Assistant and not confirmed, and a ready Draft that has no image.
+  publish_ready: () => [publishReady(1)],
+  publish_two: () => [publishReady(2), publishReady(1)],
+  publish_empty: () => [makeListing(1, "mine", {}, 2)],
+  publish_no_image: () => [Object.assign(publishReady(1), { images: [] })],
+  publish_rent_no_period: () => [Object.assign(publishReady(1), { fields: { ...publishReady(1).fields, purpose: "rent", category: "apartment", subtype: "apartment", price_basis: "rental_period", rental_period: null, bathrooms: 2, bedrooms: 1, lift: true } })],
+  publish_ai_street: () => [Object.assign(publishReady(1), { provenance: { street: { origin: "ai", confirmed: false } } }, { fields: { ...publishReady(1).fields, street: "Cedar Lane" } })],
+  publish_cleared_city: () => [Object.assign(publishReady(1), { fields: { ...publishReady(1).fields, city: null, locality: null } })],
   rent_filled: () => [
     makeListing(
       1,
@@ -1684,6 +1727,20 @@ createServer((req, res) => {
       detailGets = 0;
     });
   }
+  if (url.pathname === "/__listing-publish-mode") {
+    return choose("publishMode", ["ok", "hold", "error", "broken", "lost_once", "reuse_once", "reuse_always", "stale", "stale_no_current", "stale_published", "conflict", "conflict_draft", "quota", "quota_one", "quota_no_details", "invalid_extra", "garbled", "session_gone", "forbidden", "rate_limited", "csrf_once", "csrf_always"], (v) => {
+      publishMode = v;
+      csrfOnceSpent = false;
+      publishLostSpent = publishReuseSpent = false;
+    });
+  }
+  if (url.pathname === "/__listing-publish-release") {
+    const answers = heldPublishAnswers;
+    heldPublishAnswers = [];
+    for (const answer of answers) answer();
+    return json(200, { released: answers.length });
+  }
+  if (url.pathname === "/__listing-publish-stats") return json(200, { attempts: publishAttempts, used: publishUsed, records: [...publishRecords.keys()] });
   if (url.pathname === "/__listings-preset") {
     const value = url.searchParams.get("value") ?? "empty";
     if (!Object.hasOwn(LISTING_PRESETS, value)) return json(400, { error: "unknown preset" });
@@ -1894,6 +1951,109 @@ createServer((req, res) => {
     }
     return answer();
   }
+  // Story 2.15: publish one of the owner's Drafts. The order and every rule are the real service's: key shape, body, claim (a replay of the
+  // same key and content answers the original success, another content is 422), owner (404), stale revision (409 + current), Draft (409
+  // conflict), account state (403, two reasons), validation (400, all at once), quota (409 with details), then the write. A refusal
+  // changes nothing: no counted publication, no claimed key, no status.
+  const publishMatch = /^\/api\/v1\/listings\/([^/]+)\/publish$/.exec(url.pathname);
+  if (publishMatch && req.method === "POST") {
+    return readBody((parsed) => {
+      unsafeCount += 1;
+      const sentToken = req.headers["x-csrftoken"] ?? null;
+      const key = req.headers["idempotency-key"] ?? null;
+      publishAttempts.push({ id: decodeURIComponent(publishMatch[1]), key, token: sentToken, body: parsed });
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(publishMode, sentToken)) return;
+      const fail = (fields) => json(400, envelope("validation_error", "The request contains invalid values.", fields));
+      if (publishMode === "error" || publishMode === "broken" || publishMode === "hang") return serverFailure(publishMode);
+      const header = {};
+      if (key === null) header.idempotency_key = ["required"];
+      else if (!/^[A-Za-z0-9._:-]{1,128}$/.test(key)) header.idempotency_key = ["invalid"];
+      const body = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+      if (!Number.isInteger(body.base_revision) || body.base_revision < 1) header.base_revision = [body.base_revision === undefined ? "required" : "invalid"];
+      if (Object.keys(header).length > 0) return fail(header);
+      const target = sessionAdmin ? undefined : listings.find((item) => item.id === decodeURIComponent(publishMatch[1]) && item.owner === "mine");
+      if (!target) return json(404, envelope("not_found", "Not found."));
+      const recordKey = `${accountVariant}:${key}`;
+      const record = publishRecords.get(recordKey);
+      if (record) {
+        if (record.id !== target.id || record.base !== body.base_revision) return json(422, envelope("idempotency_key_reused", "This idempotency key was used for a different request."));
+        return json(200, publicListing(target)); // the original success, the Listing as it is now, nothing charged again
+      }
+      if (publishMode === "reuse_always" || (publishMode === "reuse_once" && !publishReuseSpent)) {
+        publishReuseSpent = true;
+        return json(422, envelope("idempotency_key_reused", "This idempotency key was used for a different request."));
+      }
+      const stale = () => json(409, { ...envelope("stale_revision", "This listing was changed since you loaded it."), current: publicListing(target) });
+      if (publishMode === "stale") {
+        target.fields.title = "Changed in another session"; // another session saved meanwhile
+        target.revision += 1;
+        return stale();
+      }
+      if (publishMode === "stale_published") {
+        // Published meanwhile (another tab, or an earlier attempt whose answer was lost): the revision moved and `current` says published.
+        target.status = "published";
+        target.revision += 1;
+        return stale();
+      }
+      if (publishMode === "stale_no_current") return json(409, envelope("stale_revision", "This listing was changed since you loaded it."));
+      if (body.base_revision !== target.revision) return stale();
+      if (publishMode === "conflict") {
+        target.status = "published"; // published meanwhile, elsewhere (a publish bumps the revision)
+        target.revision += 1;
+      }
+      // A refusal that claims "not a draft" while the Listing still is one (a claim without a result): nothing is published.
+      if (publishMode === "conflict_draft") return json(409, envelope("conflict", "The listing is not a draft."));
+      if (target.status === "published") return json(409, envelope("conflict", "The listing is not a draft."));
+      if (signInMode === "unverified") return json(403, envelope("email_not_verified", "Verify your email address to publish."));
+      if (signInMode === "suspended") return json(403, envelope("publishing_unavailable", "Your account cannot publish right now."));
+      // Required items, from the stub's own registry and this Draft's data (applicability included).
+      const problems = {};
+      for (const name of ["purpose", "category", "subtype"]) if (!target.fields[name]) problems[name] = ["required"];
+      for (const def of REGISTRY_FIELDS[fieldsName]) {
+        if (def.requirement !== "required_for_publication" || def.derived || !applies(def, target.fields)) continue;
+        const value = target.fields[def.id];
+        if (value === null || value === undefined || value === "") problems[def.id] = ["required"];
+      }
+      const hasLocality = target.fields.locality && target.fields.city;
+      if (hasLocality && cityOfLocality(target.fields.locality) !== target.fields.city) problems.locality = ["locality_not_in_city"];
+      if (target.images.length === 0) problems.images = ["images_required"];
+      // An Assistant value of a private or identity field that the owner has not confirmed.
+      for (const def of REGISTRY_FIELDS[fieldsName]) {
+        const origin = target.provenance?.[def.id];
+        const value = target.fields[def.id];
+        if ((def.class === "private" || def.quota_identity) && value !== null && value !== undefined && value !== "" && origin?.origin === "ai" && origin.confirmed !== true) problems[def.id] = ["confirm_required"];
+      }
+      if (publishMode === "invalid_extra") problems.title = [...(problems.title ?? []), "too_short"];
+      if (Object.keys(problems).length > 0) return fail(problems);
+      const limit = account().account_type === "agency" ? 10 : 2;
+      const used = (ALLOWANCE_BASE_USED(limit)[allowanceMode] ?? 1) + (publishUsed[accountVariant] ?? 0);
+      if (publishMode === "quota" || publishMode === "quota_one" || used >= limit) {
+        const shownLimit = publishMode === "quota_one" ? 1 : limit;
+        return json(409, { ...envelope("quota_exhausted", "You have used all your publications for this month."), details: { limit: shownLimit, used: Math.max(used, shownLimit), resets_at: "2026-12-01T00:00:00+05:00" } });
+      }
+      if (publishMode === "quota_no_details") return json(409, envelope("quota_exhausted", "You have used all your publications for this month."));
+      const commit = () => {
+        target.status = "published";
+        target.revision += 1;
+        publishUsed[accountVariant] = (publishUsed[accountVariant] ?? 0) + 1;
+        publishRecords.set(recordKey, { id: target.id, base: body.base_revision });
+      };
+      const answer = () => {
+        commit();
+        if (publishMode === "garbled") return json(200, { status: "published" });
+        return json(200, publicListing(target));
+      };
+      if (publishMode === "lost_once" && !publishLostSpent) {
+        // It happened, but the answer never arrives: the retry with the same key must replay it.
+        publishLostSpent = true;
+        commit();
+        return req.socket.destroy();
+      }
+      if (publishMode === "hold") return void heldPublishAnswers.push(answer);
+      return answer();
+    });
+  }
   if (listingMatch && req.method === "PATCH") {
     return readBody((parsed) => {
       unsafeCount += 1;
@@ -2079,6 +2239,19 @@ createServer((req, res) => {
       const sqft = normalisedSqft(merged.area_value, merged.area_unit, merged.marla_basis);
       if (sqft !== merged.area_sqft) next.area_sqft = sqft;
       const changed = Object.keys(next).filter((key) => differs(target.fields[key], next[key]));
+      // Re-sending the value of an Assistant field the owner has not confirmed confirms it (stored manual and confirmed, revision bumps).
+      let confirmedNow = false;
+      for (const key of Object.keys(next)) {
+        const origin = target.provenance[key];
+        if (origin?.origin === "ai" && origin.confirmed !== true && next[key] !== null && !differs(target.fields[key], next[key])) {
+          target.provenance[key] = { origin: "manual", confirmed: true };
+          confirmedNow = true;
+        }
+      }
+      if (confirmedNow && changed.length === 0) {
+        target.revision += 1;
+        target.registryVersion = REGISTRY_VERSION;
+      }
       if (changed.length > 0) {
         for (const key of changed) {
           target.fields[key] = next[key];
@@ -2752,7 +2925,7 @@ createServer((req, res) => {
     if (allowanceMode === "error" || allowanceMode === "broken" || allowanceMode === "hang") return serverFailure(allowanceMode);
     if (allowanceMode === "rate_limited") return throttled();
     const limit = account().account_type === "agency" ? 10 : 2;
-    const used = { ok: 1, empty: 0, last: limit - 1, exhausted: limit, over: limit + 2, zero: 0 }[allowanceMode] ?? 1;
+    const used = (ALLOWANCE_BASE_USED(limit)[allowanceMode] ?? 1) + (publishUsed[accountVariant] ?? 0);
     const body = {
       limit: allowanceMode === "zero" ? 0 : limit,
       used,
@@ -3168,6 +3341,12 @@ createServer((req, res) => {
     notificationQueries = [];
     allowanceMode = "ok";
     allowanceGets = 0;
+    publishMode = "ok";
+    publishUsed = {};
+    publishRecords = new Map();
+    publishAttempts = [];
+    publishLostSpent = publishReuseSpent = false;
+    heldPublishAnswers = [];
     accountVariant = "1";
     cacheable = false;
     lastNotificationReadId = lastNotificationReadToken = lastNotificationReadAllToken = null;

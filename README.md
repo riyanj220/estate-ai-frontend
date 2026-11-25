@@ -1126,6 +1126,41 @@ only shows it; nothing here publishes or enforces the quota (Story 2.15).
 - **Tests**: `tests/e2e/publication-allowance.spec.ts` (states, time zones including one where the reset instant is still the day before, quiet re-reads and their throttle, timeouts with `page.clock`, fail-closed shapes, axe at desktop and mobile in
   each state); `npm run check:prod-listings` also asserts the route passes the production proxy as `no-store`.
 
+## Publishing a Draft (Story 2.15)
+
+Story 2.15 (frontend half). The contract is the backend's `POST /api/v1/listings/{id}/publish` (body `{base_revision}`, header
+`Idempotency-Key`, CSRF like every write; `200` with the owner Listing, status `published`).
+
+- **Publish section** (`src/app/(app)/account/listings/[id]/publish-section.tsx`, mounted by `draft-editor.tsx` for a `draft` only): the
+  copy about what publishing does, the remaining publications read from the allowance route, and the Publish button. The button is
+  `aria-disabled` (never `disabled`) while a save, an image action or a delete runs, or while the form has unsaved changes, with the
+  reason as its description ("Save your changes before publishing"). Publishing takes the module-wide image lock (`image-lock.ts`) like
+  the delete flow, and the editor pauses Save, the images and Delete meanwhile.
+- **Idempotency**: the key (`src/lib/idempotency.ts`, a random UUID) is made per attempt. A retry of the same attempt (a network error, a
+  server error, a response that cannot be read) reuses it, so the server never publishes twice; an edit, a save or a new revision starts a
+  new attempt with a new key. A `422 idempotency_key_reused` (refused with no effect) is retried once, automatically, with a new key; a
+  second one shows a generic message.
+- **Outcomes**: success switches the page to the published state (the read-only note of Story 2.13, a success note, the polite live
+  region `publish-live`, the allowance re-read in the note); `400` shows a summary at the top (every item, with links to its field), the
+  error next to each field through the existing field display, the images error next to the picker (`images_required`), and
+  `confirm_required` next to the field (the texts are in `listing-messages.ts`; `required` was added to the detail and location tables);
+  `409 quota_exhausted` names the limit and the reset date (from `details`, Karachi formatter of Story 2.14) with a link to the dashboard;
+  `403 email_not_verified` links to `/verify-email`; `403 publishing_unavailable` says the account cannot publish; `409 stale_revision` runs
+  the editor's conflict flow (`handleStale`, shared with Save); `409 conflict` reads the Listing again and shows it published; a network
+  failure, a timeout or a server error shows Retry.
+- **Sentences**: `images_required` and `confirm_required` joined `src/lib/error-sentences.ts` and `tests/e2e/field-sentences.json` (the drift
+  test against the backend's `errors.py` stays green).
+- **Stub** (`tests/e2e/stub-backend.mjs`): the publish route mirrors the backend's order and rules (key shape, body, replay or `422`, owner
+  `404`, stale, not a draft, account state, required items computed from the stub's own registry and the Draft's data, images, Assistant
+  values not confirmed, quota with `details`); a counted publication per account adds to the allowance route's numbers. Presets
+  `publish_ready`, `publish_two`, `publish_empty`, `publish_no_image`, `publish_rent_no_period`, `publish_ai_street`,
+  `publish_cleared_city`; `/__listing-publish-mode` (`ok`, `slow`, `hold`, `hang`, `error`, `broken`, `lost_once`, `reuse_once`,
+  `reuse_always`, `stale`, `stale_no_current`, `conflict`, `quota`, `quota_no_details`, `invalid_extra`, `garbled`, `session_gone`,
+  `forbidden`, `rate_limited`, `csrf_once`, `csrf_always`), `/__listing-publish-release`, `/__listing-publish-stats` (attempts with key,
+  token and body, counted publications, claimed keys).
+- **Tests**: `tests/e2e/listing-publish.spec.ts` (every state above, key reuse and replay, the lock while publishing, axe at desktop and
+  mobile in the ready, unsaved, error, quota exhausted and published states).
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),

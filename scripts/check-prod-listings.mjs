@@ -155,6 +155,25 @@ try {
   await fetch(`${STUB}/__listings-preset?value=published_one`);
   assert.equal((await remove(csrf)).status, 409, "a published listing cannot be deleted");
   console.log("ok  preview and delete through the proxy");
+  // Story 2.15: the publish answer passes the proxy as no-store, needs the CSRF token and a key, and a replay of the key answers the same success.
+  await fetch(`${STUB}/__listings-preset?value=publish_ready`);
+  const publish = (token, key, headers = { cookie }) =>
+    fetch(`${APP}/api/v1/listings/${ID}/publish`, {
+      method: "POST",
+      body: JSON.stringify({ base_revision: 4 }),
+      headers: { ...headers, "content-type": "application/json", ...(token ? { "x-csrftoken": token } : {}), ...(key ? { "idempotency-key": key } : {}) },
+    });
+  assert.equal((await publish(null, "k-1")).status, 403, "a publish without the CSRF token is refused");
+  assert.equal((await publish(csrf, "k-1", {})).status, 401, "a Visitor cannot publish");
+  assert.equal((await publish(csrf, null)).status, 400, "a publish without a key is refused");
+  const published = await publish(csrf, "k-1");
+  assert.equal(published.status, 200, "the owner's publish passes the proxy");
+  assert.match(published.headers.get("cache-control") ?? "", /no-store/, "the publish answer is no-store");
+  assert.equal((await published.json()).status, "published");
+  const replay = await publish(csrf, "k-1");
+  assert.equal(replay.status, 200, "the same key replays the success");
+  assert.equal((await (await fetch(`${STUB}/__listing-publish-stats`)).json()).used["1"], 1, "one publication was counted");
+  console.log("ok  publish through the proxy");
   console.log("Production listings check passed.");
 } finally {
   for (const child of children) child.kill();
