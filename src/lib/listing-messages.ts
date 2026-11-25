@@ -270,3 +270,21 @@ export const SAVE_PAUSED = "Saving is paused while images are being changed.";
 export const SAVE_WAIT = "Wait for the image changes to finish, then save.";
 /** The most a single upload body may be (the backend's cap); a bigger file is refused here and never sent. */
 export const MAX_UPLOAD_BYTES = 6 * 1024 * 1024;
+
+// ---- Draft preview and delete (Story 2.13).
+export const PREVIEW_BANNER = "This is a preview. Only you can see it.";
+export const ESTIMATE_NOT_AVAILABLE = "Not available yet";
+export const PREVIEW_DETAILS_FAILED = "We could not load the labels for the details of this listing.";
+export const PREVIEW_NO_IMAGES = "This listing has no images yet.";
+export const DELETE_DRAFT_LABEL = "Delete draft";
+export const DELETE_DRAFT_TITLE = "Delete this draft?";
+export const DELETE_DRAFT_TEXT = "This deletes the draft and its images. This cannot be undone.";
+export const DELETE_DRAFT_DONE = "Draft deleted.";
+export const DELETE_DRAFT_GONE = "That draft was already deleted.";
+export const DELETE_DRAFT_PUBLISHED = "A published listing cannot be deleted here.";
+export const DELETE_DRAFT_FORBIDDEN = "Your account cannot delete listings right now.";
+export const DELETE_DRAFT_WAIT = "Wait for the current save or image change to finish, then delete the draft.";
+export const DELETE_DRAFT_PAUSED = "Saving and image changes are paused while the draft is deleted.";
+export const DELETE_DRAFT_NAV_FAILED = "The draft was deleted, but My listings could not be opened. Use the link at the bottom of the page.";
+export const PREVIEW_SAVED_HINT = "Preview shows your saved changes.";
+export const NO_LONGER_DRAFT = "This listing is no longer a draft, so it cannot be edited or deleted here.";

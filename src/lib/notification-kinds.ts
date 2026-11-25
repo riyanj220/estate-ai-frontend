@@ -7,8 +7,8 @@
  */
 export type NotificationPayload = Record<string, unknown>;
 export type KindText = string | ((payload: NotificationPayload) => string);
-export type KindEntry = { title: KindText; text: KindText };
-export type NotificationView = { title: string; text: string };
+export type KindEntry = { title: KindText; text: KindText; /** An in-app path the notification links to, from the payload; an empty text means no link. */ href?: (payload: NotificationPayload) => string; linkText?: string };
+export type NotificationView = { title: string; text: string; /** Set only for a kind that links somewhere (a same-origin path). */ href?: string; linkText?: string };
 
 export const UNKNOWN_KIND: NotificationView = { title: "You have a notification.", text: "" };
 
@@ -18,6 +18,14 @@ export function field(payload: NotificationPayload, key: string): string {
   return typeof value === "string" || typeof value === "number" ? String(value) : "";
 }
 
+/** A whole number of days in the range the backend sends (0 to 365); anything else throws, so the notification reads as the generic line. */
+function daysLeft(payload: NotificationPayload): number {
+  const value = payload.days_left;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 365) throw new Error("days_left");
+  return value;
+}
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 const KINDS: Record<string, KindEntry> = {
   "account.password_changed": {
     title: "Your password was changed.",
@@ -26,6 +34,19 @@ const KINDS: Record<string, KindEntry> = {
   "account.email_changed": {
     title: "Your sign-in email address was changed.",
     text: "If this was not you, contact support.",
+  },
+  // Story 2.13: the payload is only the draft's id and the days left (never its title or any content).
+  "listing.draft_expiring": {
+    title: (payload) => {
+      const days = daysLeft(payload);
+      return `Your draft has had no activity for a long time and will be deleted in ${days} ${days === 1 ? "day" : "days"} unless you open it.`;
+    },
+    text: "",
+    href: (payload) => {
+      const id = field(payload, "listing_id");
+      return UUID.test(id) ? `/account/listings/${id}` : "";
+    },
+    linkText: "Open the draft",
   },
 };
 
@@ -41,7 +62,9 @@ export function describeNotification(kind: string, payload: unknown): Notificati
     const text = resolve(entry.text, values);
     // An entry that resolves to nothing readable falls back to the generic line (never a blank heading).
     if (typeof title !== "string" || !title.trim()) return UNKNOWN_KIND;
-    return { title, text: typeof text === "string" ? text : "" };
+    const href = entry.href?.(values);
+    const link = href && href.startsWith("/account/") ? { href, linkText: entry.linkText ?? "Open" } : {};
+    return { title, text: typeof text === "string" ? text : "", ...link };
   } catch {
     return UNKNOWN_KIND;
   }

@@ -633,3 +633,33 @@ body {
   margin: 0;
   padding-left: 1.25rem;
 }
+
+/* Delete confirmation (Story 2.13): a native modal dialog */
+.confirm-dialog {
+  max-width: min(32rem, calc(100vw - 2rem));
+  margin: auto;
+  padding: 1.25rem;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.confirm-dialog::backdrop {
+  background: rgb(20 24 31 / 0.6);
+}
+.confirm-dialog p {
+  margin-bottom: var(--space);
+}
+
+/* Preview (Story 2.13) */
+.preview-banner {
+  font-weight: 700;
+}
+.preview-gallery {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space);
+}

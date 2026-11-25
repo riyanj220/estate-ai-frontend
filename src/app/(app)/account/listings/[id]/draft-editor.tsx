@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
 import { ErrorSummary } from "@/components/error-summary";
@@ -59,6 +60,10 @@ import {
   CHOICES_APPLIED,
   NO_CHANGES,
   SAVED,
+  DELETE_DRAFT_PAUSED,
+  LISTINGS_PATH,
+  NO_LONGER_DRAFT,
+  PREVIEW_SAVED_HINT,
   SAVE_PAUSED,
   SAVE_WAIT,
 } from "@/lib/listing-messages";
@@ -68,6 +73,7 @@ import { useSession } from "@/lib/session";
 import { useFormFeedback } from "@/lib/use-form-feedback";
 import { useAmenityCatalogue, useLocationLists } from "@/lib/use-reference";
 import { useRegistry, type FieldDef, type Registry } from "@/lib/use-registry";
+import { DeleteDraft } from "./delete-draft";
 import { DetailsSection } from "./details-section";
 import { ImagesSection } from "./images-section";
 
@@ -222,6 +228,8 @@ export function DraftEditor({
   const [alertTick, setAlertTick] = useState(0);
   // An image action is running: Save waits (and says so), so a field save never races an image change for the revision.
   const [imagesBusy, setImagesBusy] = useState(false);
+  // The Draft is being deleted (Story 2.13): Save and the image actions wait, like the delete waits for them.
+  const [deleting, setDeleting] = useState(false);
   const [conflict, setConflict] = useState<Conflict | null>(null);
   // The fields a problem between two fields (the floor rule) is shown under: editing either clears them all.
   const [linked, setLinked] = useState<string[]>([]);
@@ -507,7 +515,7 @@ export function DraftEditor({
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting.current || !registry) return;
+    if (submitting.current || !registry || deleting) return;
     if (imagesBusy) {
       announce(SAVE_WAIT);
       return;
@@ -649,6 +657,14 @@ export function DraftEditor({
       submitting.current = false;
       setPending(false);
     }
+  }
+
+  /** The server says the Listing is not a draft (a delete answered 409): read it again so the status and the controls are right. */
+  async function refreshAfterConflict() {
+    const latest = await fetchLatest();
+    if (latest.kind === "gone") await onSessionGone();
+    else if (latest.kind === "missing") onNotFound();
+    else if (latest.kind === "found") setListing((now) => ({ ...now, status: latest.listing.status, revision: latest.listing.revision, media: latest.listing.media }));
   }
 
   const price = listing.fields.asking_price === null ? NOT_SET : `PKR ${formatPrice(listing.fields.asking_price)}`;
@@ -901,6 +917,16 @@ export function DraftEditor({
 
   return (
     <>
+      <p>
+        <Link href={`${LISTINGS_PATH}/${encodeURIComponent(listing.id)}/preview`} className="text-link" data-testid="draft-preview-link" aria-describedby={dirty ? "preview-hint" : undefined}>
+          Preview
+        </Link>
+        {dirty && (
+          <span id="preview-hint" className="hint" data-testid="preview-hint" style={{ marginLeft: "0.75rem" }}>
+            {PREVIEW_SAVED_HINT}
+          </span>
+        )}
+      </p>
       <section className="card" aria-labelledby="draft-details-title" style={{ marginBottom: "var(--space)" }}>
         <h2 id="draft-details-title" className="section-title">
           What exists so far
@@ -957,12 +983,18 @@ export function DraftEditor({
           ))}
         </dl>
       </section>
+      {listing.status !== "draft" ? (
+        <p className="notice" data-testid="draft-not-editable">
+          {NO_LONGER_DRAFT}
+        </p>
+      ) : (
+        <>
       <ImagesSection
         listingId={listing.id}
         revision={listing.revision}
         media={listing.media}
         onListing={applyImages}
-        locked={pending}
+        locked={pending || deleting}
         onBusyChange={setImagesBusy}
         refresh={fetchLatest}
         onSessionGone={onSessionGone}
@@ -1070,10 +1102,15 @@ export function DraftEditor({
                   {SAVE_PAUSED}
                 </p>
               )}
+              {deleting && (
+                <p className="hint" data-testid="delete-paused">
+                  {DELETE_DRAFT_PAUSED}
+                </p>
+              )}
               <button
                 type="submit"
                 className="primary-button"
-                aria-disabled={pending || imagesBusy ? true : undefined}
+                aria-disabled={pending || imagesBusy || deleting ? true : undefined}
                 aria-describedby={imagesBusy ? "save-paused" : undefined}
               >
                 {pending ? "Saving…" : "Save changes"}
@@ -1082,6 +1119,17 @@ export function DraftEditor({
           </>
         )}
       </section>
+        </>
+      )}
+      <DeleteDraft
+          listingId={listing.id}
+          isDraft={listing.status === "draft"}
+          blocked={pending || imagesBusy}
+          saveRunning={() => submitting.current}
+          onBusyChange={setDeleting}
+          onSessionGone={onSessionGone}
+          onConflict={() => void refreshAfterConflict()}
+        />
     </>
   );
 }

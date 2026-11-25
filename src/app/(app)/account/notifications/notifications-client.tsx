@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
 import { getApi } from "@/lib/api";
@@ -481,6 +482,14 @@ export function NotificationsClient({ admin }: { admin: boolean }) {
                   <li key={item.id} id={itemId(item.id)} tabIndex={-1} className={`card notification-item${item.read ? "" : " notification-item-unread"}`} data-testid="notification">
                     <strong className="notification-title">{view.title}</strong>
                     {view.text && <p>{view.text}</p>}
+                    {view.href && (
+                      <p>
+                        <Link href={view.href} className="text-link" data-testid="notification-link">
+                          {view.linkText}
+                          <span className="sr-only">: {view.title}</span>
+                        </Link>
+                      </p>
+                    )}
                     <div className="notification-meta">
                       {time && (
                         <time dateTime={item.created_at} className="muted" style={{ marginBottom: 0 }}>

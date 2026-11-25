@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getApi } from "@/lib/api";
+import { clearFlash, peekFlash } from "@/lib/flash";
 import { withTimeout } from "@/lib/forms";
 import { label, readListing, summaryOf, type ListingView } from "@/lib/listing-labels";
 import {
@@ -90,7 +91,10 @@ export function ListingsClient({ admin }: { admin: boolean }) {
   const { load, read, retry, sessionGone } = useResourceLoad<Page>(
     async (): Promise<ProfileFetch<Page>> => {
       const answer = await fetchPage();
-      if (answer.kind === "gone") return "gone";
+      if (answer.kind === "gone") {
+        clearFlash(); // a message that was not shown must not wait for a later visit
+        return "gone";
+      }
       if (answer.kind === "forbidden") return { kind: "forbidden" };
       if (answer.kind === "error") return { kind: "error", message: answer.status === 429 ? answer.message : undefined };
       return { kind: "ready", profile: answer.page };
@@ -100,6 +104,17 @@ export function ListingsClient({ admin }: { admin: boolean }) {
   );
   usePageshowRecheck(signInPath, () => void read(false));
   const { announcement, announce, resetAnnouncement } = useFormFeedback();
+  // A confirmation handed over by the page that sent the person here (for example "Draft deleted."), read once after mounting.
+  // The status region is rendered empty first and filled after mounting, so a screen reader announces the change.
+  const [flash, setFlashText] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const text = peekFlash(LISTINGS_PATH);
+      clearFlash();
+      if (text) setFlashText(text);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
   const [failed, setFailed] = useState(false);
   const [more, setMore] = useState<More | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -185,6 +200,9 @@ export function ListingsClient({ admin }: { admin: boolean }) {
   return (
     <>
       {heading}
+      <p role="status" aria-live="polite" className={flash ? "muted" : "sr-only"} data-testid="listings-flash">
+        {flash}
+      </p>
       {load.kind === "ready" && (
         <>
           <p>
@@ -223,6 +241,9 @@ export function ListingsClient({ admin }: { admin: boolean }) {
                     {summaryOf(item.fields)}
                   </Link>
                   <span className="status-marker">{label(item.status)}</span>
+                  <Link href={`${LISTINGS_PATH}/${encodeURIComponent(item.id)}/preview`} className="text-link" data-testid="listing-preview-link">
+                    Preview<span className="sr-only">: {summaryOf(item.fields)}</span>
+                  </Link>
                 </li>
               ))}
             </ul>
