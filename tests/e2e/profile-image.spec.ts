@@ -148,6 +148,7 @@ async function openPage(page: Page, request: APIRequestContext, s: Spec) {
 const loaded = (page: Page, s: Spec) => expect.poll(() => shownImage(page, s).evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)).toBeGreaterThan(0);
 
 async function expectNoViolations(page: Page, label: string) {
+  await expect(page).toHaveTitle(/.+/); // the title can stream in after the body on a production server
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations, label).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), `${label} overflow`).toBe(false);

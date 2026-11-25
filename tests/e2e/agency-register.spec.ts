@@ -37,6 +37,7 @@ async function fill(page: Page) {
 }
 
 async function expectNoViolations(page: Page, label: string) {
+  await expect(page).toHaveTitle(/.+/); // the title can stream in after the body on a production server
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations, label).toEqual([]);
 }

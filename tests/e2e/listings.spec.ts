@@ -71,6 +71,7 @@ async function choose(page: Page, purpose: string, cat: string, sub: string) {
 }
 
 async function expectNoViolations(page: Page, label: string) {
+  await expect(page).toHaveTitle(/.+/); // the title can stream in after the body on a production server
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations, label).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), `${label} overflow`).toBe(false);
@@ -263,8 +264,8 @@ test("create: sends exactly the three fields through the CSRF token and opens th
   await main(page).getByRole("link", { name: "Back to My listings" }).click();
   await expect(page).toHaveURL(/\/account\/listings$/);
   await expect(items(page)).toHaveCount(1);
-  await expect(items(page).first().getByRole("link")).toHaveText("Rent · Apartment · Apartment");
-  await expect(items(page).first().getByRole("link")).toHaveAttribute("href", `${LIST}/${id(1)}`);
+  await expect(items(page).first().locator("a.listing-link")).toHaveText("Rent · Apartment · Apartment");
+  await expect(items(page).first().locator("a.listing-link")).toHaveAttribute("href", `${LIST}/${id(1)}`);
 });
 
 test("create: an agency account can start a Draft too", async ({ page, request }) => {
@@ -539,16 +540,16 @@ test("My listings: newest first, a summary from the labels, status and a link to
   await preset(request, "few");
   await openList(page, request);
   await expect(items(page)).toHaveCount(3);
-  await expect(items(page).nth(0).getByRole("link")).toHaveText("Rent · Apartment · Apartment");
-  await expect(items(page).nth(1).getByRole("link")).toHaveText("Sale · Plot · Plot file");
-  await expect(items(page).nth(2).getByRole("link")).toHaveText("Sale · House · House");
-  await expect(items(page).nth(0).getByRole("link")).toHaveAttribute("href", `${LIST}/${id(3)}`);
-  await expect(items(page).nth(2).getByRole("link")).toHaveAttribute("href", `${LIST}/${id(1)}`);
+  await expect(items(page).nth(0).locator("a.listing-link")).toHaveText("Rent · Apartment · Apartment");
+  await expect(items(page).nth(1).locator("a.listing-link")).toHaveText("Sale · Plot · Plot file");
+  await expect(items(page).nth(2).locator("a.listing-link")).toHaveText("Sale · House · House");
+  await expect(items(page).nth(0).locator("a.listing-link")).toHaveAttribute("href", `${LIST}/${id(3)}`);
+  await expect(items(page).nth(2).locator("a.listing-link")).toHaveAttribute("href", `${LIST}/${id(1)}`);
   for (let index = 0; index < 3; index += 1) await expect(items(page).nth(index).locator(".status-marker")).toHaveText("Draft");
   await expect(loadMore(page)).toHaveCount(0);
   await expect(main(page).getByRole("link", { name: "Create listing" })).toHaveAttribute("href", NEW);
   expect((await stats(request)).listGets).toBe(1);
-  await items(page).nth(1).getByRole("link").click();
+  await items(page).nth(1).locator("a.listing-link").click();
   await expect(page).toHaveURL(new RegExp(`${LIST}/${id(2)}$`));
   await expect(page.getByTestId("draft-subtype")).toHaveText("Plot file");
 });
@@ -557,7 +558,7 @@ test("My listings: only the signed-in account's own Drafts are shown", async ({ 
   await preset(request, "foreign");
   await openList(page, request);
   await expect(items(page)).toHaveCount(1);
-  await expect(items(page).first().getByRole("link")).toHaveAttribute("href", `${LIST}/${id(1)}`);
+  await expect(items(page).first().locator("a.listing-link")).toHaveAttribute("href", `${LIST}/${id(1)}`);
 });
 
 test("empty: a message and a Create listing link", async ({ page, request }) => {
@@ -572,9 +573,9 @@ test("empty: a message and a Create listing link", async ({ page, request }) => 
 test("unknown values: Not set and a humanised id, never a crash", async ({ page, request }) => {
   await preset(request, "unknown");
   await openList(page, request);
-  await expect(items(page).nth(0).getByRole("link")).toHaveText("Not set · Not set · Not set");
-  await expect(items(page).nth(1).getByRole("link")).toHaveText("Lease out · Villa · Farm house");
-  await items(page).nth(0).getByRole("link").click();
+  await expect(items(page).nth(0).locator("a.listing-link")).toHaveText("Not set · Not set · Not set");
+  await expect(items(page).nth(1).locator("a.listing-link")).toHaveText("Lease out · Villa · Farm house");
+  await items(page).nth(0).locator("a.listing-link").click();
   await expect(page.getByTestId("draft-purpose")).toHaveText("Not set");
   await expect(page.getByTestId("draft-category")).toHaveText("Not set");
   await expect(page.getByTestId("draft-subtype")).toHaveText("Not set");
@@ -589,7 +590,7 @@ test("load more: appends the next page, never duplicates, and disappears at the 
   await expect(loadMore(page)).toHaveCount(0);
   await expect(listStatus(page)).toHaveText("5 more listings loaded.");
   await expect(items(page).nth(20)).toBeFocused();
-  const hrefs = await items(page).getByRole("link").evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+  const hrefs = await items(page).locator("a.listing-link").evaluateAll((links) => links.map((link) => link.getAttribute("href")));
   expect(new Set(hrefs).size).toBe(25);
   const queries = (await stats(request)).queries as string[];
   expect(queries).toEqual(["", "?cursor=pos-6"]);
