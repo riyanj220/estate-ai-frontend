@@ -1,8 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 const LIST = "/account/listings";
 const NEW = "/account/listings/new";
 const THROTTLED = "Too many attempts. Try again in 2 minutes.";
@@ -82,7 +83,7 @@ const viewports = [
 
 // ---------------------------------------------------------------- links and guard
 
-test("links: individual and agency see My listings in the header and on the dashboard; administrators and Visitors do not", async ({ page, request }) => {
+test("links: individual and agency see My listings in the header and on the dashboard; administrators and Visitors do not @smoke", async ({ page, request }) => {
   await page.goto("/");
   await expect(page.getByRole("link", { name: "My listings", exact: true })).toHaveCount(0);
   await startSession(page, request);
@@ -119,7 +120,7 @@ for (const route of [LIST, NEW, `${LIST}/${id(1)}`]) {
 }
 
 // In dev mode the headers come from the same config, so this cannot fail on it alone; the production check (`npm run check:prod-listings`) proves the built app.
-test("the listing routes are not cacheable", async ({ page, request }) => {
+test("the listing routes are not cacheable @smoke", async ({ page, request }) => {
   await startSession(page, request);
   for (const route of [LIST, NEW, `${LIST}/${id(1)}`]) {
     const response = await page.goto(route);
@@ -129,7 +130,7 @@ test("the listing routes are not cacheable", async ({ page, request }) => {
 
 // ---------------------------------------------------------------- the registry
 
-test("registry: purposes, Categories and the Subtypes of the chosen Category come from it", async ({ page, request }) => {
+test("registry: purposes, Categories and the Subtypes of the chosen Category come from it @smoke", async ({ page, request }) => {
   await openNew(page, request);
   await expect(page.getByRole("radio")).toHaveCount(2);
   await expect(purposeRadio(page, "Sale")).not.toBeChecked();
@@ -143,7 +144,7 @@ test("registry: purposes, Categories and the Subtypes of the chosen Category com
   expect((await stats(request)).registryGets).toBe(1);
 });
 
-test("registry: a changed registry changes the choices (nothing is hard-coded)", async ({ page, request }) => {
+test("registry: a changed registry changes the choices (nothing is hard-coded) @smoke", async ({ page, request }) => {
   await taxonomy(request, "other");
   await openNew(page, request);
   await expect(page.getByRole("radio")).toHaveCount(3);
@@ -155,7 +156,7 @@ test("registry: a changed registry changes the choices (nothing is hard-coded)",
   await expect(subtype(page).locator("option")).toHaveText(["Select a subtype", "Plot file"]);
 });
 
-test("registry: the browser revalidates it with its ETag", async ({ page, request }) => {
+test("registry: the browser revalidates it with its ETag @smoke", async ({ page, request }) => {
   await openNew(page, request);
   await page.reload();
   await expect(category(page)).toBeVisible();
@@ -183,7 +184,7 @@ for (const mode of ["error", "broken", "malformed", "empty_choices", "bad_subtyp
   });
 }
 
-test("registry failure: a first failure then Retry works; a failing Retry keeps its button", async ({ page, request }) => {
+test("registry failure: a first failure then Retry works; a failing Retry keeps its button @smoke", async ({ page, request }) => {
   await setMode(request, "registry", "flaky");
   await startSession(page, request);
   await page.goto(NEW);

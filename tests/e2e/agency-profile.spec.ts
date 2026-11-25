@@ -1,8 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 // Obviously fake values, built from short words and repetitive digits so no scanner mistakes them for keys.
 const PASSWORD = ["correct", "horse", "battery", "staple"].join(" ");
 const EMAIL = "ayesha@example.com";
@@ -99,7 +100,7 @@ const textOutsideControls = (page: Page) =>
 
 // ---------------------------------------------------------------- one route, two bodies, links and guard
 
-test("an Agency sees the business profile: prefilled form, email section, verification status and privacy note", async ({ page, request }) => {
+test("an Agency sees the business profile: prefilled form, email section, verification status and privacy note @smoke", async ({ page, request }) => {
   await openProfile(page, request);
   await expect(agencyName(page)).toHaveValue(NAME);
   await expect(agencyName(page)).toHaveAttribute("autocomplete", "organization");
@@ -121,7 +122,7 @@ test("an Agency sees the business profile: prefilled form, email section, verifi
   expect(await gets(request)).toBe(1);
 });
 
-test("the Individual page is unchanged and never reads the agency profile", async ({ page, request }) => {
+test("the Individual page is unchanged and never reads the agency profile @smoke", async ({ page, request }) => {
   await signIn(page, PROFILE);
   await expect(page.getByRole("heading", { level: 1, name: "Profile" })).toBeVisible();
   await expect(page.getByLabel("Full name", { exact: true })).toHaveValue("Ayesha Khan");
@@ -129,7 +130,7 @@ test("the Individual page is unchanged and never reads the agency profile", asyn
   expect(await gets(request)).toBe(0);
 });
 
-test("an Admin gets the polite message, no form and no Profile link", async ({ page, request }) => {
+test("an Admin gets the polite message, no form and no Profile link @smoke", async ({ page, request }) => {
   await setMode(request, "me", "admin");
   await signIn(page, PROFILE);
   await expect(page.getByTestId("profile-unavailable")).toHaveText("Profile editing is available for individual and agency accounts.");
@@ -139,7 +140,7 @@ test("an Admin gets the polite message, no form and no Profile link", async ({ p
   expect((await last(request, "profile")).gets).toBe(0);
 });
 
-test("the header and dashboard link an Agency to the Business profile", async ({ page, request }) => {
+test("the header and dashboard link an Agency to the Business profile @smoke", async ({ page, request }) => {
   await setMode(request, "me", "agency");
   await signIn(page);
   await expect(header(page).getByRole("link", { name: "Business profile", exact: true })).toHaveAttribute("href", PROFILE);

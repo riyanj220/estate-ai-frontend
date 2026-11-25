@@ -1,7 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL, APP_ORIGIN_RE } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-const STUB = "http://127.0.0.1:4010";
+const STUB = STUB_URL;
 const EMAIL = "ayesha@example.com";
 const CANARY_PASSWORD = "canary-Pass-91827";
 const WRONG_MESSAGE = "The email or password is not correct.";
@@ -45,7 +46,7 @@ const viewports = [
   { name: "mobile", width: 375, height: 812 },
 ];
 
-test("Visitor header offers Sign in and Create account, never sign out", async ({ page }) => {
+test("Visitor header offers Sign in and Create account, never sign out @smoke", async ({ page }) => {
   await page.goto("/");
   await expect(header(page).getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/sign-in");
   await expect(header(page).getByRole("link", { name: "Create account" })).toHaveAttribute("href", "/register");
@@ -53,7 +54,7 @@ test("Visitor header offers Sign in and Create account, never sign out", async (
   await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
 });
 
-test("home, register success and sign-in link to each other", async ({ page }) => {
+test("home, register success and sign-in link to each other @smoke", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("main").getByRole("link", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
@@ -61,7 +62,7 @@ test("home, register success and sign-in link to each other", async ({ page }) =
   await expect(page).toHaveURL(/\/register$/);
 });
 
-test("page shows two labelled required fields with the right autocomplete", async ({ page }) => {
+test("page shows two labelled required fields with the right autocomplete @smoke", async ({ page }) => {
   await page.goto("/sign-in");
   await expect(page.getByRole("heading", { level: 1, name: "Sign in" })).toBeVisible();
   const names = await page.locator("form input").evaluateAll((els) => els.map((el) => (el as HTMLInputElement).name));
@@ -75,7 +76,7 @@ test("page shows two labelled required fields with the right autocomplete", asyn
   await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("type", "text");
 });
 
-test("sign in ok: CSRF token sent, header and dashboard reflect the account, token refetched later", async ({ page, request }) => {
+test("sign in ok: CSRF token sent, header and dashboard reflect the account, token refetched later @smoke", async ({ page, request }) => {
   await signIn(page);
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByTestId("dashboard-name")).toHaveText("Ayesha Khan");
@@ -98,14 +99,14 @@ test("sign in ok: CSRF token sent, header and dashboard reflect the account, tok
   expect(after.lastSignOutToken).toBe("csrf-1");
 });
 
-test("session is restored on reload through me", async ({ page }) => {
+test("session is restored on reload through me @smoke", async ({ page }) => {
   await signIn(page);
   await expect(page).toHaveURL(/\/dashboard$/);
   await page.goto("/");
   await expect(header(page).getByTestId("account-name")).toHaveText("Ayesha Khan");
 });
 
-test("a valid next target is honoured", async ({ page }) => {
+test("a valid next target is honoured @smoke", async ({ page }) => {
   await signIn(page, "/sign-in?next=%2Faccount%2Fpassword");
   await expect(page).toHaveURL(/\/account\/password$/);
 });
@@ -118,7 +119,7 @@ test("an ordinary account following next=/admin is sent to the admin sign-in", a
 for (const bad of ["/api/v1/me", "/_next/x", "//evil.com", "https://evil.example/x", "/\\evil.com", "/" + "a".repeat(250), "/dash\tboard", "/da\nsh", "evil", ""]) {
   test(`an unsafe next target falls back to /dashboard: ${bad.slice(0, 20).replace(/\s/g, "?")}`, async ({ page }) => {
     await signIn(page, `/sign-in?next=${encodeURIComponent(bad)}`);
-    await expect(page).toHaveURL(/127\.0\.0\.1:3100\/dashboard$/);
+    await expect(page).toHaveURL(new RegExp(`${APP_ORIGIN_RE}/dashboard$`));
   });
 }
 
@@ -297,7 +298,7 @@ test("a signed-in visitor opening /sign-in is sent to the dashboard", async ({ p
 });
 
 test("guard: a Visitor opening /dashboard is redirected to sign in and returned afterwards", async ({ page, request }) => {
-  const raw = await request.get("http://127.0.0.1:3100/dashboard", { maxRedirects: 0 });
+  const raw = await request.get(`${APP_URL}/dashboard`, { maxRedirects: 0 });
   expect([302, 303, 307, 308]).toContain(raw.status());
   expect(raw.headers().location).toContain("/sign-in?next=%2Fdashboard");
   expect(await raw.text()).not.toContain("Signed in as");
@@ -320,7 +321,7 @@ test("guard: ?next keeps the query string through the sign-in round trip", async
 });
 
 test("guard: a spoofed x-requested-path header never decides the target", async ({ request }) => {
-  const raw = await request.get("http://127.0.0.1:3100/dashboard?x=1", {
+  const raw = await request.get(`${APP_URL}/dashboard?x=1`, {
     headers: { "x-requested-path": "//evil.example" },
     maxRedirects: 0,
   });
@@ -329,7 +330,7 @@ test("guard: a spoofed x-requested-path header never decides the target", async 
 });
 
 test("guard: the admin page is guarded on a direct visit and never leaks content", async ({ request }) => {
-  const raw = await request.get("http://127.0.0.1:3100/admin", { maxRedirects: 0 });
+  const raw = await request.get(`${APP_URL}/admin`, { maxRedirects: 0 });
   expect([302, 303, 307, 308]).toContain(raw.status());
   expect(raw.headers().location).toContain("/admin/sign-in?next=%2Fadmin");
   expect(await raw.text()).not.toContain("Administration");
@@ -339,7 +340,7 @@ test("a Back after sign-out never shows protected content, and header and page a
   await signIn(page);
   await expect(page).toHaveURL(/\/dashboard$/);
   await header(page).getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:3100\/$/);
+  await expect(page).toHaveURL(new RegExp(`${APP_ORIGIN_RE}/$`));
   await page.goBack();
   await expect(page.getByTestId("dashboard-name")).toHaveCount(0);
   await expect(header(page).getByTestId("account-name")).toHaveCount(0);
@@ -427,7 +428,7 @@ test("sign out: DELETE with the token, header returns to Visitor, /dashboard is 
   await signIn(page);
   await expect(page).toHaveURL(/\/dashboard$/);
   await header(page).getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:3100\/$/);
+  await expect(page).toHaveURL(new RegExp(`${APP_ORIGIN_RE}/$`));
   await expect(header(page).getByRole("link", { name: "Sign in" })).toBeVisible();
   const s = await stats(request);
   expect(s.signOutCount).toBe(1);
@@ -446,7 +447,7 @@ test("sign out when the session is already gone (401) counts as signed out", asy
   await expect(page).toHaveURL(/\/dashboard$/);
   await mode(request, "signout", "gone");
   await header(page).getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:3100\/$/);
+  await expect(page).toHaveURL(new RegExp(`${APP_ORIGIN_RE}/$`));
   await expect(header(page).getByRole("link", { name: "Sign in" })).toBeVisible();
 });
 

@@ -30,7 +30,42 @@ Server components call the backend through the generated client and forward the 
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run api:sync` | Copy the backend `openapi.yaml` into `src/api/` and regenerate the typed client |
 | `npm run api:check [-- --offline]` | Fail if the client is stale; also compares the spec copy with backend `main` unless `--offline` |
-| `npx playwright test` | Playwright with axe, against a stubbed backend (`npx playwright install chromium` first; same command as CI) |
+| `npm run test:e2e [-- args]` | The full Playwright suite (with axe, against a stubbed backend; `npx playwright install chromium` first; same command as CI) as parallel shards, see "Running the e2e tests" |
+| `npx playwright test [file]` | Serial run on shard 0 (stub 4010, app 3100); handy for one spec file |
+
+## Running the e2e tests
+
+About 1300 tests (a large part are axe checks, see below) take 30 to 50 minutes on a 4-core machine, so the full suite runs in CI, not
+while you work.
+
+**Workflow**
+1. While building: run the specs you touch, `npx playwright test tests/e2e/listing-images.spec.ts` (add `-g "text"` for one test).
+2. Before merging: `npm run test:e2e:changed` (the `@smoke` tests plus every test of the spec files changed against `main`).
+3. Full suite: CI only (`npm run test:e2e`, sharded).
+
+| Command | What it does |
+| --- | --- |
+| `npx playwright test [file]` | Serial on shard 0 against `next dev` (stub 4010, app 3100); the simplest way to run one spec file |
+| `npm run test:e2e:smoke` | The `@smoke` tests only (about 80, across sign-in, register, profile, listings, edit, images, location, amenities, terms, admin, notifications, password) |
+| `npm run test:e2e:changed` | `@smoke` plus all tests of spec files changed against `main` (committed, staged, unstaged or new) |
+| `npm run test:e2e` | The full suite as parallel shards; N = `E2E_SHARDS` or `min(3, cores - 1)` (a 2-core runner therefore runs serially) |
+| `E2E_SHARDS=3 E2E_ONLY=2 npm run test:e2e` | Only shard 2 of 3 (1-based), on its own ports |
+| `E2E_SERVER=dev npm run test:e2e` | Use `next dev` instead of a production build (`npm run test:e2e*` default to `next build` + `next start`, about 1.5 times faster) |
+
+Add `@smoke` to the title of a fast, representative test to put it in the smoke set.
+
+**How the shards work.** The stub backend (`tests/e2e/stub-backend.mjs`) keeps global mutable state, so tests cannot share one. Each shard
+has its own stub, its own app server and one worker. Shard `i` (0-based) uses stub port `4010+i`, app port `3100+i` and build directory
+`.next-e2e-i` (`.next` for `next dev` on shard 0). Spec files are spread over the shards by file size. Specs take the ports from
+`tests/e2e/ports.ts`; never hardcode them. `check:prod-*` use 3200/4110 and are unaffected. Playwright stops each shard's servers when it
+ends, and `Ctrl+C` or SIGTERM on the runner stops all shards. Sharded runs use a 60 s test timeout and 10 s expect timeout (serial: 30 s / 5 s)
+because the shards compete for CPU. A test that fails only in parallel is an isolation bug, not a timeout to raise. A production build
+bakes in the stub URL, so each shard builds once per run.
+
+**Accessibility matrix.** The `axe:` tests (one per page state and viewport) are deliberately many and are not deleted; they are what makes
+the suite slow. They are not in the smoke set. Run them on their own with `npx playwright test -g "axe:"`.
+
+Use `PW_CHANNEL=chrome` when the Playwright Chromium is not downloaded.
 
 ## Environment variables
 

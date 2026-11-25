@@ -1,7 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
+import { STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-const STUB = "http://127.0.0.1:4010";
+const STUB = STUB_URL;
 const TOKEN = "Tk9-AbCdEf_canaryTOKEN-Zq81xY";
 const EMAIL = "Ayesha@Example.com";
 const LINK = `/verify-email?token=${TOKEN}`;
@@ -25,7 +26,7 @@ async function expectNoViolations(page: Page, label: string) {
   expect(results.violations, label).toEqual([]);
 }
 
-test("valid link: token leaves the address bar, one confirm request, success state", async ({ page, request }) => {
+test("valid link: token leaves the address bar, one confirm request, success state @smoke", async ({ page, request }) => {
   await page.goto(LINK);
   const heading = page.getByRole("heading", { name: "Email verified" });
   await expect(heading).toBeVisible();
@@ -38,7 +39,7 @@ test("valid link: token leaves the address bar, one confirm request, success sta
   await expect(page.getByRole("button", { name: "Send a new link" })).toHaveCount(0);
 });
 
-test("other query parameters survive the token removal", async ({ page }) => {
+test("other query parameters survive the token removal @smoke", async ({ page }) => {
   await page.goto(`/verify-email?utm=a&token=${TOKEN}`);
   await expect(page.getByRole("heading", { name: "Email verified" })).toBeVisible();
   expect(new URL(page.url()).search).toBe("?utm=a");
@@ -65,7 +66,7 @@ for (const [mode, title, text] of [
   });
 }
 
-test("distinct wording for expired, used and invalid", async ({ page, request }) => {
+test("distinct wording for expired, used and invalid @smoke", async ({ page, request }) => {
   const seen = new Set<string>();
   for (const mode of ["expired", "used", "invalid"]) {
     await request.get(`${STUB}/__reset`);

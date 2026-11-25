@@ -1,7 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-const STUB = "http://127.0.0.1:4010";
+const STUB = STUB_URL;
 const PASSPHRASE = "correct horse battery staple";
 const PHONE = "0300 5550142";
 const ADDRESS = "Office 12, Blue Plaza, Main Boulevard";
@@ -45,7 +46,7 @@ const viewports = [
   { name: "mobile", width: 375, height: 812 },
 ];
 
-test("page: agency heading, six labelled fields with autocomplete hints, link to the Individual form", async ({ page }) => {
+test("page: agency heading, six labelled fields with autocomplete hints, link to the Individual form @smoke", async ({ page }) => {
   await open(page);
   await expect(page.getByRole("heading", { level: 1, name: "Register an agency" })).toBeVisible();
   const names = await page.locator("form input, form select, form textarea").evaluateAll((els) => els.map((el) => (el as HTMLInputElement).name));
@@ -61,7 +62,7 @@ test("page: agency heading, six labelled fields with autocomplete hints, link to
   await expect(page).toHaveURL(/\/register$/);
 });
 
-test("links: the Individual page and the home page link to the Agency page", async ({ page }) => {
+test("links: the Individual page and the home page link to the Agency page @smoke", async ({ page }) => {
   await page.goto("/register");
   await page.getByRole("link", { name: "Register an agency instead" }).click();
   await expect(page).toHaveURL(/\/register\/agency$/);
@@ -71,7 +72,7 @@ test("links: the Individual page and the home page link to the Agency page", asy
   await expect(page).toHaveURL(/\/register\/agency$/);
 });
 
-test("cities ok: the select lists the cities by name with the placeholder first", async ({ page }) => {
+test("cities ok: the select lists the cities by name with the placeholder first @smoke", async ({ page }) => {
   await open(page);
   const options = await page.getByLabel("City").locator("option").evaluateAll((els) =>
     els.map((el) => ({ text: el.textContent, value: (el as HTMLOptionElement).value, disabled: (el as HTMLOptionElement).disabled })),
@@ -81,7 +82,7 @@ test("cities ok: the select lists the cities by name with the placeholder first"
   await expect(page.getByLabel("City")).toHaveValue("");
 });
 
-test("cities loading: the select is disabled with a Loading cities option", async ({ page, request }) => {
+test("cities loading: the select is disabled with a Loading cities option @smoke", async ({ page, request }) => {
   await setCities(request, "slow");
   await page.goto("/register/agency");
   await expect(page.getByLabel("City")).toBeDisabled();
@@ -452,7 +453,7 @@ test("forms that hold private values post natively, so nothing reaches a GET que
     await expect(page.locator("form").first()).toHaveAttribute("method", /post/i);
   }
   await request.get(`${STUB}/__force-session`);
-  await page.context().addCookies([{ name: "estate_session", value: "stub-live", url: "http://127.0.0.1:3100" }]);
+  await page.context().addCookies([{ name: "estate_session", value: "stub-live", url: APP_URL }]);
   await page.goto("/account/password");
   await expect(page.locator("form").first()).toHaveAttribute("method", /post/i);
 });

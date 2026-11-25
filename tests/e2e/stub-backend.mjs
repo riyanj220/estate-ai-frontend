@@ -1063,6 +1063,7 @@ let profileImageLostSpent = false;
 let profileImageAborted = 0; // held uploads whose client gave up before the answer
 let logoRequests = [];
 let heldImageAnswers = []; // answers held open by the "hold" modes until /__profile-image-release
+let heldUploadAnswers = []; // gallery upload answers held open by imageMode "hold" until /__image-release
 let heldProfileReads = []; // profile reads held open by the "hold" profile modes until /__profile-release
 const ownerImageUrl = (kind) => (kind === "individual" ? "/api/v1/me/profile/image/file" : "/api/v1/me/agency-profile/image/file");
 function wireImage(kind) {
@@ -1945,7 +1946,7 @@ createServer((req, res) => {
   }
   // ---- Images (Story 2.10): upload, reorder and cover, delete and the media endpoint, mirroring the backend's rules.
   if (url.pathname === "/__image-mode") {
-    return choose("imageMode", ["ok", "slow", "too_small", "too_large_dimensions", "invalid_image", "too_many", "cap", "busy", "busy_no_retry", "rate_limited", "rate_none", "forbidden", "session_gone", "not_found", "unsupported_media", "payload_too_large", "not_editable", "csrf_once", "csrf_always", "lost_once", "error", "broken", "hang"], (v) => {
+    return choose("imageMode", ["ok", "slow", "hold", "too_small", "too_large_dimensions", "invalid_image", "too_many", "cap", "busy", "busy_no_retry", "rate_limited", "rate_none", "forbidden", "session_gone", "not_found", "unsupported_media", "payload_too_large", "not_editable", "csrf_once", "csrf_always", "lost_once", "error", "broken", "hang"], (v) => {
       imageMode = v;
       imageLostSpent = false;
       csrfOnceSpent = false;
@@ -2086,6 +2087,7 @@ createServer((req, res) => {
         return req.socket.destroy(); // the image was stored, the answer is lost
       }
       const answer = () => json(201, publicImage(target, image));
+      if (imageMode === "hold") return void heldUploadAnswers.push(answer);
       return imageMode === "slow" ? void setTimeout(answer, 600) : answer();
     });
     return;
@@ -2215,6 +2217,12 @@ createServer((req, res) => {
     const padding = Number(url.searchParams.get("padding") ?? 0);
     profileImages[kind] = url.searchParams.get("clear") === "1" ? null : { type, data: Buffer.concat([IMAGE_PNG, Buffer.alloc(padding, 0x41)]) };
     return json(200, { kind, stored: profileImages[kind] !== null });
+  }
+  if (url.pathname === "/__image-release") {
+    const answers = heldUploadAnswers;
+    heldUploadAnswers = [];
+    for (const answer of answers) answer();
+    return json(200, { released: answers.length });
   }
   if (url.pathname === "/__profile-image-release") {
     const answers = heldImageAnswers;
@@ -2969,6 +2977,7 @@ createServer((req, res) => {
     imageSeq = 100;
     imageLostSpent = false;
     imageAttempts = 0;
+    heldUploadAnswers = [];
     imageUploads = [];
     imageOrderBodies = [];
     imageDeletes = [];

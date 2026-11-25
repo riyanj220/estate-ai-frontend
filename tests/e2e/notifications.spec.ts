@@ -1,8 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 const PAGE = "/account/notifications";
 const THROTTLED = "Too many attempts. Try again in 2 minutes.";
 const SERVER = "Something went wrong on our side. Please try again in a moment.";
@@ -64,7 +65,7 @@ const viewports = [
 
 // ---------------------------------------------------------------- guard, caching, visitors
 
-test("guard: a Visitor is redirected to sign in with next and sees no content", async ({ page, request }) => {
+test("guard: a Visitor is redirected to sign in with next and sees no content @smoke", async ({ page, request }) => {
   const raw = await request.get(`${APP}${PAGE}`, { maxRedirects: 0 });
   expect([302, 303, 307, 308]).toContain(raw.status());
   expect(raw.headers().location).toContain("/sign-in?next=%2Faccount%2Fnotifications");
@@ -75,13 +76,13 @@ test("guard: a Visitor is redirected to sign in with next and sees no content", 
   expect((await stats(request)).gets).toBe(0);
 });
 
-test("the page is not cacheable", async ({ page, request }) => {
+test("the page is not cacheable @smoke", async ({ page, request }) => {
   await startSession(page, request);
   const response = await page.goto(PAGE);
   expect(response?.headers()["cache-control"]).toContain("no-store");
 });
 
-test("a Visitor sees no Notifications link and the unread count is never requested", async ({ page, request }) => {
+test("a Visitor sees no Notifications link and the unread count is never requested @smoke", async ({ page, request }) => {
   await page.goto("/");
   await expect(header(page).getByRole("link", { name: "Sign in" })).toBeVisible();
   await expect(bellLink(page)).toHaveCount(0);
@@ -91,7 +92,7 @@ test("a Visitor sees no Notifications link and the unread count is never request
 
 // ---------------------------------------------------------------- the list
 
-test("open: newest first with title, detail, time and an Unread marker in text; the heading is a focus target", async ({ page, request }) => {
+test("open: newest first with title, detail, time and an Unread marker in text; the heading is a focus target @smoke", async ({ page, request }) => {
   await open(page, request);
   await expect(items(page)).toHaveCount(20);
   const first = items(page).first();

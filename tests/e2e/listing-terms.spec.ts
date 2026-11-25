@@ -1,10 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 // Story 2.6, frontend half: the sale and rent terms in the Draft editor (a "Terms" fieldset built from the registry's `section` marker,
 // the date control, the labels, the errors, the conflicts), against the stub backend, which mirrors the backend's rules.
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 const LIST = "/account/listings";
 const CONFLICT =
   "This draft was changed in another session. We loaded the latest version; your unsaved changes are still in the form. Review them and save again.";
@@ -121,7 +122,7 @@ async function expectNoPlatformBadge(page: Page) {
 
 // ---------------------------------------------------------------- the Terms fieldset
 
-test("terms: a sale shows the sale terms only, in a Terms for sale fieldset after the Area and before the Details", async ({ page, request }) => {
+test("terms: a sale shows the sale terms only, in a Terms for sale fieldset after the Area and before the Details @smoke", async ({ page, request }) => {
   await openDraft(page, request, "sale_terms_blank");
   await expect(termsBlock(page)).toBeVisible();
   expect(await termsBlock(page).evaluate((element) => element.tagName)).toBe("FIELDSET");
@@ -155,7 +156,7 @@ test("terms: a sale shows the sale terms only, in a Terms for sale fieldset afte
   await expect(detail(page, "Price negotiable")).toHaveValue("");
 });
 
-test("terms: a rent shows the rent terms only, grouped by requirement, with the rental period where it was", async ({ page, request }) => {
+test("terms: a rent shows the rent terms only, grouped by requirement, with the rental period where it was @smoke", async ({ page, request }) => {
   await openDraft(page, request, "rent_terms_blank");
   await expect(page.getByRole("group", { name: "Terms for rent", exact: true })).toBeVisible();
   await expect(page.getByRole("group", { name: "Terms for sale" })).toHaveCount(0);
@@ -175,7 +176,7 @@ test("terms: a rent shows the rent terms only, grouped by requirement, with the 
   await expect(page.locator('[data-testid^="draft-detail-"]')).toHaveCount(0); // nothing answered, nothing listed
 });
 
-test("terms: a rent House shows the rent terms but no apartment charges, and a Shop and a Plot show them too", async ({ page, request }) => {
+test("terms: a rent House shows the rent terms but no apartment charges, and a Shop and a Plot show them too @smoke", async ({ page, request }) => {
   await openDraft(page, request, "house_rent_terms_blank");
   await expect(page.getByRole("heading", { level: 3, name: "Terms for rent" })).toBeVisible();
   await expect(termsLabels(page, "recommended")).toHaveText(RENT_RECOMMENDED);
@@ -192,7 +193,7 @@ test("terms: a rent House shows the rent terms but no apartment charges, and a S
   await expect(detail(page, "Maintenance charges (PKR per month)")).toHaveCount(0);
 });
 
-test("summary: the answered terms are listed before the answered details, as in the form", async ({ page, request }) => {
+test("summary: the answered terms are listed before the answered details, as in the form @smoke", async ({ page, request }) => {
   await openDraft(page, request, "rent_terms");
   await otherSession(request, id(1), { bedrooms: "2", furnishing: "furnished" });
   await page.reload();

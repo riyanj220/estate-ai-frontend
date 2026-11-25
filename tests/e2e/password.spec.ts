@@ -1,8 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 // Obviously fake passphrases, built from short words so no scanner mistakes them for keys.
 const TOKEN = ["canary", "reset", "token", "one"].join("-");
 const NEW_PASSWORD = ["correct", "horse", "battery", "staple"].join(" ");
@@ -49,14 +50,14 @@ async function signIn(page: Page, next = "/dashboard") {
 
 // ---------------------------------------------------------------- links
 
-test("sign-in links to the forgot-password page", async ({ page }) => {
+test("sign-in links to the forgot-password page @smoke", async ({ page }) => {
   await page.goto("/sign-in");
   await page.getByRole("link", { name: "Forgot your password?" }).click();
   await expect(page).toHaveURL(/\/forgot-password$/);
   await expect(page.getByRole("link", { name: "Back to sign in" })).toHaveAttribute("href", "/sign-in");
 });
 
-test("signed-in header and dashboard link to Change password; a Visitor sees neither", async ({ page }) => {
+test("signed-in header and dashboard link to Change password; a Visitor sees neither @smoke", async ({ page }) => {
   await page.goto("/");
   await expect(header(page).getByRole("link", { name: "Sign in" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Change password" })).toHaveCount(0);
@@ -71,7 +72,7 @@ test("signed-in header and dashboard link to Change password; a Visitor sees nei
 
 const sendButton = (page: Page) => page.getByRole("button", { name: /Send reset link|Sending/ });
 
-test("forgot: any address gets the same neutral confirmation; the address is trimmed", async ({ page, request }) => {
+test("forgot: any address gets the same neutral confirmation; the address is trimmed @smoke", async ({ page, request }) => {
   await page.goto("/forgot-password");
   await expect(page.getByRole("heading", { level: 1, name: "Forgot your password?" })).toBeVisible();
   await expect(page.getByLabel("Email address")).toHaveAttribute("autocomplete", "email");
@@ -87,7 +88,7 @@ test("forgot: any address gets the same neutral confirmation; the address is tri
   expect((await last(request, "forgot")).count).toBe(2);
 });
 
-test("forgot: 429 shows the wait and the form stays usable", async ({ page, request }) => {
+test("forgot: 429 shows the wait and the form stays usable @smoke", async ({ page, request }) => {
   await setMode(request, "forgot", "rate_limited");
   await page.goto("/forgot-password");
   await page.getByLabel("Email address").fill(EMAIL);

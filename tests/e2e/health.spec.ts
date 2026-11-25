@@ -1,20 +1,21 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL, STUB_PORT } from "./ports";
 import { expect, test } from "@playwright/test";
 
-const STUB = "http://127.0.0.1:4010";
+const STUB = STUB_URL;
 
 test.beforeEach(async ({ request }) => {
   await request.get(`${STUB}/__reset`);
 });
 
-test("health page shows ok and has no accessibility violations", async ({ page }) => {
+test("health page shows ok and has no accessibility violations @smoke", async ({ page }) => {
   await page.goto("/health");
   await expect(page.getByTestId("health-status")).toHaveText("Status: ok");
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 });
 
-test("health page shows unavailable when the backend reports 503", async ({ page, request }) => {
+test("health page shows unavailable when the backend reports 503 @smoke", async ({ page, request }) => {
   await request.get(`${STUB}/__mode?value=down`);
   await page.goto("/health");
   await expect(page.getByTestId("health-status")).toHaveText("Status: unavailable");
@@ -22,7 +23,7 @@ test("health page shows unavailable when the backend reports 503", async ({ page
   expect(results.violations).toEqual([]);
 });
 
-test("health page shows unavailable when the backend connection fails", async ({ page, request }) => {
+test("health page shows unavailable when the backend connection fails @smoke", async ({ page, request }) => {
   await request.get(`${STUB}/__mode?value=broken`);
   await page.goto("/health");
   await expect(page.getByTestId("health-status")).toHaveText("Status: unavailable");
@@ -31,7 +32,7 @@ test("health page shows unavailable when the backend connection fails", async ({
 
 test("health page forwards the incoming cookie to the backend", async ({ page, context, request }) => {
   await request.get(`${STUB}/__reset`);
-  await context.addCookies([{ name: "sessionid", value: "abc123", url: "http://127.0.0.1:3100" }]);
+  await context.addCookies([{ name: "sessionid", value: "abc123", url: APP_URL }]);
   await page.goto("/health");
   const seen = await (await request.get(`${STUB}/__last-cookie`)).json();
   expect(seen.cookie).toContain("sessionid=abc123");
@@ -61,7 +62,7 @@ for (const mode of ["broken", "down"]) {
       expect(response.status()).toBeLessThan(600);
     }
     const body = await response.text();
-    expect(body).not.toMatch(/ECONNRESET|127\.0\.0\.1|4010|stack|at .*\(.*:\d+/i);
+    expect(body).not.toMatch(new RegExp(`ECONNRESET|127\\.0\\.0\\.1|${STUB_PORT}|stack|at .*\\(.*:\\d+`, "i"));
     // The app is still up afterwards.
     await request.get(`${STUB}/__reset`);
     expect((await request.get("/api/v1/health")).status()).toBe(200);
@@ -83,7 +84,7 @@ test("placeholder routes have no accessibility violations", async ({ page }) => 
 test("route groups render their placeholders", async ({ page, request }) => {
   // The signed-in and admin areas are guarded (Stories 1.17 and 1.23): give the stub a live administrator session cookie first.
   await request.get(`${STUB}/__force-session?kind=admin`);
-  await page.context().addCookies([{ name: "estate_session", value: "stub-live", url: "http://127.0.0.1:3100" }]);
+  await page.context().addCookies([{ name: "estate_session", value: "stub-live", url: APP_URL }]);
   for (const [path, heading] of [
     ["/", "EstateAI"],
     ["/dashboard", "Dashboard"],

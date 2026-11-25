@@ -1,9 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 // Story 2.2 and 2.3, frontend half: the Draft editor, its validation, the conflict flow and the other answers, against the stub backend.
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 const LIST = "/account/listings";
 const THROTTLED = "Too many attempts. Try again in 2 minutes.";
 const SERVER = "Something went wrong on our side. Please try again in a moment.";
@@ -94,7 +95,7 @@ const DESCRIPTION0 = "Three bedrooms near the park.";
 
 // ---------------------------------------------------------------- the form
 
-test("editor: prefilled from the Draft, with the limits, hints and choices of the registry", async ({ page, request }) => {
+test("editor: prefilled from the Draft, with the limits, hints and choices of the registry @smoke", async ({ page, request }) => {
   await openDraft(page, request);
   await expect(titleInput(page)).toHaveValue(TITLE0);
   await expect(descriptionInput(page)).toHaveValue(DESCRIPTION0);
@@ -118,7 +119,7 @@ test("editor: prefilled from the Draft, with the limits, hints and choices of th
   await expect(live(page)).toHaveText("");
 });
 
-test("rent and sale: the rental period only for a rent, and the price basis choices follow the purpose", async ({ page, request }) => {
+test("rent and sale: the rental period only for a rent, and the price basis choices follow the purpose @smoke", async ({ page, request }) => {
   await openDraft(page, request, "rent");
   await expect(periodSelect(page)).toBeVisible();
   await expect(basisSelect(page).locator("option")).toHaveText(["Not set", "Rental period"]);
@@ -134,7 +135,7 @@ test("rent and sale: the rental period only for a rent, and the price basis choi
   await expect(periodSelect(page)).toHaveCount(0);
 });
 
-test("registry drives the form: other limits and values change the hints, counters and choices", async ({ page, request }) => {
+test("registry drives the form: other limits and values change the hints, counters and choices @smoke", async ({ page, request }) => {
   await registryFields(request, "other");
   await openDraft(page, request);
   await expect(page.locator("#title-hint")).toHaveText("Recommended. 5 to 20 characters.");
@@ -149,7 +150,7 @@ test("registry drives the form: other limits and values change the hints, counte
   await expect(page.locator("#rental_period-hint")).toHaveText("Recommended.");
 });
 
-test("registry without editable fields: the Draft shows what exists and says nothing can be edited", async ({ page, request }) => {
+test("registry without editable fields: the Draft shows what exists and says nothing can be edited @smoke", async ({ page, request }) => {
   await registryFields(request, "none");
   await preset(request, "titled");
   await startSession(page, request);
@@ -160,7 +161,7 @@ test("registry without editable fields: the Draft shows what exists and says not
   await expect(saveButton(page)).toHaveCount(0);
 });
 
-test("registry failure: the summary stays, Retry loads the form", async ({ page, request }) => {
+test("registry failure: the summary stays, Retry loads the form @smoke", async ({ page, request }) => {
   await setMode(request, "registry", "flaky");
   await preset(request, "titled");
   await startSession(page, request);
@@ -172,7 +173,7 @@ test("registry failure: the summary stays, Retry loads the form", async ({ page,
   await expect(titleInput(page)).toHaveValue(TITLE0);
 });
 
-test("counters: plain text in code points after whitespace collapse, never a live region, and a long paste is not truncated", async ({ page, request }) => {
+test("counters: plain text in code points after whitespace collapse, never a live region, and a long paste is not truncated @smoke", async ({ page, request }) => {
   await openDraft(page, request);
   await titleInput(page).fill("a   b");
   await expect(page.getByTestId("title-count")).toHaveText("3 of 100 characters");
@@ -190,7 +191,7 @@ test("counters: plain text in code points after whitespace collapse, never a liv
 
 // ---------------------------------------------------------------- saving
 
-test("save: only the changed field is sent with the base revision; the revision updates, Saved is announced and focus stays", async ({ page, request }) => {
+test("save: only the changed field is sent with the base revision; the revision updates, Saved is announced and focus stays @smoke", async ({ page, request }) => {
   await openDraft(page, request);
   await titleInput(page).fill("  Corner house with a big garden ");
   await saveButton(page).click();
@@ -207,7 +208,7 @@ test("save: only the changed field is sent with the base revision; the revision 
   await expect(conflictBanner(page)).toHaveCount(0);
 });
 
-test("save: the next save carries the new revision", async ({ page, request }) => {
+test("save: the next save carries the new revision @smoke", async ({ page, request }) => {
   await openDraft(page, request);
   await titleInput(page).fill("A second title for the house");
   await saveButton(page).click();

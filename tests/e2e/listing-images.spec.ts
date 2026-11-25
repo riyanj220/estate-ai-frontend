@@ -1,10 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 // Story 2.10, frontend half: the Images section of the Draft page (upload, reorder, cover, delete, conflicts and revision sync), against
 // the stub backend, which mirrors the backend's upload rules (magic bytes, 5 MB, 10 images, 6 MiB body), revision rules and cover rules.
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 const LIST = "/account/listings";
 const SERVER = "Something went wrong on our side. Please try again in a moment.";
 const REJECTED = "This request could not be submitted. Please try again.";
@@ -93,7 +94,7 @@ const viewports = [
 
 // ---------------------------------------------------------------- empty and populated
 
-test("empty: the empty-state text, the hint and the count, with the picker ready", async ({ page, request }) => {
+test("empty: the empty-state text, the hint and the count, with the picker ready @smoke", async ({ page, request }) => {
   await openDraft(page, request, "images_none");
   await expect(section(page).getByRole("heading", { level: 2, name: "Images" })).toBeVisible();
   await expect(page.getByTestId("images-empty")).toHaveText(EMPTY);
@@ -114,7 +115,7 @@ test("empty: the empty-state text, the hint and the count, with the picker ready
   await expect(page.locator("form").getByLabel("Add images")).toHaveCount(0);
 });
 
-test("populated: thumbnails in order, one cover marked, and the buttons of each image", async ({ page, request }) => {
+test("populated: thumbnails in order, one cover marked, and the buttons of each image @smoke", async ({ page, request }) => {
   await openDraft(page, request);
   await expect(page.getByTestId("images-count")).toHaveText("3 of 10 images");
   expect(await order(page)).toEqual([1, 2, 3]);
@@ -148,7 +149,7 @@ test("populated: thumbnails in order, one cover marked, and the buttons of each 
   await expect(page.getByRole("button", { name: "Delete image 2 of 3", exact: true })).toBeVisible();
 });
 
-test("the media endpoint through the proxy: the bytes, a private no-store answer, and nothing stored by the browser", async ({ page, request }) => {
+test("the media endpoint through the proxy: the bytes, a private no-store answer, and nothing stored by the browser @smoke", async ({ page, request }) => {
   await openDraft(page, request, "images_one");
   const result = await page.evaluate(async (url) => {
     const response = await fetch(url);
@@ -175,7 +176,7 @@ for (const wire of ["not_list", "bad_url", "other_listing_url", "two_covers", "d
   });
 }
 
-test("ghost repair states are trusted: gappy positions and no cover still show, reorder, cover and delete work", async ({ page, request }) => {
+test("ghost repair states are trusted: gappy positions and no cover still show, reorder, cover and delete work @smoke", async ({ page, request }) => {
   await setMode(request, "image-wire", "ghost_gap");
   await openDraft(page, request, "images_three"); // positions 0, 2, 4
   expect(await order(page)).toEqual([1, 2, 3]);
@@ -197,7 +198,7 @@ test("ghost repair states are trusted: gappy positions and no cover still show, 
 
 // ---------------------------------------------------------------- upload
 
-test("upload: several files go one at a time, each with its own status, and the first becomes the cover", async ({ page, request }) => {
+test("upload: several files go one at a time, each with its own status, and the first becomes the cover @smoke", async ({ page, request }) => {
   await openDraft(page, request, "images_none");
   await setMode(request, "image", "slow");
   await picker(page).setInputFiles([png("front-one.png"), png("back-two.png"), png("side-three.png")]);
@@ -301,18 +302,17 @@ test("upload: leaving to another page mid-batch stops the loop quietly (nothing 
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("dialog", (dialog) => void dialog.accept());
   await openDraft(page, request, "images_none");
-  await setMode(request, "image", "slow");
+  // The first upload is held at the stub, so the page is left while it is certainly in flight (no timing involved).
+  await setMode(request, "image", "hold");
   await picker(page).setInputFiles([png("first.png"), png("second.png"), png("third.png")]);
   await expect(rows(page).nth(0).getByTestId("upload-status")).toHaveText("Uploading…");
+  await expect.poll(async () => (await imageStats(request)).attempts).toBe(1);
   await page.getByRole("link", { name: "Back to My listings" }).click();
   await expect(page).toHaveURL(new RegExp(`${LIST}$`));
-  // A request already in flight when the page left may still arrive; after that, nothing more is sent.
-  await new Promise((resolve) => setTimeout(resolve, 1500));
-  const settled = (await imageStats(request)).attempts;
-  expect(settled).toBeGreaterThanOrEqual(1);
-  expect(settled).toBeLessThan(3);
-  await new Promise((resolve) => setTimeout(resolve, 2500));
-  expect((await imageStats(request)).attempts).toBe(settled);
+  // Its answer arrives now that nobody waits for it; after that, nothing more is sent.
+  await request.get(`${STUB_URL}/__image-release`);
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  expect((await imageStats(request)).attempts).toBe(1);
   expect(errors).toEqual([]);
 });
 

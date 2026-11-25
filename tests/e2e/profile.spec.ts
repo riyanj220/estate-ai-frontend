@@ -1,8 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 // Obviously fake values, built from short words and repetitive digits so no scanner mistakes them for keys.
 const PASSWORD = ["correct", "horse", "battery", "staple"].join(" ");
 const TOKEN = ["canary", "email", "change", "token"].join("-");
@@ -74,7 +75,7 @@ async function openProfile(page: Page) {
 
 // ---------------------------------------------------------------- links and guard
 
-test("header and dashboard link to Profile; a Visitor sees neither", async ({ page }) => {
+test("header and dashboard link to Profile; a Visitor sees neither @smoke", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("link", { name: "Profile", exact: true })).toHaveCount(0);
   await signIn(page);
@@ -84,7 +85,7 @@ test("header and dashboard link to Profile; a Visitor sees neither", async ({ pa
   await expect(page).toHaveURL(/\/account\/profile$/);
 });
 
-test("guard: a Visitor is redirected to sign in with next and sees no content", async ({ page, request }) => {
+test("guard: a Visitor is redirected to sign in with next and sees no content @smoke", async ({ page, request }) => {
   const raw = await request.get(`${APP}${PROFILE}`, { maxRedirects: 0 });
   expect([302, 303, 307, 308]).toContain(raw.status());
   expect(raw.headers().location).toContain("/sign-in?next=%2Faccount%2Fprofile");
@@ -96,7 +97,7 @@ test("guard: a Visitor is redirected to sign in with next and sees no content", 
   await expect(page.getByLabel("Phone number")).toHaveCount(0);
 });
 
-test("the profile route is not cacheable", async ({ page }) => {
+test("the profile route is not cacheable @smoke", async ({ page }) => {
   await signIn(page);
   const response = await page.goto(PROFILE);
   expect(response?.headers()["cache-control"]).toContain("no-store");
@@ -104,7 +105,7 @@ test("the profile route is not cacheable", async ({ page }) => {
 
 // ---------------------------------------------------------------- load
 
-test("load: form prefilled, current email shown, no pending note, phone only in the input", async ({ page, request }) => {
+test("load: form prefilled, current email shown, no pending note, phone only in the input @smoke", async ({ page, request }) => {
   await openProfile(page);
   await expect(fullName(page)).toHaveValue(NAME);
   await expect(fullName(page)).toHaveAttribute("autocomplete", "name");
@@ -122,7 +123,7 @@ test("load: form prefilled, current email shown, no pending note, phone only in 
   await expect(page.locator("body")).not.toContainText(PHONE);
 });
 
-test("load: a pending address shows the plain note", async ({ page, request }) => {
+test("load: a pending address shows the plain note @smoke", async ({ page, request }) => {
   await openProfile(page);
   await newEmail(page).fill(NEW_EMAIL);
   await password(page).fill(PASSWORD);

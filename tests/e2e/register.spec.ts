@@ -1,7 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
+import { STUB_URL } from "./ports";
 import { expect, test, type Page } from "@playwright/test";
 
-const STUB = "http://127.0.0.1:4010";
+const STUB = STUB_URL;
 const CANARY_PASSWORD = "canary-Pass-91827";
 const CANARY_PHONE = "0300 5550142";
 
@@ -33,7 +34,7 @@ const viewports = [
   { name: "mobile", width: 375, height: 812 },
 ];
 
-test("page shows heading, four labelled fields in order, submit button and privacy note", async ({ page }) => {
+test("page shows heading, four labelled fields in order, submit button and privacy note @smoke", async ({ page }) => {
   await page.goto("/register");
   await expect(page.getByRole("heading", { level: 1, name: "Create an account" })).toBeVisible();
   const names = await page.locator("form input").evaluateAll((els) => els.map((el) => (el as HTMLInputElement).name));
@@ -49,13 +50,13 @@ test("page shows heading, four labelled fields in order, submit button and priva
   await expect(page.getByRole("button", { name: "Create account" })).toBeVisible();
 });
 
-test("home page links to /register", async ({ page }) => {
+test("home page links to /register @smoke", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: "Create an account" }).click();
   await expect(page).toHaveURL(/\/register$/);
 });
 
-test("success shows check your email, clears password and phone, sends exactly four fields", async ({ page, request }) => {
+test("success shows check your email, clears password and phone, sends exactly four fields @smoke", async ({ page, request }) => {
   await page.goto("/register");
   await fill(page);
   await page.getByRole("button", { name: "Create account" }).click();
@@ -74,7 +75,7 @@ test("success shows check your email, clears password and phone, sends exactly f
   expect(body.phone).toBe(CANARY_PHONE);
 });
 
-test("field errors: summary focused with links, messages under inputs, aria attributes", async ({ page, request }) => {
+test("field errors: summary focused with links, messages under inputs, aria attributes @smoke", async ({ page, request }) => {
   await setMode(request, "fields");
   await page.goto("/register");
   await fill(page);
@@ -102,7 +103,7 @@ test("field errors: summary focused with links, messages under inputs, aria attr
   await expect(page.locator("#phone")).toBeFocused();
 });
 
-test("non-field errors appear in the summary", async ({ page, request }) => {
+test("non-field errors appear in the summary @smoke", async ({ page, request }) => {
   await setMode(request, "non_field");
   await page.goto("/register");
   await fill(page);

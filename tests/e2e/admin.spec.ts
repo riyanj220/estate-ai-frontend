@@ -1,8 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 const EMAIL = "admin@example.com";
 // Low-entropy fake words only (the secret scanner flags random-looking literals).
 const PASSPHRASE = ["correct", "horse", "battery", "staple", "42"].join(" ");
@@ -53,7 +54,7 @@ const banner = (page: Page) => page.getByRole("banner");
 
 // ---- Guard -----------------------------------------------------------------------------------------------------
 
-test("a Visitor opening /admin gets a 307 to the admin sign-in with no admin markup, uncached", async ({ request }) => {
+test("a Visitor opening /admin gets a 307 to the admin sign-in with no admin markup, uncached @smoke", async ({ request }) => {
   const raw = await request.get(`${APP}/admin`, { maxRedirects: 0 });
   expect(raw.status()).toBe(307);
   expect(raw.headers().location).toContain("/admin/sign-in?next=%2Fadmin");
@@ -64,7 +65,7 @@ test("a Visitor opening /admin gets a 307 to the admin sign-in with no admin mar
   expect(body).not.toContain("Coming soon");
 });
 
-test("an ordinary account opening /admin gets the same redirect as a Visitor", async ({ request }) => {
+test("an ordinary account opening /admin gets the same redirect as a Visitor @smoke", async ({ request }) => {
   const visitor = await request.get(`${APP}/admin`, { maxRedirects: 0 });
   await request.get(`${STUB}/__force-session`);
   const ordinary = await request.get(`${APP}/admin`, { maxRedirects: 0, headers: cookieHeader });
@@ -75,7 +76,7 @@ test("an ordinary account opening /admin gets the same redirect as a Visitor", a
   expect(body).not.toContain("Administration tools");
 });
 
-test("an expired administrator session gets the same redirect", async ({ request }) => {
+test("an expired administrator session gets the same redirect @smoke", async ({ request }) => {
   await request.get(`${STUB}/__force-session?kind=admin`);
   await request.get(`${STUB}/__expire-session`);
   const raw = await request.get(`${APP}/admin`, { maxRedirects: 0, headers: cookieHeader });
@@ -83,14 +84,14 @@ test("an expired administrator session gets the same redirect", async ({ request
   expect(raw.headers().location).toContain("/admin/sign-in?next=%2Fadmin");
 });
 
-test("deep paths are guarded and keep the path under /admin as next", async ({ request }) => {
+test("deep paths are guarded and keep the path under /admin as next @smoke", async ({ request }) => {
   const raw = await request.get(`${APP}/admin/anything/else?x=1`, { maxRedirects: 0 });
   expect(raw.status()).toBe(307);
   expect(raw.headers().location).toContain("/admin/sign-in?next=%2Fadmin%2Fanything%2Felse%3Fx%3D1");
   expect(await raw.text()).not.toContain("EstateAI Administration");
 });
 
-test("an administrator on an unknown admin path gets a plain 404 without the public header", async ({ page, request }) => {
+test("an administrator on an unknown admin path gets a plain 404 without the public header @smoke", async ({ page, request }) => {
   await startSession(page, request, "admin");
   const response = await page.goto("/admin/anything");
   expect(response?.status()).toBe(404);

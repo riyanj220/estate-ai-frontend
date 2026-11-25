@@ -1,11 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 // Story 2.8, frontend half: the Amenities section of the Draft editor (the generic `amenities` registry type, the catalogue grouped by kind,
 // three-state radios, seller-declared nearby facilities), against the stub backend, which mirrors the backend's rules and serves the real
 // `FIELD_MESSAGES` sentences by default. Low-entropy fake words only.
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 const LIST = "/account/listings";
 const id = (seq: number) => `00000000-0000-4000-9000-${String(seq).padStart(12, "0")}`;
 const ERRORS_ANNOUNCED = "The form has errors. Review the list at the top of the page.";
@@ -110,7 +111,7 @@ const viewports = [
 
 // ---------------------------------------------------------------- structure
 
-test("amenities: the catalogue is grouped by kind with group sub-headings, in the backend's exact vocabulary and order", async ({ page, request }) => {
+test("amenities: the catalogue is grouped by kind with group sub-headings, in the backend's exact vocabulary and order @smoke", async ({ page, request }) => {
   await openDraft(page, request, "house_blank");
   await ready(page);
   await expect(page.getByRole("heading", { level: 3, name: "Amenities" })).toBeVisible();
@@ -130,7 +131,7 @@ test("amenities: the catalogue is grouped by kind with group sub-headings, in th
   expect(await page.locator("form").getByTestId("amenities-block").count()).toBe(1);
 });
 
-test("amenities: every item is a labelled fieldset of three radios, Not answered by default, and nothing is saved by looking", async ({ page, request }) => {
+test("amenities: every item is a labelled fieldset of three radios, Not answered by default, and nothing is saved by looking @smoke", async ({ page, request }) => {
   await openDraft(page, request, "house_blank");
   await ready(page);
   for (const [, , items] of VOCABULARY) {
@@ -149,7 +150,7 @@ test("amenities: every item is a labelled fieldset of three radios, Not answered
   expect((await patches(request)).count).toBe(0);
 });
 
-test("amenities: only the Nearby group carries the visible Seller-declared label and its helper, and no distance or verification control exists", async ({ page, request }) => {
+test("amenities: only the Nearby group carries the visible Seller-declared label and its helper, and no distance or verification control exists @smoke", async ({ page, request }) => {
   await openDraft(page, request, "house_blank");
   await ready(page);
   const nearby = page.getByTestId("amenities-nearby");
@@ -167,7 +168,7 @@ test("amenities: only the Nearby group carries the visible Seller-declared label
   expect(await block(page).locator('[type="number"], [type="range"], [type="checkbox"]').count()).toBe(0);
 });
 
-test("amenities: a registry without the amenities field shows no section and never asks for the catalogue", async ({ page, request }) => {
+test("amenities: a registry without the amenities field shows no section and never asks for the catalogue @smoke", async ({ page, request }) => {
   await request.get(`${STUB}/__registry-fields?value=other`);
   await openDraft(page, request, "house_blank");
   await expect(block(page)).toHaveCount(0);
@@ -199,7 +200,7 @@ for (const [name, change] of [
 
 // ---------------------------------------------------------------- choose, save, restore, clear
 
-test("amenities: choosing sends the whole map with the revision, saves, and the next save is a no-op", async ({ page, request }) => {
+test("amenities: choosing sends the whole map with the revision, saves, and the next save is a no-op @smoke", async ({ page, request }) => {
   await openDraft(page, request, "house_blank");
   await ready(page);
   await choose(page, "elevator", "Present");

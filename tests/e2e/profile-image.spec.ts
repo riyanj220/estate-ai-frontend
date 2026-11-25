@@ -1,11 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { deflateSync } from "node:zlib";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 // Story 2.11, frontend half: the profile picture (Individual) and logo (Agency) sections of the profile pages, against the stub backend,
 // which mirrors the backend's upload rules (magic bytes, 5 MB, 6 MiB body, 10 uploads an hour) and serves the stored bytes back.
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 const PROFILE = "/account/profile";
 const AGENCY_ID = "55555555-5555-4555-8555-555555555555";
 const SERVER = "Something went wrong on our side. Please try again in a moment.";
@@ -162,7 +163,7 @@ for (const s of KINDS) {
   test.describe(s.kind, () => {
     // ------------------------------------------------------------ empty and populated
 
-    test("empty: a neutral placeholder, the labelled picker and its hint, no Remove, before the text form", async ({ page, request }) => {
+    test("empty: a neutral placeholder, the labelled picker and its hint, no Remove, before the text form @smoke", async ({ page, request }) => {
       await openPage(page, request, s);
       await expect(section(page).getByRole("heading", { level: 2, name: s.title })).toBeVisible();
       await expect(empty(page)).toHaveText(s.empty);
@@ -184,7 +185,7 @@ for (const s of KINDS) {
       expect((await stats(request)).fileGets).toBe(0);
     });
 
-    test("populated: the current image from the owner route, loaded, with its alt text and a Remove button", async ({ page, request }) => {
+    test("populated: the current image from the owner route, loaded, with its alt text and a Remove button @smoke", async ({ page, request }) => {
       await seed(request, s.kind);
       await openPage(page, request, s);
       await expect(shownImage(page, s)).toHaveAttribute("src", s.ownerUrl);
@@ -211,7 +212,7 @@ for (const s of KINDS) {
 
     // ------------------------------------------------------------ upload and replace
 
-    test("upload: one `file` part, the answer shown, success text, focus stays on the picker, nothing kept", async ({ page, request }) => {
+    test("upload: one `file` part, the answer shown, success text, focus stays on the picker, nothing kept @smoke", async ({ page, request }) => {
       const consoleText: string[] = [];
       page.on("console", (message) => consoleText.push(message.text()));
       await openPage(page, request, s);

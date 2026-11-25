@@ -1,10 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 // Story 2.7, frontend half: the Location section of the Draft editor (the generic `reference` control, the public location and the private
 // address), against the stub backend, which mirrors the backend's rules. Low-entropy fake words only.
-const STUB = "http://127.0.0.1:4010";
-const APP = "http://127.0.0.1:3100";
+const STUB = STUB_URL;
+const APP = APP_URL;
 const LIST = "/account/listings";
 const id = (seq: number) => `00000000-0000-4000-9000-${String(seq).padStart(12, "0")}`;
 const KARACHI = "11111111-1111-4111-8111-111111111111";
@@ -67,7 +68,7 @@ const viewports = [
 
 // ---------------------------------------------------------------- structure
 
-test("location: a Location block with the public group and a separated private address, each with its helper", async ({ page, request }) => {
+test("location: a Location block with the public group and a separated private address, each with its helper @smoke", async ({ page, request }) => {
   await openDraft(page, request, "location_filled");
   await ready(page);
   await expect(page.getByRole("heading", { level: 3, name: "Location" })).toBeVisible();
@@ -92,7 +93,7 @@ test("location: a Location block with the public group and a separated private a
   await expect(page.getByTestId("details-more").getByLabel("Block")).toHaveCount(0);
 });
 
-test("location: a registry without location fields shows no Location block and asks for no reference list", async ({ page, request }) => {
+test("location: a registry without location fields shows no Location block and asks for no reference list @smoke", async ({ page, request }) => {
   await request.get(`${STUB}/__registry-fields?value=other`);
   await openDraft(page, request, "house_blank");
   await expect(page.getByTestId("location-block")).toHaveCount(0);
@@ -101,7 +102,7 @@ test("location: a registry without location fields shows no Location block and a
   expect((await localityGets(request)).count).toBe(0);
 });
 
-test("location: the locality select is aria-disabled, not disabled, and reachable until a city is chosen", async ({ page, request }) => {
+test("location: the locality select is aria-disabled, not disabled, and reachable until a city is chosen @smoke", async ({ page, request }) => {
   await openDraft(page, request, "house_blank");
   await ready(page);
   const locality = field(page, "Locality");
@@ -118,7 +119,7 @@ test("location: the locality select is aria-disabled, not disabled, and reachabl
   await expect(locality).not.toHaveAttribute("aria-disabled", "true");
 });
 
-test("location: the localities are grouped Areas and Societies and belong to the chosen city", async ({ page, request }) => {
+test("location: the localities are grouped Areas and Societies and belong to the chosen city @smoke", async ({ page, request }) => {
   await openDraft(page, request, "house_blank");
   await ready(page);
   await field(page, "City").selectOption({ label: "Karachi" });
@@ -134,7 +135,7 @@ test("location: the localities are grouped Areas and Societies and belong to the
 
 // ---------------------------------------------------------------- choose, save, restore, clear
 
-test("location: choosing a city and a locality saves them with the revision flow and restores them", async ({ page, request }) => {
+test("location: choosing a city and a locality saves them with the revision flow and restores them @smoke", async ({ page, request }) => {
   await openDraft(page, request, "house_blank");
   await ready(page);
   await field(page, "City").selectOption({ label: "Karachi" });
