@@ -42,6 +42,7 @@ import {
 import {
   ALREADY_SAVED,
   CONFLICT_BANNER,
+  LISTING_FIELD_MESSAGES,
   DETAIL_MESSAGES,
   DETAILS_DROPPED,
   EDIT_FIELD_MESSAGES,
@@ -58,6 +59,15 @@ import {
   LATEST_NOT_LOADED,
   MARLA_EXPLANATION,
   CHOICES_APPLIED,
+  CONFIRM_NO_CONTROL,
+  CONFIRM_REQUIRED_ERROR,
+  CONFIRM_LABEL,
+  CONFIRMED,
+  IMAGES_REQUIRED_ERROR,
+  PUBLISH_DONE,
+  PUBLISH_ELSEWHERE,
+  PUBLISH_ERRORS_ANNOUNCE,
+  PUBLISH_PAUSED,
   NO_CHANGES,
   SAVED,
   DELETE_DRAFT_PAUSED,
@@ -76,6 +86,7 @@ import { useRegistry, type FieldDef, type Registry } from "@/lib/use-registry";
 import { DeleteDraft } from "./delete-draft";
 import { DetailsSection } from "./details-section";
 import { ImagesSection } from "./images-section";
+import { PublishSection, PublishedAllowance } from "./publish-section";
 
 type FieldName = "title" | "description" | "asking_price" | "price_basis" | "rental_period" | "area_value" | "area_unit" | "marla_basis";
 /** The form's text per control: the hand-built fields always, the registry details (keyed by id) only when answered; read them with `at`. */
@@ -230,11 +241,25 @@ export function DraftEditor({
   const [imagesBusy, setImagesBusy] = useState(false);
   // The Draft is being deleted (Story 2.13): Save and the image actions wait, like the delete waits for them.
   const [deleting, setDeleting] = useState(false);
+  // The Draft is being published (Story 2.15): Save, the image actions and Delete wait, like the publish waits for them.
+  const [publishing, setPublishing] = useState(false);
+  const publishingRef = useRef(false);
+  // What a publish attempt was refused for (all at once): per field (shown next to it), per item without a control (form-level), the images.
+  const [publishErrors, setPublishErrors] = useState<Fields>({});
+  const [publishForm, setPublishForm] = useState<string[]>([]);
+  const [publishTick, setPublishTick] = useState(0);
+  const publishSummary = useRef<HTMLDivElement>(null);
+  // Every edit of the form moves this, so a publish attempt after an edit gets a new Idempotency-Key.
+  const [edits, setEdits] = useState(0);
+  // After the Listing was published here ("done") or found published elsewhere ("elsewhere"): the note and the live announcement.
+  const [publishedNote, setPublishedNote] = useState<"" | "done" | "elsewhere">("");
   const [conflict, setConflict] = useState<Conflict | null>(null);
   // The fields a problem between two fields (the floor rule) is shown under: editing either clears them all.
   const [linked, setLinked] = useState<string[]>([]);
   // Date fields that hold a partly typed date (the browser reports "" for them): Save is blocked until each is finished or cleared.
   const [incomplete, setIncomplete] = useState<string[]>([]);
+  // Date inputs that hold a partly typed date right now (reported by the input itself): unsaved input, so Publish waits.
+  const [partialDates, setPartialDates] = useState<string[]>([]);
   const { announcement, setAnnouncement, resetAnnouncement, announce, focusSummary, summaryRef } = useFormFeedback();
   const alertRef = useRef<HTMLParagraphElement>(null);
   const submitting = useRef(false);
@@ -250,6 +275,10 @@ export function DraftEditor({
   useEffect(() => {
     if (alertTick > 0) alertRef.current?.focus();
   }, [alertTick]);
+  useEffect(() => {
+    if (publishTick > 0) publishSummary.current?.focus();
+  }, [publishTick]);
+
   function showAlert(next: Alert) {
     resetAnnouncement();
     setInfo("");
@@ -266,7 +295,7 @@ export function DraftEditor({
   const catalogue = useAmenityCatalogue(detailDefs.some((def) => def.type === "amenities"));
   const controls: string[] = [...shown, ...detailIds];
   const baseline = toValues(listing);
-  const dirty = controls.some((name) => !same(name, at(values, name), at(baseline, name)));
+  const dirty = controls.some((name) => !same(name, at(values, name), at(baseline, name))) || partialDates.length > 0 || incomplete.length > 0;
 
   // An unsaved-changes guard on leaving the page. In-app links are not intercepted; nothing is stored.
   useEffect(() => {
@@ -308,10 +337,12 @@ export function DraftEditor({
 
   /** A date input says whether it is incomplete: a finished or cleared one drops its flag (the flag is only ever raised by Save). */
   function onDateInput(name: string, partial: boolean) {
+    setPartialDates((current) => (partial ? (current.includes(name) ? current : [...current, name]) : current.includes(name) ? current.filter((other) => other !== name) : current));
     if (!partial) setIncomplete((current) => (current.includes(name) ? current.filter((other) => other !== name) : current));
   }
 
   function setValue(name: string, value: string) {
+    if (publishingRef.current) return; // the form is read-only while the listing is published
     // Moving the unit away from marla and kanal drops what was typed for the basis (it is hidden and never sent; the server clears it).
     // Changing or clearing the City clears the Locality at once (the server does the same, so a stale pair is never saved).
     // Going back to the saved city within the same editing session brings the saved locality back; any other change empties it.
@@ -330,6 +361,14 @@ export function DraftEditor({
     });
     if (cityChanged) announce(LOCALITY_CLEARED);
     setInfo("");
+    setEdits((count) => count + 1);
+    setPublishErrors((current) => {
+      if (!current[name] && !(cityChanged && current.locality)) return current;
+      const next = { ...current };
+      delete next[name];
+      if (cityChanged) delete next.locality;
+      return next;
+    });
     // The last open conflict row hidden by typing the latest value by hand ends the banner, like resolving it with a button.
     if (conflict && conflict.fields.length > 0 && alert?.kind === "conflict") {
       const latest = toValues(listingRef.current);
@@ -434,6 +473,8 @@ export function DraftEditor({
     setLinked([]);
     setFieldErrors({});
     setFormErrors([]);
+    setPublishErrors({});
+    setPublishForm([]);
     showAlert({
       kind: "conflict",
       text: [
@@ -481,6 +522,13 @@ export function DraftEditor({
     const together = linked.includes(name) ? linked : [];
     if (together.length > 0) setLinked([]);
     setIncomplete((current) => current.filter((other) => other !== name));
+    setEdits((count) => count + 1);
+    setPublishErrors((current) => {
+      if (!current[name]) return current;
+      const next = { ...current };
+      delete next[name];
+      return next;
+    });
     // The field's own error and the problem between fields it belongs to are about the typed value, which is replaced.
     setFieldErrors((current) => {
       if (![name, ...together].some((key) => current[key])) return current;
@@ -513,9 +561,31 @@ export function DraftEditor({
     document.getElementById(name)?.focus();
   }
 
+  /**
+   * The server says the revision sent is not the current one (a save or a publish answered 409 `stale_revision`): the Listing it
+   * carries (or a fresh read when it carries none) becomes the baseline beside what was typed, with the conflict choices.
+   */
+  async function handleStale(error: unknown, baseRevision: number): Promise<void> {
+    const current = typeof error === "object" && error !== null ? readListing((error as { current?: unknown }).current) : null;
+    const usable = hasRevision(current) && current.id === listing.id && current.revision > baseRevision ? current : null;
+    if (usable) {
+      if (!applyConflict(usable)) showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
+      return;
+    }
+    // No usable data in the answer: read the Draft again and keep what was typed.
+    const again = await fetchLatest();
+    if (again.kind === "found" && hasRevision(again.listing)) {
+      if (!applyConflict(again.listing)) showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
+      return;
+    }
+    if (again.kind === "gone") return await onSessionGone();
+    if (again.kind === "missing") return onNotFound();
+    showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
+  }
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting.current || !registry || deleting) return;
+    if (submitting.current || !registry || deleting || publishingRef.current) return;
     if (imagesBusy) {
       announce(SAVE_WAIT);
       return;
@@ -584,24 +654,7 @@ export function DraftEditor({
       }
       if (response.status === 401) return await onSessionGone();
       if (response.status === 404) return onNotFound();
-      if (response.status === 409) {
-        const current = typeof error === "object" && error !== null ? readListing((error as { current?: unknown }).current) : null;
-        const usable = hasRevision(current) && current.id === listing.id && current.revision > baseRevision ? current : null;
-        if (usable) {
-          if (!applyConflict(usable)) showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
-          return;
-        }
-        // No usable data in the answer: read the Draft again and keep what was typed.
-        const again = await fetchLatest();
-        if (again.kind === "found" && hasRevision(again.listing)) {
-          if (!applyConflict(again.listing)) showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
-          return;
-        }
-        if (again.kind === "gone") return await onSessionGone();
-        if (again.kind === "missing") return onNotFound();
-        showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
-        return;
-      }
+      if (response.status === 409) return await handleStale(error, baseRevision);
       const parsed = response.status === 400 ? readErrorBody(error) : null;
       if (parsed) {
         const mapped: Fields = {};
@@ -638,6 +691,8 @@ export function DraftEditor({
         general.splice(0, general.length, ...new Set(general));
         resetAnnouncement();
         setFieldErrors(mapped);
+        setPublishErrors({}); // one summary at a time: the save's replaces a publish one
+        setPublishForm([]);
         setLinked(linkedNow);
         setFormErrors(general);
         focusSummary();
@@ -651,6 +706,139 @@ export function DraftEditor({
         return;
       }
       showAlert({ kind: "notice", text: failureMessage(response.status, response.headers.get("Retry-After")) });
+    } catch (thrown) {
+      showAlert({ kind: "notice", text: thrownMessage(thrown) });
+    } finally {
+      submitting.current = false;
+      setPending(false);
+    }
+  }
+
+  /** The text of one code a publish attempt was refused with, for the control `key` (known codes only: anything else is generic). */
+  function publishText(key: string, code: string): string {
+    if (code === "confirm_required") return CONFIRM_REQUIRED_ERROR;
+    if (key === "images") return code === "images_required" ? IMAGES_REQUIRED_ERROR : GENERIC_FIELD_MESSAGE;
+    if (isFieldName(key)) return mapKnownCodes([code], EDIT_FIELD_MESSAGES[key])[0];
+    if (Object.hasOwn(LISTING_FIELD_MESSAGES, key)) return mapKnownCodes([code], LISTING_FIELD_MESSAGES[key as keyof typeof LISTING_FIELD_MESSAGES])[0];
+    return codeTexts(registry?.field(key), key, [code], GENERIC_FIELD_MESSAGE, at(valuesRef.current, "city") !== "")[0];
+  }
+
+  /**
+   * A publish attempt was refused with a list of problems (400), all at once. Each shows next to its control (the images next to the
+   * Images section) and in the summary at the top; an item with no control here (Purpose, Category, Subtype, a field this form does not
+   * show) goes to the summary only. Header problems (key, revision) are not the owner's to fix: they alone are not shown here.
+   */
+  function showPublishErrors(fields: Fields): boolean {
+    const mapped: Fields = {};
+    const general: string[] = [];
+    for (const [key, codes] of Object.entries(fields)) {
+      if (codes.length === 0 || ["idempotency_key", "base_revision", "non_field_errors"].includes(key)) continue;
+      const texts = [...new Set(codes.map((code) => publishText(key, code)))];
+      if (key === "images" || controls.includes(key)) mapped[key] = texts;
+      else general.push(`${labelOf(key, listing.fields.category)}: ${texts.map((text) => (text === CONFIRM_REQUIRED_ERROR ? CONFIRM_NO_CONTROL : text)).join(" ")}`);
+    }
+    if (Object.keys(mapped).length === 0 && general.length === 0) return false;
+    resetAnnouncement();
+    setInfo("");
+    setAlert(null);
+    setFieldErrors({}); // one summary at a time: the publish one replaces a save one
+    setFormErrors([]);
+    setLinked([]);
+    setPublishErrors(mapped);
+    setPublishForm(general);
+    setPublishTick((tick) => tick + 1);
+    announce(PUBLISH_ERRORS_ANNOUNCE);
+    return true;
+  }
+
+  /** The Listing is published (200): the page switches to the published state, announces it, and re-reads the allowance. */
+  function onPublished(next: ListingView) {
+    setListing(next);
+    setValues(toValues(next));
+    setPublishErrors({});
+    setPublishForm([]);
+    setConflict(null);
+    setAlert(null);
+    setFieldErrors({});
+    setFormErrors([]);
+    resetAnnouncement();
+    setInfo("");
+    setPublishedNote("done");
+  }
+
+  /** The server says it is not a draft (409 `conflict`): read it again; a published one switches the page to its published state. */
+  async function publishConflict(): Promise<"published" | "draft" | "handled"> {
+    const latest = await fetchLatest();
+    if (latest.kind === "gone") {
+      await onSessionGone();
+      return "handled";
+    }
+    if (latest.kind === "missing") {
+      onNotFound();
+      return "handled";
+    }
+    if (latest.kind === "found") {
+      // Still a draft (a claim without a result, a race that was undone): nothing is published, the page and its revision stay as they are.
+      if (latest.listing.status === "draft") return "draft";
+      setListing((now) => ({ ...now, status: latest.listing.status, revision: latest.listing.revision, media: latest.listing.media }));
+      setPublishedNote("elsewhere");
+      return "published";
+    }
+    showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
+    return "handled";
+  }
+
+  /** A publish answered `stale_revision`: a Listing that is no longer a draft (it was published meanwhile) is the "published elsewhere" outcome; otherwise the conflict flow. */
+  async function publishStale(error: unknown, baseRevision: number): Promise<void> {
+    const current = typeof error === "object" && error !== null ? readListing((error as { current?: unknown }).current) : null;
+    if (current && current.id === listing.id && hasRevision(current) && current.status !== null && current.status !== "draft") {
+      setListing((now) => ({ ...now, status: current.status, revision: current.revision, media: current.media }));
+      setPublishedNote("elsewhere");
+      return;
+    }
+    await handleStale(error, baseRevision);
+  }
+
+  /** "Confirm this value": saves just that field with the value it has (the backend stores a re-sent Assistant value as confirmed). */
+  async function confirmValue(name: string) {
+    if (submitting.current || publishingRef.current || pending || imagesBusy || deleting || !registry) return;
+    const base = listing.revision;
+    if (base === null) {
+      showAlert({ kind: "notice", text: REJECTED_ERROR });
+      return;
+    }
+    const def = registry.field(name);
+    const saved = toValues(listing);
+    const value = isFieldName(name) ? sentValue(at(saved, name)) : def ? sentDetail(def, at(saved, name)) : null;
+    submitting.current = true;
+    setPending(true);
+    resetAnnouncement();
+    try {
+      const api = await getApi();
+      const body = { base_revision: base, fields: { [name]: value } } as components["schemas"]["ListingUpdateRequest"];
+      const { data, error, response } = await withCsrf((csrf) =>
+        withTimeout((signal) => api.PATCH("/api/v1/listings/{listing_id}", { params: { path: { listing_id: listing.id } }, body, headers: { "X-CSRFToken": csrf }, signal })),
+      );
+      if (response.ok) {
+        const next = readListing(data);
+        if (hasRevision(next) && next.id === listing.id) {
+          applySaved(next, saved); // what was typed in other fields stays
+          setPublishErrors((current) => {
+            const rest = { ...current };
+            delete rest[name];
+            return rest;
+          });
+          setInfo("");
+          setAnnouncement(CONFIRMED);
+          return;
+        }
+        showAlert({ kind: "notice", text: SERVER_ERROR });
+        return;
+      }
+      if (response.status === 401) return await onSessionGone();
+      if (response.status === 404) return onNotFound();
+      if (response.status === 409) return await handleStale(error, base);
+      showAlert({ kind: "notice", text: response.status === 400 ? REJECTED_ERROR : failureMessage(response.status, response.headers.get("Retry-After")) });
     } catch (thrown) {
       showAlert({ kind: "notice", text: thrownMessage(thrown) });
     } finally {
@@ -675,7 +863,15 @@ export function DraftEditor({
   const derived = derivedBase && areaDirty ? `${derivedBase} (saved figure, updates after you save)` : derivedBase;
   const shownErrors: Fields = { ...fieldErrors };
   for (const name of incomplete) shownErrors[name] = [...(shownErrors[name] ?? []), INCOMPLETE_DATE];
+  // The images error goes once the Draft has an image; every other publish error goes when its field is edited.
+  const shownPublish: Fields = { ...publishErrors };
+  if (listing.media.length > 0) delete shownPublish.images;
+  const fieldPublish = Object.fromEntries(Object.entries(shownPublish).filter(([name]) => name !== "images")) as Fields;
+  const hasPublishErrors = Object.keys(shownPublish).length > 0 || publishForm.length > 0;
   const hasErrors = formErrors.length > 0 || Object.keys(shownErrors).length > 0;
+  // What each control shows: its save errors and its publish errors (the edit summary lists only the first, the publish summary the second).
+  const controlErrors: Fields = { ...shownErrors };
+  for (const [name, texts] of Object.entries(fieldPublish)) controlErrors[name] = [...new Set([...(controlErrors[name] ?? []), ...texts])];
   const showConflict = (name: string) =>
     conflict !== null &&
     conflict.fields.includes(name) &&
@@ -758,6 +954,26 @@ export function DraftEditor({
     );
   }
 
+  /** The Confirm button under a field the publish attempt refused for an unconfirmed Assistant value (only a field with a control). */
+  function confirmRow(name: string) {
+    if (!fieldPublish[name]?.includes(CONFIRM_REQUIRED_ERROR)) return null;
+    const busy = pending || imagesBusy || deleting || publishing ? true : undefined;
+    return (
+      <div className="conflict-actions" data-testid={`confirm-${name}`}>
+        <button type="button" className="secondary-button" aria-disabled={busy} onClick={() => void confirmValue(name)}>
+          {CONFIRM_LABEL}
+          <span className="sr-only"> for {actionLabelOf(name, listing.fields.category)}</span>
+        </button>
+      </div>
+    );
+  }
+  const rowOf = (name: string) => (
+    <>
+      {conflictRow(name)}
+      {confirmRow(name)}
+    </>
+  );
+
   /** The "Latest saved" line with its two actions, shown under a field whose typed value differs from the latest one. */
   function conflictRow(name: string) {
     if (!showConflict(name)) return null;
@@ -801,7 +1017,7 @@ export function DraftEditor({
   };
 
   function control(name: FieldName, def: FieldDef) {
-    const errors = fieldErrors[name];
+    const errors = controlErrors[name];
     const common = { name, label: FIELD_LABELS[name], hint: (name === "marla_basis" ? MARLA_EXPLANATION : hintFor(def)) || undefined,
       errors,
       // A hand-built field a registry flags as the owner's claim gets the same tag and helper as a detail.
@@ -817,11 +1033,12 @@ export function DraftEditor({
                 aria-describedby={describedBy(name, props["aria-describedby"], true)}
                 type="text"
                 autoComplete="off"
+                readOnly={publishing}
                 value={values.title}
                 onChange={(e) => setValue("title", e.target.value)}
               />
               {counter(name, def)}
-              {conflictRow(name)}
+              {rowOf(name)}
             </>
           )}
         </Field>
@@ -836,11 +1053,12 @@ export function DraftEditor({
                 {...props}
                 aria-describedby={describedBy(name, props["aria-describedby"], true)}
                 rows={6}
+                readOnly={publishing}
                 value={values.description}
                 onChange={(e) => setValue("description", e.target.value)}
               />
               {counter(name, def)}
-              {conflictRow(name)}
+              {rowOf(name)}
             </>
           )}
         </Field>
@@ -861,11 +1079,12 @@ export function DraftEditor({
                   type="text"
                   inputMode="decimal"
                   autoComplete="off"
+                  readOnly={publishing}
                   value={values.asking_price}
                   onChange={(e) => setValue("asking_price", e.target.value)}
                 />
               </div>
-              {conflictRow(name)}
+              {rowOf(name)}
             </>
           )}
         </Field>
@@ -882,10 +1101,11 @@ export function DraftEditor({
                 type="text"
                 inputMode="decimal"
                 autoComplete="off"
+                readOnly={publishing}
                 value={values.area_value}
                 onChange={(e) => setValue("area_value", e.target.value)}
               />
-              {conflictRow(name)}
+              {rowOf(name)}
             </>
           )}
         </Field>
@@ -908,7 +1128,7 @@ export function DraftEditor({
                 </option>
               ))}
             </select>
-            {conflictRow(name)}
+            {rowOf(name)}
           </>
         )}
       </Field>
@@ -927,6 +1147,22 @@ export function DraftEditor({
           </span>
         )}
       </p>
+      {/* The one announcement of the publish outcome: a visible status that stays mounted, so its text is announced once (it takes no focus). */}
+      <p role="status" aria-live="polite" className={publishedNote ? "notice" : "sr-only"} data-testid="publish-live">
+        {publishedNote === "done" ? PUBLISH_DONE : publishedNote === "elsewhere" ? PUBLISH_ELSEWHERE : ""}
+        {publishedNote === "done" && <PublishedAllowance />}
+      </p>
+      {hasPublishErrors && listing.status === "draft" && (
+        <ErrorSummary
+          ref={publishSummary}
+          order={["images", ...controls]}
+          labels={{ images: "Images", ...Object.fromEntries(controls.map((name) => [name, labelOf(name, listing.fields.category)])) }}
+          fieldErrors={shownPublish}
+          formErrors={publishForm}
+          titleId="publish-error-summary-title"
+          targets={{ images: "images-add" }}
+        />
+      )}
       <section className="card" aria-labelledby="draft-details-title" style={{ marginBottom: "var(--space)" }}>
         <h2 id="draft-details-title" className="section-title">
           What exists so far
@@ -994,7 +1230,8 @@ export function DraftEditor({
         revision={listing.revision}
         media={listing.media}
         onListing={applyImages}
-        locked={pending || deleting}
+        locked={pending || deleting || publishing}
+        publishError={shownPublish.images?.join(" ")}
         onBusyChange={setImagesBusy}
         refresh={fetchLatest}
         onSessionGone={onSessionGone}
@@ -1086,7 +1323,7 @@ export function DraftEditor({
                 fields={detailDefs}
                 values={values}
                 saved={baseline}
-                errors={shownErrors}
+                errors={controlErrors}
                 onDateInput={onDateInput}
                 lists={lists}
                 amenities={catalogue}
@@ -1094,12 +1331,17 @@ export function DraftEditor({
                 category={listing.fields.category}
                 subtype={listing.fields.subtype}
                 onChange={setValue}
-                conflictRow={conflictRow}
+                conflictRow={rowOf}
                 inConflict={showConflict}
               />
               {imagesBusy && (
                 <p id="save-paused" className="hint" data-testid="save-paused">
                   {SAVE_PAUSED}
+                </p>
+              )}
+              {publishing && (
+                <p className="hint" data-testid="publish-paused">
+                  {PUBLISH_PAUSED}
                 </p>
               )}
               {deleting && (
@@ -1110,7 +1352,7 @@ export function DraftEditor({
               <button
                 type="submit"
                 className="primary-button"
-                aria-disabled={pending || imagesBusy || deleting ? true : undefined}
+                aria-disabled={pending || imagesBusy || deleting || publishing ? true : undefined}
                 aria-describedby={imagesBusy ? "save-paused" : undefined}
               >
                 {pending ? "Saving…" : "Save changes"}
@@ -1121,10 +1363,31 @@ export function DraftEditor({
       </section>
         </>
       )}
+      {listing.status === "draft" && (
+        <PublishSection
+          listingId={listing.id}
+          revision={listing.revision}
+          stamp={`${listing.revision}:${edits}`}
+          dirty={dirty}
+          blocked={pending || imagesBusy || deleting}
+          saveRunning={() => submitting.current}
+          onBusyChange={(busy) => {
+            publishingRef.current = busy;
+            setPublishing(busy);
+          }}
+          onSessionGone={onSessionGone}
+          onNotFound={onNotFound}
+          onInvalid={showPublishErrors}
+          onPublished={onPublished}
+          onStale={publishStale}
+          onConflict={publishConflict}
+          formState={status === "ready" ? "ready" : status === "loading" ? "loading" : "error"}
+        />
+      )}
       <DeleteDraft
           listingId={listing.id}
           isDraft={listing.status === "draft"}
-          blocked={pending || imagesBusy}
+          blocked={pending || imagesBusy || publishing}
           saveRunning={() => submitting.current}
           onBusyChange={setDeleting}
           onSessionGone={onSessionGone}

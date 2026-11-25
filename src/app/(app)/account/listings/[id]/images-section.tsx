@@ -69,6 +69,7 @@ export function ImagesSection({
   refresh,
   onSessionGone,
   onNotFound,
+  publishError,
 }: {
   listingId: string;
   revision: number | null;
@@ -83,6 +84,8 @@ export function ImagesSection({
   refresh: () => Promise<Latest>;
   onSessionGone: () => Promise<void>;
   onNotFound: () => void;
+  /** The publish attempt was refused for want of an image (shown next to the picker). */
+  publishError?: string;
 }) {
   const { account } = useSession();
   const { announcement, announce, resetAnnouncement } = useFormFeedback();
@@ -525,12 +528,19 @@ export function ImagesSection({
       </div>
       <div className="image-add">
         <label htmlFor="images-add">Add images</label>
+        {publishError && (
+          <p id="images-error" className="field-error" data-testid="images-publish-error">
+            <span className="sr-only">Error: </span>
+            {publishError}
+          </p>
+        )}
         <input
           id="images-add"
           type="file"
           multiple
           accept={ALLOWED_TYPES}
-          aria-describedby={full ? "images-hint images-limit" : "images-hint"}
+          aria-invalid={publishError ? true : undefined}
+          aria-describedby={[full ? "images-hint images-limit" : "images-hint", publishError ? "images-error" : null].filter(Boolean).join(" ")}
           aria-disabled={waiting || full ? true : undefined}
           // A full list or a running action blocks the picker without disabling the control.
           onClick={(event) => {

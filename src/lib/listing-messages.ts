@@ -107,6 +107,7 @@ export const EDIT_FIELD_MESSAGES = {
 const DETAIL_NOT_APPLICABLE = "This detail does not apply to this listing.";
 export const DETAIL_MESSAGES: Record<string, Record<string, string>> = {
   integer: {
+    required: "Enter a whole number.",
     invalid: "Enter a whole number, digits only, for example 3.",
     invalid_range: "Enter a whole number within the allowed range.",
     invalid_floor: "The floor cannot be above the number of floors in the building. Check both numbers.",
@@ -114,18 +115,21 @@ export const DETAIL_MESSAGES: Record<string, Record<string, string>> = {
     not_editable: NOT_EDITABLE,
   },
   boolean: {
+    required: "Choose Yes or No.",
     invalid: "Choose Yes, No or Not answered.",
     invalid_choice: "Choose Yes, No or Not answered.",
     not_applicable: DETAIL_NOT_APPLICABLE,
     not_editable: NOT_EDITABLE,
   },
   enum: {
+    required: "Choose an option.",
     invalid: "Choose an option from the list.",
     invalid_choice: "Choose an option from the list.",
     not_applicable: DETAIL_NOT_APPLICABLE,
     not_editable: NOT_EDITABLE,
   },
   decimal: {
+    required: "Enter an amount above zero.",
     invalid: "Enter digits only, with an optional decimal point. Do not use commas, signs or units, for example 1200 or 10.5.",
     invalid_area: "Enter an amount above zero within the allowed range, with no more decimal places than allowed.",
     invalid_measure: "Enter a number above zero within the allowed range, using digits and an optional decimal point.",
@@ -133,12 +137,14 @@ export const DETAIL_MESSAGES: Record<string, Record<string, string>> = {
     not_editable: NOT_EDITABLE,
   },
   money: {
+    required: "Enter an amount.",
     invalid: "Enter digits only, with an optional decimal point. Do not use commas or currency signs, for example 2500 or 2500.50.",
     invalid_price: "Enter an amount within the allowed range, with at most two decimal places.",
     not_applicable: DETAIL_NOT_APPLICABLE,
     not_editable: NOT_EDITABLE,
   },
   date: {
+    required: "Enter a date.",
     invalid: "Enter a real date written year-month-day, for example 2027-03-01.",
     invalid_date: "Enter a date within the allowed range shown above.",
     not_applicable: DETAIL_NOT_APPLICABLE,
@@ -146,6 +152,7 @@ export const DETAIL_MESSAGES: Record<string, Record<string, string>> = {
   },
   // Story 2.8: the amenity map has one code, `invalid` (an item that is not offered, another state, too many answers).
   amenities: {
+    required: "Choose your amenities.",
     invalid: "One of the amenity choices could not be saved. Check your choices and try again.",
     not_applicable: DETAIL_NOT_APPLICABLE,
     not_editable: NOT_EDITABLE,
@@ -166,9 +173,10 @@ const LOCATION_TEXT: Record<string, string> = {
 };
 const COORDINATE_RULE = "Enter a decimal number such as 24.860000. Latitude and longitude go together.";
 export const LOCATION_MESSAGES: Record<string, Record<string, string>> = {
-  city: { ...LOCATION_COMMON, invalid: "Choose a city from the list.", invalid_choice: "Choose a city from the list." },
+  city: { ...LOCATION_COMMON, required: "Choose a city.", invalid: "Choose a city from the list.", invalid_choice: "Choose a city from the list." },
   locality: {
     ...LOCATION_COMMON,
+    required: "Choose a locality.",
     invalid: "Choose a locality from the list.",
     invalid_choice: "Choose a locality from the list.",
     locality_not_in_city: "Choose a locality that belongs to the selected city.",
@@ -288,3 +296,36 @@ export const DELETE_DRAFT_PAUSED = "Saving and image changes are paused while th
 export const DELETE_DRAFT_NAV_FAILED = "The draft was deleted, but My listings could not be opened. Use the link at the bottom of the page.";
 export const PREVIEW_SAVED_HINT = "Preview shows your saved changes.";
 export const NO_LONGER_DRAFT = "This listing is no longer a draft, so it cannot be edited or deleted here.";
+
+// ---- Publishing (Story 2.15).
+export const PUBLISH_TITLE = "Publish";
+export const PUBLISH_TEXT = "Publishing makes this listing visible to everyone immediately. It uses 1 of your monthly publications.";
+export const PUBLISH_LABEL = "Publish listing";
+export const PUBLISH_SAVE_FIRST = "Save your changes before publishing";
+export const PUBLISH_WAIT = "Wait for the current save or image change to finish, then publish.";
+export const PUBLISH_PAUSED = "Saving, editing and image changes are paused while the listing is published.";
+export const PUBLISH_WORKING = "Publishing the listing…";
+export const PUBLISH_DONE = "Your listing is published. It is now visible to everyone.";
+export const PUBLISH_ERRORS_ANNOUNCE = "The listing cannot be published yet. Review the list at the top of the page.";
+export const PUBLISH_ELSEWHERE = "This listing is already published. We loaded the latest version.";
+export const PUBLISH_EMAIL_UNVERIFIED = "Verify your email to publish.";
+export const PUBLISH_UNAVAILABLE = "Your account cannot publish right now.";
+export const PUBLISH_FAILED = "We could not publish the listing. Try again.";
+export const PUBLISH_UNSURE = "We could not confirm whether the listing was published. Retrying is safe: it never publishes twice.";
+export const PUBLISH_ALLOWANCE_CHECKING = "Checking your remaining publications…";
+export const PUBLISH_ALLOWANCE_FAILED = "We could not check your remaining publications.";
+export const IMAGES_REQUIRED_ERROR = "Add at least one image.";
+export const CONFIRM_REQUIRED_ERROR = "Confirm this value before publishing.";
+export const DASHBOARD_PATH = "/dashboard";
+export const VERIFY_EMAIL_PATH = "/verify-email";
+/** The quota refusal: "You have used all N publications this month. The allowance resets on 1 December 2026." */
+export function quotaExhaustedText(limit: number | null, date: string | null): string {
+  const used = limit === null ? "You have used all your publications this month." : limit === 1 ? "You have used your 1 publication this month." : `You have used all ${limit} publications this month.`;
+  return date ? `${used} The allowance resets on ${date}.` : used;
+}
+export const CONFIRM_LABEL = "Confirm this value";
+export const CONFIRMED = "The value is confirmed.";
+export const CONFIRM_NO_CONTROL = "This value was filled in for you and has not been confirmed. It cannot be confirmed on this page.";
+export const PUBLISH_FORM_LOADING = "Publishing is available when the form has loaded.";
+export const PUBLISH_FORM_UNAVAILABLE = "Publishing is not available until the form has loaded. Use Retry in the Edit details section.";
+export const PUBLISH_CHANGED = "The form changed while publishing was starting. Check it and try again.";

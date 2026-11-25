@@ -61,6 +61,8 @@ export const SENTENCE_CODES: Record<string, string> = {
   "The floor cannot be above the number of floors in the building.": "invalid_floor",
   "Enter a number within the allowed range, using digits and a decimal point.": "out_of_range",
   "Choose a locality that belongs to the selected city.": "locality_not_in_city",
+  "Add at least one image.": "images_required",
+  "Confirm this value before publishing.": "confirm_required",
 };
 
 /** A value of `error.fields` as its code: a known sentence becomes its code, anything else is returned as it came. */
