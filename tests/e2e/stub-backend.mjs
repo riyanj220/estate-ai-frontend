@@ -90,6 +90,57 @@ const LOCALITIES = {
   "33333333-3333-4333-8333-333333333333": [loc(11, "Blue Area", "area"), loc(12, "Capital Heights", "society")],
 };
 const KARACHI = "11111111-1111-4111-8111-111111111111";
+// Amenity catalogue (Story 2.8): EXACTLY the backend's seeded vocabulary, in its order (kind, then display order). `kind` is on_property,
+// community or nearby; a nearby entry is the seller's own declaration (no distance, no verification anywhere).
+let amenitiesMode = "ok";
+let amenitiesCount = 0;
+const am = (kind, group, code, label) => ({ code, label, kind, group });
+const AMENITIES = [
+  am("on_property", "utilities", "electricity_backup", "Electricity backup"),
+  am("on_property", "utilities", "broadband_internet", "Broadband internet"),
+  am("on_property", "utilities", "waste_disposal", "Waste disposal"),
+  am("on_property", "building", "double_glazed_windows", "Double-glazed windows"),
+  am("on_property", "building", "central_air_conditioning", "Central air conditioning"),
+  am("on_property", "building", "central_heating", "Central heating"),
+  am("on_property", "building", "elevator", "Elevator"),
+  am("on_property", "building", "lobby", "Lobby"),
+  am("on_property", "building", "intercom", "Intercom"),
+  am("on_property", "business", "conference_room", "Conference room"),
+  am("on_property", "business", "business_centre", "Business centre"),
+  am("on_property", "business", "atm_in_building", "ATM in building"),
+  am("community", "residential_community", "community_lawn", "Community lawn"),
+  am("community", "residential_community", "swimming_pool", "Swimming pool"),
+  am("community", "residential_community", "community_gym", "Gym"),
+  am("community", "residential_community", "daycare", "Daycare"),
+  am("community", "residential_community", "childrens_play_area", "Children's play area"),
+  am("community", "residential_community", "bbq_area", "BBQ area"),
+  am("community", "community_services", "community_mosque", "Community mosque"),
+  am("community", "community_services", "medical_facility", "Medical facility"),
+  am("community", "community_services", "community_centre", "Community centre"),
+  am("nearby", "nearby", "nearby_mosque", "Mosque"),
+  am("nearby", "nearby", "nearby_park", "Park"),
+  am("nearby", "nearby", "nearby_gym", "Gym"),
+  am("nearby", "nearby", "nearby_school", "School"),
+  am("nearby", "nearby", "nearby_hospital", "Hospital"),
+];
+const ACTIVE_AMENITY_CODES = AMENITIES.map((entry) => entry.code);
+/** The real rules for the amenity map (Story 2.8): { value } or { code }. `stored` is the Listing's map now (a deactivated code may be re-sent unchanged). */
+const checkAmenities = (value, stored) => {
+  if (value === null) return { value: null }; // null clears
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return { code: "invalid" };
+  const entries = Object.entries(value);
+  // At most 40 entries. (The 41-entry test map is refused for this rule and also because most of its codes are not in the catalogue; the stub
+  // cannot hold 41 active codes, the vocabulary has 26.)
+  if (entries.length > 40) return { code: "invalid" };
+  const kept = stored && typeof stored === "object" ? stored : {};
+  for (const [code, state] of entries) {
+    if (state !== "present" && state !== "none") return { code: "invalid" };
+    if (!ACTIVE_AMENITY_CODES.includes(code) && !(Object.hasOwn(kept, code) && kept[code] === state)) return { code: "invalid" };
+  }
+  return { value: entries.length === 0 ? null : Object.fromEntries(entries.sort(([a], [b]) => (a < b ? -1 : 1))) };
+};
+/** Whether two stored values differ (the amenity map is compared by content, every other value by identity). */
+const differs = (a, b) => (typeof a === "object" && a !== null) || (typeof b === "object" && b !== null) ? JSON.stringify(a ?? null) !== JSON.stringify(b ?? null) : (a ?? null) !== (b ?? null);
 const cityOfLocality = (id) => Object.entries(LOCALITIES).find(([, list]) => list.some((entry) => entry.id === id))?.[0] ?? null;
 // Profile and email change stand-ins (Story 1.20). The profile is stateful so a save shows on the next read.
 const PROFILE_START = { full_name: "Ayesha Khan", phone: "+923001234567", email: "ayesha@example.com", pending_email: null };
@@ -571,6 +622,14 @@ const LOCATION_DEFS = [
   locDef("longitude", "decimal", "optional", { min: "-180", max: "180", scale: 6, class: "private" }),
 ];
 REGISTRY_FIELDS.default.push(...LOCATION_DEFS);
+// Story 2.8: the amenity map of registry version 8 (shape 7): type `amenities`, `section: amenities`, public, optional, applies everywhere.
+const AMENITIES_DEF = fieldDef("amenities", "amenities", "optional", {
+  section: "amenities",
+  searchable: true,
+  valuation_input: true,
+  description: "Amenities and nearby facilities as a map from a catalogue code to present or none. A code left out is unanswered, never none. Nearby facilities are the seller's own declaration.",
+});
+REGISTRY_FIELDS.default.push(AMENITIES_DEF);
 // A location field with no `class` and one with an unknown `class`: both must be treated as private (fail closed).
 Object.defineProperty(REGISTRY_FIELDS, "oddclass", {
   enumerable: true,
@@ -585,8 +644,8 @@ Object.defineProperty(REGISTRY_FIELDS, "oddclass", {
     });
   },
 });
-const REGISTRY_VERSION = 7;
-const REGISTRY_SHAPE = 6;
+const REGISTRY_VERSION = 8;
+const REGISTRY_SHAPE = 7;
 let fieldsName = "default";
 let taxonomyName = "default";
 let registryMode = "ok";
@@ -608,6 +667,7 @@ const EMPTY_EDITABLE = {
   ...Object.fromEntries(PLOT_COMMERCIAL_DEFS.map((entry) => [entry.id, null])),
   ...Object.fromEntries(TERMS_DEFS.map((entry) => [entry.id, null])),
   ...Object.fromEntries(LOCATION_DEFS.map((entry) => [entry.id, null])),
+  amenities: null,
 };
 // What a client may send (the derived square feet never): the real service answers `not_editable` for `area_sqft`.
 const INPUT_FIELDS = Object.keys(EMPTY_EDITABLE).filter((key) => key !== "area_sqft");
@@ -785,7 +845,6 @@ const publicListing = (item) => ({
   fields: item.fields,
   provenance: item.provenance,
   media: spoilMedia(item.images.map((image) => publicImage(item, image))),
-  amenities: [],
 });
 const LISTING_PRESETS = {
   empty: () => [],
@@ -839,6 +898,15 @@ const LISTING_PRESETS = {
   ],
   // A saved city and locality that are no longer in the lists (deactivated since).
   location_gone: () => [makeListing(1, "mine", { city: "99999999-9999-4999-8999-999999999999", locality: "99999999-9999-4999-8999-999999999998" }, 2)],
+  // Story 2.8: a Draft with answered amenities (one nearby), one holding a deactivated code (old_sauna) beside active ones, and blank ones.
+  amenities_filled: () => [makeListing(1, "mine", { amenities: { elevator: "present", lobby: "none", community_gym: "present", nearby_school: "present", nearby_park: "none" } }, 2)],
+  amenities_inactive: () => [makeListing(1, "mine", { amenities: { elevator: "present", old_sauna: "present", former_helipad: "none" } }, 2)],
+  amenities_bad_state: () => [makeListing(1, "mine", { amenities: { elevator: "maybe" } }, 2)],
+  amenities_empty_state: () => [makeListing(1, "mine", { amenities: { elevator: "" } }, 2)],
+  amenities_null_state: () => [makeListing(1, "mine", { amenities: { elevator: null } }, 2)],
+  amenities_number_state: () => [makeListing(1, "mine", { amenities: { elevator: 1 } }, 2)],
+  amenities_bad_code: () => [makeListing(1, "mine", { amenities: { Elevator: "present" } }, 2)],
+  amenities_not_object: () => [makeListing(1, "mine", { amenities: ["elevator"] }, 2)],
   house_zero: () => [makeListing(1, "mine", { bedrooms: 0, kitchens: 0, basement: false }, 2)],
   // Stored values the form cannot represent: a float for an integer, a JSON number for a decimal, a text for a yes/no, a choice outside the
   // registry, an unsafe integer, and a poisoned key.
@@ -1493,7 +1561,7 @@ createServer((req, res) => {
   if (url.pathname === "/__listing-patch-mode") {
     return choose(
       "patchMode",
-      ["ok", "slow", "codes", "hidden", "area_codes", "area_hidden", "area_other_codes", "detail_codes", "location_codes", "location_invalid", "sentence_all", "location_sentences", "location_unknown", "plot_codes", "commercial_codes", "detail_floor", "detail_codes_slow", "term_codes", "term_hidden", "detail_not_editable", "detail_not_applicable", "detail_hidden", "detail_unknown", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
+      ["ok", "slow", "codes", "hidden", "area_codes", "area_hidden", "area_other_codes", "detail_codes", "location_codes", "location_invalid", "sentence_all", "location_sentences", "location_unknown", "amenities_invalid", "amenities_unknown", "amenities_hidden", "amenities_not_editable", "plot_codes", "commercial_codes", "detail_floor", "detail_codes_slow", "term_codes", "term_hidden", "detail_not_editable", "detail_not_applicable", "detail_hidden", "detail_unknown", "unknown", "non_field", "not_editable", "empty_fields", "conflict_no_current", "conflict_bad_current", "lost_once", "unreadable", "not_found", "forbidden", "session_gone", "rate_limited", "rate_none", "csrf_once", "csrf_always", "error", "broken", "hang"],
       (v) => {
         patchMode = v;
         patchLostSpent = false;
@@ -1509,6 +1577,12 @@ createServer((req, res) => {
       if (!url.searchParams.has(name)) continue;
       const raw = url.searchParams.get(name);
       const type = currentDef(name)?.type;
+      // The amenity map is sent as JSON text ("" or "{}" clears it).
+      if (name === "amenities") {
+        const map = raw === "" ? null : JSON.parse(raw);
+        target.fields[name] = map !== null && Object.keys(map).length === 0 ? null : map;
+        continue;
+      }
       // A detail keeps its wire type: integers as numbers, yes/no as booleans, "" is not answered.
       target.fields[name] = raw === "" ? null : !HAND_IDS.includes(name) && type === "integer" ? Number(raw) : !HAND_IDS.includes(name) && type === "boolean" ? raw === "true" : raw;
     }
@@ -1705,6 +1779,10 @@ createServer((req, res) => {
       if (patchMode === "location_codes") return fail({ city: ["invalid"], locality: ["locality_not_in_city"], society: ["contains_contact_details"], street: ["too_long"], latitude: ["out_of_range"], longitude: ["invalid"], block: ["mystery_code"] });
       if (patchMode === "location_sentences") return fail({ locality: ["Choose a locality that belongs to the selected city."], society: ["This text cannot contain phone numbers, email addresses or street addresses."], latitude: ["Enter a number within the allowed range, using digits and a decimal point."], street: ["Some server sentence."] });
       if (patchMode === "location_invalid") return fail({ locality: ["invalid"] });
+      if (patchMode === "amenities_invalid") return fail({ amenities: ["invalid"] });
+      if (patchMode === "amenities_unknown") return fail({ amenities: ["mystery_code", "Some server sentence."] });
+      if (patchMode === "amenities_not_editable") return fail({ amenities: ["not_editable"] });
+      if (patchMode === "amenities_hidden") return fail({ amenities: ["not_applicable"] });
       if (patchMode === "sentence_all") return fail({ title: ["too_short"], asking_price: ["invalid_price"], area_value: ["invalid_area"], floor_number: ["invalid_floor"], building_floors: ["invalid_floor"], lift: ["not_applicable"], bedrooms: ["not_editable"], city: ["invalid"], street: ["too_long"], longitude: ["invalid"] });
       if (patchMode === "location_unknown") return fail({ city: ["constructor"], phase: ["Some server sentence."], house_number: ["not_applicable"] });
       if (patchMode === "hidden") return fail({ rental_period: ["not_applicable"] });
@@ -1791,6 +1869,10 @@ createServer((req, res) => {
         } else if (key === "marla_basis") {
           if (typeof value === "string" && (rule?.allowed_values ?? []).includes(value)) next[key] = value;
           else problems[key] = ["invalid_choice"];
+        } else if (rule?.type === "amenities") {
+          const result = checkAmenities(value, target.fields.amenities ?? null);
+          if (result.code) problems[key] = [result.code];
+          else next[key] = result.value;
         } else if (rule?.section === "location") {
           const result = checkLocation(rule, value);
           if (result.code) problems[key] = [result.code];
@@ -1841,7 +1923,7 @@ createServer((req, res) => {
       const merged = { ...target.fields, ...next };
       const sqft = normalisedSqft(merged.area_value, merged.area_unit, merged.marla_basis);
       if (sqft !== merged.area_sqft) next.area_sqft = sqft;
-      const changed = Object.keys(next).filter((key) => (target.fields[key] ?? null) !== next[key]);
+      const changed = Object.keys(next).filter((key) => differs(target.fields[key], next[key]));
       if (changed.length > 0) {
         for (const key of changed) {
           target.fields[key] = next[key];
@@ -2696,6 +2778,33 @@ createServer((req, res) => {
     if (citiesMode === "slow") return void setTimeout(() => json(200, { items: CITIES }), 1500);
     return serverFailure(citiesMode);
   }
+  if (url.pathname === "/__amenities-mode") {
+    return choose("amenitiesMode", ["ok", "empty", "error", "flaky", "fail_then_slow", "hang", "slow", "malformed", "partial", "html", "long_label", "short_label", "padded_label", "bad_group", "dup_code"], (v) => {
+      amenitiesMode = v;
+      amenitiesCount = 0;
+    });
+  }
+  if (url.pathname === "/__last-amenities") return json(200, { count: amenitiesCount });
+  // Public, like the backend's reference lists: no cookie needed, and (like the backend) no Cache-Control header.
+  if (url.pathname === "/api/v1/reference/amenities" && req.method === "GET") {
+    amenitiesCount += 1;
+    if (amenitiesMode === "ok") return json(200, { items: AMENITIES });
+    if (amenitiesMode === "empty") return json(200, { items: [] });
+    if (amenitiesMode === "malformed") return json(200, { items: [{ code: 7, label: "Numeric code", kind: "nearby", group: "nearby" }, { code: "Bad Code", label: "Odd", kind: "community", group: "x" }, { code: "no_kind", label: "No kind", kind: "district", group: "x" }, null] });
+    if (amenitiesMode === "partial") {
+      return json(200, { items: [AMENITIES[6], { ...AMENITIES[6], label: "Duplicate code" }, { code: "no_label", label: "  ", kind: "community", group: "x" }, { code: "bad_group", label: "Bad group", kind: "community", group: "Bad Group" }, { code: "bad_kind", label: "Bad kind", kind: "other", group: "x" }, AMENITIES[7], AMENITIES[21]] });
+    }
+    if (amenitiesMode === "long_label") return json(200, { items: [...AMENITIES.slice(0, 3), { ...AMENITIES[3], label: "x".repeat(81) }] });
+    if (amenitiesMode === "short_label") return json(200, { items: [...AMENITIES.slice(0, 3), { ...AMENITIES[3], label: "x" }] });
+    if (amenitiesMode === "padded_label") return json(200, { items: [...AMENITIES.slice(0, 3), { ...AMENITIES[3], label: " Elevator " }] });
+    if (amenitiesMode === "bad_group") return json(200, { items: [...AMENITIES.slice(0, 3), { ...AMENITIES[3], group: "a" }] });
+    if (amenitiesMode === "dup_code") return json(200, { items: [AMENITIES[0], { ...AMENITIES[1], code: AMENITIES[0].code }] });
+    if (amenitiesMode === "fail_then_slow") return amenitiesCount === 1 ? json(500, envelope("server_error", "Internal detail that must not show.")) : void setTimeout(() => json(200, { items: AMENITIES }), 1500);
+    if (amenitiesMode === "html") return void (res.writeHead(200, { "Content-Type": "text/html" }), res.end("<html>not json</html>"));
+    if (amenitiesMode === "flaky") return amenitiesCount === 1 ? json(500, envelope("server_error", "Internal detail that must not show.")) : json(200, { items: AMENITIES });
+    if (amenitiesMode === "slow") return void setTimeout(() => json(200, { items: AMENITIES }), 1500);
+    return serverFailure(amenitiesMode);
+  }
   if (url.pathname === "/__localities-mode") {
     return choose("localitiesMode", ["ok", "error", "flaky", "slow", "hang", "malformed", "partial", "empty", "html404", "emoji"], (v) => {
       localitiesMode = v;
@@ -2831,6 +2940,8 @@ createServer((req, res) => {
     localitiesCount = 0;
     localitiesAnswered = 0;
     localityCityIds = [];
+    amenitiesMode = "ok";
+    amenitiesCount = 0;
     profile = { ...PROFILE_START };
     profileMode = profilePatchMode = emailChangeMode = emailConfirmMode = "ok";
     profileGets = profilePatchCount = emailChangeCount = emailConfirmCount = 0;

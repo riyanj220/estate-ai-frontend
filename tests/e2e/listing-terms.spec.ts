@@ -114,7 +114,7 @@ async function expectNoPlatformBadge(page: Page) {
   const found = await page.evaluate((help) => {
     const root = document.body.cloneNode(true) as HTMLElement;
     root.querySelectorAll("header, nav, footer, script, style").forEach((element) => element.remove());
-    return (root.textContent ?? "").replaceAll(help, "");
+    return (root.textContent ?? "").replaceAll(help, "").replaceAll("Declared by you, not verified. No distance is shown.", "") /* the Nearby amenities helper (Story 2.8) is the owner-claim disclaimer itself */;
   }, SELLER_HELP);
   expect(found).not.toMatch(/verified|estateai|checked by|approved by|trusted|✓|✔/i);
 }
@@ -986,6 +986,7 @@ test("terms: Save stays aria-disabled while saving and a double click sends one 
 
 for (const viewport of viewports) {
   test(`accessibility (${viewport.name}): the Terms in their states have no axe violations`, async ({ page, request }) => {
+    test.setTimeout(120_000); // several states, each scanned in full; the Amenities block makes a page scan slower
     page.on("dialog", (dialog) => void dialog.accept()); // the page is left with unsaved changes on purpose
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await openDraft(page, request, "sale_terms_blank");

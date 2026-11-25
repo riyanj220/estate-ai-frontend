@@ -115,6 +115,13 @@ try {
   assert.equal(visitor.status, 401, "a Visitor gets no Draft");
   assert.ok(!(await visitor.text()).includes("Cedar Lane"), "no private value in the Visitor's answer");
   console.log("ok  location routes and the private Draft read through the proxy");
+  // Story 2.8: the public amenity catalogue passes through the proxy; no caching of it is relied on (the backend sets no Cache-Control).
+  const amenities = await fetch(`${APP}/api/v1/reference/amenities`);
+  assert.equal(amenities.status, 200, "the amenity catalogue passes the proxy");
+  const amenityItems = (await amenities.json()).items;
+  assert.ok(amenityItems.length > 0 && amenityItems.every((entry) => ["on_property", "community", "nearby"].includes(entry.kind)), "amenities carry a closed kind");
+  assert.ok(amenityItems.every((entry) => !("distance" in entry) && !("verified" in entry)), "no distance or verification key");
+  console.log("ok  amenity catalogue through the proxy");
   console.log("Production listings check passed.");
 } finally {
   for (const child of children) child.kill();

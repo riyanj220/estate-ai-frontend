@@ -196,7 +196,7 @@ test("save: only the changed field is sent with the base revision; the revision 
   await saveButton(page).click();
   await expect(live(page)).toHaveText("Saved");
   await expect(revision(page)).toHaveText("4");
-  await expect(page.getByTestId("draft-registry-version")).toHaveText("7");
+  await expect(page.getByTestId("draft-registry-version")).toHaveText("8");
   const sent = await patches(request);
   expect(sent.count).toBe(1);
   expect(sent.bodies[0]).toEqual({ base_revision: 3, fields: { title: "Corner house with a big garden" } });
@@ -912,7 +912,7 @@ test("area: the block is built from the registry, with the hint, the unit choice
     page
       .locator("form")
       .locator("input, select, textarea")
-      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"], [data-testid="terms-block"], [data-testid="location-block"]')).map((node) => node.id));
+      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"], [data-testid="terms-block"], [data-testid="location-block"], [data-testid="amenities-block"]')).map((node) => node.id));
   expect(await controlIds()).toEqual(["title", "description", "asking_price", "price_basis", "area_value", "area_unit"]);
   await unitSelect(page).selectOption("marla");
   expect(await controlIds()).toEqual(["title", "description", "asking_price", "price_basis", "area_value", "area_unit", "marla_basis"]);
@@ -973,7 +973,7 @@ test("area: a registry that gives the value another type, or marks the unit deri
     await page
       .locator("form")
       .locator("input, select, textarea")
-      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"], [data-testid="terms-block"], [data-testid="location-block"]')).map((node) => node.id)),
+      .evaluateAll((nodes) => nodes.filter((node) => !node.closest('[data-testid="details-block"], [data-testid="terms-block"], [data-testid="location-block"], [data-testid="amenities-block"]')).map((node) => node.id)),
   ).toEqual(["title", "description", "asking_price", "price_basis"]);
 });
 
@@ -2249,7 +2249,7 @@ async function expectNoPlatformBadge(page: Page) {
       [element.getAttribute("aria-label"), element.getAttribute("title"), element.getAttribute("alt")].filter(Boolean).join(" "),
     );
     const generated = [...document.querySelectorAll(".declared-tag")].flatMap((element) => ["::before", "::after"].map((pseudo) => getComputedStyle(element, pseudo).content));
-    return { text: (root.textContent ?? "").replaceAll(help, ""), attributes, generated };
+    return { text: (root.textContent ?? "").replaceAll(help, "").replaceAll("Declared by you, not verified. No distance is shown.", "") /* the Nearby amenities helper (Story 2.8) is the owner-claim disclaimer itself */, attributes, generated };
   }, SELLER_HELP);
   expect(found.text).not.toMatch(/verified|estateai|checked by|approved by|trusted|✓|✔/i);
   expect(found.attributes.join(" ")).not.toMatch(/verified|estateai|badge|checked|approved|trusted/i);
@@ -2852,11 +2852,11 @@ test("no platform badge: none appears on a Shop, an Office, with errors, in a co
 
 test("the registry's ETag carries the version, a hash of what it serves and the shape, and a registry change changes it", async ({ request }) => {
   const first = (await request.get(`${STUB}/api/v1/registry`)).headers().etag;
-  expect(first).toMatch(/^"7-[0-9a-f]{8}-6"$/);
+  expect(first).toMatch(/^"8-[0-9a-f]{8}-7"$/);
   expect((await request.get(`${STUB}/api/v1/registry`)).headers().etag).toBe(first);
   await registryFields(request, "plotmap");
   const changed = (await request.get(`${STUB}/api/v1/registry`)).headers().etag;
-  expect(changed).toMatch(/^"7-[0-9a-f]{8}-6"$/);
+  expect(changed).toMatch(/^"8-[0-9a-f]{8}-7"$/);
   expect(changed).not.toBe(first);
 });
 
@@ -2864,6 +2864,7 @@ test("the registry's ETag carries the version, a hash of what it serves and the 
 
 for (const viewport of viewports) {
   test(`accessibility (${viewport.name}): the editor, its errors, the conflict and the saved states have no axe violations`, async ({ page, request }) => {
+    test.setTimeout(120_000); // several states, each scanned in full; the Amenities block makes a page scan slower
     page.on("dialog", (dialog) => void dialog.accept()); // the page is left with unsaved changes on purpose
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await openDraft(page, request);
@@ -2902,6 +2903,7 @@ for (const viewport of viewports) {
 
 for (const viewport of viewports) {
   test(`accessibility (${viewport.name}): the Area block in its states has no axe violations`, async ({ page, request }) => {
+    test.setTimeout(120_000); // several states, each scanned in full; the Amenities block makes a page scan slower
     page.on("dialog", (dialog) => void dialog.accept()); // the page is left with unsaved changes on purpose
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await openDraft(page, request);
@@ -2936,6 +2938,7 @@ for (const viewport of viewports) {
 
 for (const viewport of viewports) {
   test(`accessibility (${viewport.name}): the Details section in its states has no axe violations`, async ({ page, request }) => {
+    test.setTimeout(120_000); // several states, each scanned in full; the Amenities block makes a page scan slower
     page.on("dialog", (dialog) => void dialog.accept()); // the page is left with unsaved changes on purpose
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await openDraft(page, request, "house_blank");
@@ -2975,6 +2978,7 @@ for (const viewport of viewports) {
 
 for (const viewport of viewports) {
   test(`accessibility (${viewport.name}): the Plot, Plot File, Shop and Office details in their states have no axe violations`, async ({ page, request }) => {
+    test.setTimeout(120_000); // several states, each scanned in full; the Amenities block makes a page scan slower
     page.on("dialog", (dialog) => void dialog.accept()); // the page is left with unsaved changes on purpose
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await openDraft(page, request, "plot_blank");

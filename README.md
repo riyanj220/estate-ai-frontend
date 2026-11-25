@@ -835,6 +835,61 @@ joins `terms` and `details`, class `public` | `private`). The contract is the ba
   Tests: `tests/e2e/listing-location.spec.ts`. `npm run check:prod-listings` also checks
   the production proxy for the new routes and the no-store Draft read.
 
+## Amenities and seller-declared nearby facilities (Story 2.8)
+
+Frontend half of Story 2.8 on the same generic section code: registry version 8 (shape 7: the new field type `amenities`, `section: amenities`).
+The contract is the backend's `docs/registry.md`, `docs/listings.md` and `docs/reference-data.md`.
+
+- **The value**: a map `{code: "present" | "none"}`; a code that is not in the map is UNANSWERED, which is never `none`. `fields.amenities` is
+  `null` when nothing is answered. A PATCH replaces the whole map (so the revision stays conflict-safe); `null` or `{}` clears it. The old
+  top-level `amenities: []` key of the Listing resource is gone and nothing reads it. `readListing` parses the map fail-closed: a state other
+  than exactly `present`/`none`, a code that is not a lowercase token or a non-object makes the whole Listing unusable (the page shows its
+  load error with Retry) rather than a form that would replace a map it could not read. Unknown codes are NOT an error (see Other below).
+- **One value in the form**: the editor keeps the map as one text (canonical JSON with sorted keys, "" for none: `src/lib/amenities.ts`), so
+  the generic compare, "Latest saved", Keep mine / Use latest, dirty tracking and the "No changes to save" rule work on it unchanged. The
+  value sent is the whole map, or `null` when nothing is answered. Two maps with the same answers in another order are no change.
+- **Generic renderer**: `AmenitiesSection` (`amenities-section.tsx`) is rendered by `DetailsSection` for every registry field of type
+  `amenities` whose id and section are also `amenities` (all three must say so, checked before every other rule; after the Details, a "Amenities" h3). `splitTerms` returns them as `amenities`; a field of that type in
+  another section, or any other type or id, gets no control. Without the field in the registry nothing is shown and the catalogue is
+  never requested.
+- **Catalogue** (`useAmenityCatalogue` in `src/lib/use-reference.ts`): public `GET /api/v1/reference/amenities` (`{items:[{code,label,kind,group}]}`),
+  requested once the registry gives the Draft the field; the backend sets no Cache-Control and the client relies on none. Fail-closed parsing:
+  a code and a group must match the backend's `^[a-z][a-z0-9_]{1,47}$`, a label is 2 to 80 characters with no surrounding space, a kind one of
+  `on_property` / `community` / `nearby`; ONE item that fails (or a repeated code) makes the whole load a failure, because dropping it would turn an
+  active code the owner answered into an "Other" entry. Loading, empty and failed states have a status line, and Retry stays mounted (and
+  `aria-disabled`) while it reloads; a second click while a request is in flight adds none (an in-flight ref), and after a Retry that works focus moves
+  to the Amenities heading and "The amenities are loaded." is announced. While the catalogue is not usable no item is offered and the saved map is
+  untouched (nothing about amenities is sent).
+- **Layout**: items are grouped by kind in a fixed order (On the property, Community, Nearby: h4), then by the catalogue's group (h5, the humanised
+  group; compared by token, a group named like its kind adds none). Every Nearby item is described by the Nearby helper. Every item is a real `<fieldset>` with its label as the legend and three radios: Present, None,
+  Not answered (the default; choosing it removes the code). The radios are native, so the arrow keys move inside an item, Tab moves between items
+  and Space selects. The block is a labelled group (`id="amenities"`, focusable) that the error summary link and the conflict buttons focus.
+- **Seller-declared nearby facilities**: the Nearby group (the catalogue kind, never a code list in the client) shows a visible "Seller-declared"
+  tag and the helper "Declared by you, not verified. No distance is shown." (the group's description). There is no distance, score, verification
+  or number control anywhere, and the summary rows never show one. A Playwright test searches the section's text and controls for it.
+- **Other**: a saved code the catalogue does not list (deactivated since, or from a later catalogue) is kept untouched and shown read-only in an
+  "Other" group (the humanised code and its state); every save sends the whole map with those codes exactly as they were. The backend allows
+  re-sending such a code unchanged but not flipping it, so the only control is a "Remove" button per entry (omitting a code is always allowed).
+  A code that is not in the active catalogue AND not in the latest saved map (another session removed it) is dropped from what was typed after a
+  conflict and is never sent, so Keep mine cannot be refused with `invalid` for it.
+- **Summary**: "What exists so far" gets one row per kind with answers ("Present: Elevator. None: Lobby."; the Nearby row carries the tag) and an
+  "Other amenities" row; while the catalogue is loading or unavailable it reads "Loading the amenities…" or "The amenities are not available right
+  now." (no label or kind is guessed from a bare code). Saved answers only (unsaved input is not shown there).
+- **Errors**: the only code is `invalid` ("Enter a valid value." on the real wire, read as a code by `error-sentences.ts`; no new sentence). The
+  text is the section's own ("One of the amenity choices could not be saved. Check your choices and try again."), shown on the block (described by
+  it) and in the summary; `not_applicable` and `not_editable` have their usual texts; any other code or sentence is the generic text. Editing an
+  item clears the error, like every other section. A conflict
+  is per field: the whole map is one row, "Latest saved" names the latest answers by the catalogue's labels grouped by kind ("On the property: None:
+  Elevator. Community: Present: Swimming pool. Nearby (Seller-declared): Present: Gym." so the two Gym items differ), Use latest takes the whole latest map,
+  Keep mine sends mine against the new revision. Nothing is stored in the browser.
+- **Playwright stub**: registry version 8 / shape 7 with the `amenities` field, the exact seeded vocabulary (26 items) at
+  `/api/v1/reference/amenities` (modes via `/__amenities-mode`: `empty`, `error`, `flaky`, `hang`, `slow`, `malformed`, `partial`, `html`, `fail_then_slow`, `long_label`, `short_label`, `padded_label`, `bad_group`, `dup_code`; request count
+  at `/__last-amenities`), validation that mirrors the backend (unknown or inactive code, state other than the two strings, non-object, more than
+  40 entries, a stored inactive code re-sent unchanged but not flipped, `{}`/`null` clear), patch modes `amenities_invalid`, `amenities_unknown`,
+  `amenities_hidden`, `amenities_not_editable`, presets `amenities_filled`, `amenities_inactive`, `amenities_bad_state`, `amenities_empty_state`, `amenities_null_state`, `amenities_number_state`, `amenities_bad_code`, `amenities_not_object`; the other
+  session can set the map with `amenities=<json>`. Tests: `tests/e2e/listing-amenities.spec.ts` (one is a stub self-test, not frontend coverage).
+  `npm run check:prod-listings` also checks that the catalogue route passes through the production proxy and carries no distance or verification key; no caching of it is relied on (the backend sets no Cache-Control), so no caching behaviour is asserted.
+
 ## Images: upload, order, cover and delete (Story 2.10)
 
 Frontend half of Story 2.10 (the contract is the backend's `docs/media.md`, `docs/listings.md` and `docs/rate-limits.md`). The Draft page has an
