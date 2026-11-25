@@ -1317,15 +1317,16 @@ paths:
         `422 idempotency_key_reused`. Refusals, in order: another account''s, an administrator''s,
         an unknown and a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision`
         that is not the current `revision` is `409 stale_revision` with the Listing
-        under `current`; a Listing that is not a `draft` is `409 conflict`; an Email-unverified
-        account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`;
-        every missing or invalid required item is `400 validation_error`, all at once,
-        keyed by registry field id (`required` and the field''s own codes), `images`
-        (`images_required`: at least one image) and a field of class `private` or
-        of the quota identity that the Assistant filled in and the owner has not confirmed
-        (`confirm_required`); a used-up allowance is `409 quota_exhausted` with the
-        caller''s own `limit`, `used` and `resets_at` under `details`. A refused attempt
-        consumes nothing. Never cached.'
+        under `current`; a Listing that is not a `draft` is `409 conflict`; a restricted
+        Listing is `403 forbidden`; an Email-unverified account is `403 email_not_verified`
+        and a Suspended one `403 publishing_unavailable`; every missing or invalid
+        required item is `400 validation_error`, all at once, keyed by registry field
+        id (`required` and the field''s own codes), `images` (`images_required`: at
+        least one image) and a field of class `private` or of the quota identity that
+        the Assistant filled in and the owner has not confirmed (`confirm_required`);
+        a used-up allowance is `409 quota_exhausted` with the caller''s own `limit`,
+        `used` and `resets_at` under `details`. A refused attempt consumes nothing.
+        Never cached.'
       summary: Publish one of the signed-in account's own Drafts
       parameters:
       - in: header
@@ -1355,6 +1356,113 @@ paths:
               schema:
                 $ref: '#/components/schemas/Listing'
           description: The published Listing
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishConflict'
+          description: '`stale_revision`, `conflict` or `quota_exhausted`'
+        '422':
+          description: '`idempotency_key_reused`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/listings/{listing_id}/republish:
+    post:
+      operationId: republish_listing
+      description: 'Needs `X-CSRFToken` and an `Idempotency-Key` header (same rules
+        as publishing). Body: `{base_revision}` and nothing else. The Listing becomes
+        `published` and public again if its owner is Active, after the same complete
+        validation as publishing (every stored value is judged again, all problems
+        at once). `publication_kind` says how it was recorded: `republish_free` (no
+        publication used) only when the Listing''s last counted publication is from
+        the same Karachi calendar month as now and none of the purpose, category,
+        subtype, city, locality, area value, area unit or marla basis has changed;
+        otherwise `republish_counted`, which uses one monthly publication. The same
+        key with the same body within 24 hours returns the Listing as it is now with
+        the original `publication_kind` and no second publication; the same key with
+        another body is `422 idempotency_key_reused`. Refusals, in order: another
+        account''s, an administrator''s, an unknown and a malformed id are `404 not_found`;
+        a Visitor is `401`; a `base_revision` that is not the current `revision` is
+        `409 stale_revision` with the Listing under `current`; a Listing that is not
+        `archived` (a Sold or Rented one must be archived first; a Removed one never
+        returns) is `409 conflict`; a restricted Listing is `403 forbidden`; an Email-unverified
+        account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`;
+        every missing or invalid item is `400 validation_error`, all at once, as for
+        publishing; a counted republication with no allowance left is `409 quota_exhausted`
+        with the caller''s own `limit`, `used` and `resets_at` under `details`. A
+        refused attempt consumes nothing. Never cached.'
+      summary: Republish one of the signed-in account's own Archived Listings
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishBodyRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublishedListing'
+          description: The republished Listing
         '409':
           content:
             application/json:
@@ -6535,6 +6643,14 @@ components:
       - resets_at
       - timezone
       - used
+    PublicationKindEnum:
+      enum:
+      - republish_counted
+      - republish_free
+      type: string
+      description: |-
+        * `republish_counted` - republish_counted
+        * `republish_free` - republish_free
     PublishBodyRequest:
       type: object
       properties:
@@ -6759,6 +6875,68 @@ components:
         * `week` - week
         * `month` - month
         * `year` - year
+    RepublishedListing:
+      type: object
+      description: The owner Listing plus how the republication was recorded (Story
+        2.18).
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/ListingStatusEnum'
+        visibility:
+          $ref: '#/components/schemas/VisibilityEnum'
+        revision:
+          type: integer
+          minimum: 1
+        registry_version:
+          type: integer
+          minimum: 1
+        fields:
+          $ref: '#/components/schemas/ListingFields'
+        provenance:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ProvenanceEntry'
+          description: Registry field id -> where the value came from; set fields
+            only.
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+          description: The images in `position` order; empty when there are none.
+        restricted:
+          type: boolean
+          description: 'Set by moderation: a restricted Listing is never public and
+            the owner cannot edit it (it may still be archived). Owner resource only,
+            never in a public shape.'
+        restriction_reason:
+          type: string
+          nullable: true
+          description: A short plain-text reason for a restricted or removed Listing,
+            shown to the owner only; null otherwise.
+          maxLength: 200
+        publication_kind:
+          allOf:
+          - $ref: '#/components/schemas/PublicationKindEnum'
+          description: |-
+            `republish_counted` used one of the owner's monthly publications; `republish_free` used none (same Karachi month as the last counted publication, identity unchanged).
+
+            * `republish_counted` - republish_counted
+            * `republish_free` - republish_free
+      required:
+      - fields
+      - id
+      - media
+      - provenance
+      - publication_kind
+      - registry_version
+      - restricted
+      - restriction_reason
+      - revision
+      - status
+      - visibility
     RoadAccessEnum:
       enum:
       - main_road

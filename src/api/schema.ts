@@ -307,9 +307,29 @@ export interface paths {
         put?: never;
         /**
          * Publish one of the signed-in account's own Drafts
-         * @description Needs `X-CSRFToken` and an `Idempotency-Key` header (1 to 128 characters from `A-Za-z0-9._:-`; a missing or malformed one is `400 validation_error` under `fields.idempotency_key`). Body: `{base_revision}` and nothing else. Publishing is immediate (no approval) and all-or-nothing: it uses one of the owner's monthly publications and makes the Listing public if its owner is Active. The same key with the same body within 24 hours returns the Listing as it is now with no second publication; the same key with another body is `422 idempotency_key_reused`. Refusals, in order: another account's, an administrator's, an unknown and a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision` that is not the current `revision` is `409 stale_revision` with the Listing under `current`; a Listing that is not a `draft` is `409 conflict`; an Email-unverified account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`; every missing or invalid required item is `400 validation_error`, all at once, keyed by registry field id (`required` and the field's own codes), `images` (`images_required`: at least one image) and a field of class `private` or of the quota identity that the Assistant filled in and the owner has not confirmed (`confirm_required`); a used-up allowance is `409 quota_exhausted` with the caller's own `limit`, `used` and `resets_at` under `details`. A refused attempt consumes nothing. Never cached.
+         * @description Needs `X-CSRFToken` and an `Idempotency-Key` header (1 to 128 characters from `A-Za-z0-9._:-`; a missing or malformed one is `400 validation_error` under `fields.idempotency_key`). Body: `{base_revision}` and nothing else. Publishing is immediate (no approval) and all-or-nothing: it uses one of the owner's monthly publications and makes the Listing public if its owner is Active. The same key with the same body within 24 hours returns the Listing as it is now with no second publication; the same key with another body is `422 idempotency_key_reused`. Refusals, in order: another account's, an administrator's, an unknown and a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision` that is not the current `revision` is `409 stale_revision` with the Listing under `current`; a Listing that is not a `draft` is `409 conflict`; a restricted Listing is `403 forbidden`; an Email-unverified account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`; every missing or invalid required item is `400 validation_error`, all at once, keyed by registry field id (`required` and the field's own codes), `images` (`images_required`: at least one image) and a field of class `private` or of the quota identity that the Assistant filled in and the owner has not confirmed (`confirm_required`); a used-up allowance is `409 quota_exhausted` with the caller's own `limit`, `used` and `resets_at` under `details`. A refused attempt consumes nothing. Never cached.
          */
         post: operations["publish_listing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/listings/{listing_id}/republish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Republish one of the signed-in account's own Archived Listings
+         * @description Needs `X-CSRFToken` and an `Idempotency-Key` header (same rules as publishing). Body: `{base_revision}` and nothing else. The Listing becomes `published` and public again if its owner is Active, after the same complete validation as publishing (every stored value is judged again, all problems at once). `publication_kind` says how it was recorded: `republish_free` (no publication used) only when the Listing's last counted publication is from the same Karachi calendar month as now and none of the purpose, category, subtype, city, locality, area value, area unit or marla basis has changed; otherwise `republish_counted`, which uses one monthly publication. The same key with the same body within 24 hours returns the Listing as it is now with the original `publication_kind` and no second publication; the same key with another body is `422 idempotency_key_reused`. Refusals, in order: another account's, an administrator's, an unknown and a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision` that is not the current `revision` is `409 stale_revision` with the Listing under `current`; a Listing that is not `archived` (a Sold or Rented one must be archived first; a Removed one never returns) is `409 conflict`; a restricted Listing is `403 forbidden`; an Email-unverified account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`; every missing or invalid item is `400 validation_error`, all at once, as for publishing; a counted republication with no allowance left is `409 quota_exhausted` with the caller's own `limit`, `used` and `resets_at` under `details`. A refused attempt consumes nothing. Never cached.
+         */
+        post: operations["republish_listing"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2203,6 +2223,12 @@ export interface components {
             resets_at: string;
             timezone: components["schemas"]["TimezoneEnum"];
         };
+        /**
+         * @description * `republish_counted` - republish_counted
+         *     * `republish_free` - republish_free
+         * @enum {string}
+         */
+        PublicationKindEnum: "republish_counted" | "republish_free";
         PublishBodyRequest: {
             /** @description The `revision` of the Draft the client last read. */
             base_revision: number;
@@ -2310,6 +2336,33 @@ export interface components {
          * @enum {string}
          */
         RentalPeriodEnum: "day" | "week" | "month" | "year";
+        /** @description The owner Listing plus how the republication was recorded (Story 2.18). */
+        RepublishedListing: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["ListingStatusEnum"];
+            visibility: components["schemas"]["VisibilityEnum"];
+            revision: number;
+            registry_version: number;
+            fields: components["schemas"]["ListingFields"];
+            /** @description Registry field id -> where the value came from; set fields only. */
+            provenance: {
+                [key: string]: components["schemas"]["ProvenanceEntry"];
+            };
+            /** @description The images in `position` order; empty when there are none. */
+            media: components["schemas"]["Image"][];
+            /** @description Set by moderation: a restricted Listing is never public and the owner cannot edit it (it may still be archived). Owner resource only, never in a public shape. */
+            restricted: boolean;
+            /** @description A short plain-text reason for a restricted or removed Listing, shown to the owner only; null otherwise. */
+            restriction_reason: string | null;
+            /**
+             * @description `republish_counted` used one of the owner's monthly publications; `republish_free` used none (same Karachi month as the last counted publication, identity unchanged).
+             *
+             *     * `republish_counted` - republish_counted
+             *     * `republish_free` - republish_free
+             */
+            publication_kind: components["schemas"]["PublicationKindEnum"];
+        };
         /**
          * @description * `main_road` - main_road
          *     * `secondary_road` - secondary_road
@@ -3853,6 +3906,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Listing"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `stale_revision`, `conflict` or `quota_exhausted` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishConflict"];
+                };
+            };
+            /** @description `idempotency_key_reused` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    republish_listing: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishBodyRequest"];
+            };
+        };
+        responses: {
+            /** @description The republished Listing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepublishedListing"];
                 };
             };
             /** @description Bad request or validation error */
