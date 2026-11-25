@@ -1131,7 +1131,7 @@ only shows it; nothing here publishes or enforces the quota (Story 2.15).
 Story 2.15 (frontend half). The contract is the backend's `POST /api/v1/listings/{id}/publish` (body `{base_revision}`, header
 `Idempotency-Key`, CSRF like every write; `200` with the owner Listing, status `published`).
 
-- **Publish section** (`src/app/(app)/account/listings/[id]/publish-section.tsx`, mounted by `draft-editor.tsx` for a `draft` only): the
+- **Publish section** (`src/app/(app)/account/listings/[id]/publish-section.tsx`, mounted by `draft-editor.tsx` for a `draft`, and with `mode="republish"` for an Archived listing that is not restricted, see "Republication"): the
   copy about what publishing does, the remaining publications read from the allowance route, and the Publish button. The button is
   `aria-disabled` (never `disabled`) while a save, an image action or a delete runs, or while the form has unsaved changes, with the
   reason as its description ("Save your changes before publishing"). Publishing takes the module-wide image lock (`image-lock.ts`) like
@@ -1187,8 +1187,7 @@ Story 2.17 (frontend half). The contract is the backend's `GET /api/v1/me/listin
   the listing is published.", never sent and never counted as unsaved changes; a refused edit (`required`, `images_required` and the rest, all at once) shows next to
   the fields and in the summary like Publish does, `not_editable` on an identity field of a form built before the listing was published
   reads the listing again and locks the field; the last image cannot be deleted (Delete says why and sends nothing; the backend's
-  `images_required` answer is shown too). *Archived*: everything is editable, with the note "Republishing will be available in a later
-  update."; no Publish yet (republication is Story 2.18). *Sold, Rented, Removed and restricted* (`restricted` in the owner
+  `images_required` answer is shown too). *Archived*: everything is editable, with a Republish section (Story 2.18, below). *Sold, Rented, Removed and restricted* (`restricted` in the owner
   resource, a restricted Draft included): view only, with the reason (`restriction_reason`) for a restricted or removed one; no Save,
   images, Delete or Publish. The Story 2.13 note `draft-not-editable` keeps its test id and now says why, per status.
   *A page that went stale*: a stale save, a refused edit (403) or a refused image action that shows the listing is now sold, rented,
@@ -1198,7 +1197,7 @@ Story 2.17 (frontend half). The contract is the backend's `GET /api/v1/me/listin
 - **Actions** (`status-actions.tsx`, shown for Published, Sold and Rented): Archive for all three (also a restricted listing), "Mark as
   sold" for a Published sale listing and "Mark as rented" for a Published rent listing; a Suspended owner or a restricted listing only
   Archive. Each asks first in the native `<dialog>` of Story 2.13 (focus on Cancel, Tab stays inside, Escape cancels, focus returns to the
-  button) with the plain consequence (Archive says it cannot be undone yet; for a Sold or Rented listing it does not claim to hide what is
+  button) with the plain consequence (Archive says it can be republished later and may use a publication; for a Sold or Rented listing it does not claim to hide what is
   already hidden; sold and rented say they cannot be undone), then sends `POST .../status` with the CSRF token and the revision last loaded. It holds the image
   lock: while it runs Save, the images and the form pause (`status-paused`), and it never starts while a save or an image change runs or
   while the form has unsaved changes (the button is `aria-disabled` with the reason). Outcomes: `200` switches the page to the new status
@@ -1224,6 +1223,44 @@ Story 2.17 (frontend half). The contract is the backend's `GET /api/v1/me/listin
 - **Tests**: `tests/e2e/listing-lifecycle.spec.ts` (tabs, counts, address state, default tab, empty and load-more per tab, keyboard, the
   Published, Archived and view-only pages, every action and refusal, the locks, axe at desktop and mobile in the key states). The specs of
   Stories 2.13 and 2.15 that asserted the old "no longer a draft" page were updated (the published page now has the editor).
+
+## Republication (Story 2.18)
+
+Story 2.18 (frontend half). The contract is the backend's `POST /api/v1/listings/{id}/republish` (body `{base_revision}`, header
+`Idempotency-Key`, CSRF): `200` is the owner Listing plus `publication_kind` (`republish_counted` or `republish_free`); the errors have the
+shape of Publish (`400` with every problem at once, `409 stale_revision`, `409 conflict`, `409 quota_exhausted` with `details`, `403
+forbidden` for a restricted listing, `403 email_not_verified`, `403 publishing_unavailable`, `422 idempotency_key_reused`). A republication
+is free only when the last counted publication was in the same Karachi month and none of the eight identity fields changed; the backend
+decides, the page only reports.
+
+- **One machine, two modes**: `publish-section.tsx` takes `mode="publish" | "republish"`. The key per attempt, the locks, the error
+  summary and links, the Confirm button, the quota, unverified and suspended messages and the stale and conflict handling are the same
+  code; the mode changes the endpoint, the words and the test ids (`republish-section`, `republish-button`, `republish-allowance`,
+  `republish-note`, `republish-note-link`, `republish-retry`, `republish-reason`, `republish-working`).
+- **Archived page** (not restricted): the Republish section under Edit details with the rule, the remaining allowance (an empty allowance is
+  only a number there, because a republication can be free), and the button, `aria-disabled` with "Save your changes before republishing"
+  or the wait text. A `200` makes the page the Published editor and `publish-live` (polite) says "Republished. This used 1 of your
+  publications." or "Republished. This did not use any of your publications." (a `200` without a readable `publication_kind` says only
+  "Republished." and that it is visible again), followed by the allowance read again. `400` fills the summary (also for an Archived page),
+  the fields, the images error and Confirm; `403 forbidden` shows "This listing cannot be republished." A restricted Archived listing shows
+  the same words in `republish-forbidden` and no button.
+- **Sold and Rented** pages show "Archive this listing first to republish it." (`republish-archive-first`) in the Actions section beside
+  Archive and no Republish; Removed and restricted ones show nothing. The Archive dialog and the Archived note no longer say republishing is
+  coming later.
+- **Refusals under a republication**: a plain `403 forbidden` makes the page read the listing again: restricted, it is explained in the status
+  note and the section goes; otherwise the generic 403 message shows. A `409 conflict` or `stale_revision` that finds the listing sold, rented,
+  removed or restricted says what it is now and why Republish is gone (`status-live`). A lost-outcome replay `404` (the original event is gone)
+  is shown as the not-found state by design.
+- **Stub**: the publish route also serves `/republish` (same code path): the backend's order (key and body shape, owner, replay or `422`,
+  stale, status, restricted, account state, validation, quota), a key belongs to one operation, the counted or free decision from the
+  per-listing baseline (`baseline: {month, fp}` of the eight identity fields; the Karachi month is fixed at 2026-11 like the allowance),
+  `publication_kind` in the answer and in a replay (the original), a counted publication or republication moves the baseline, a free one does not
+  and uses nothing. Presets `archived_free` (baseline this month), `archived_last_month`, `archived_two`, `archived_no_image`,
+  `archived_empty`, `archived_ai_street`, `restricted_archived`, `published_counted`; `archived_one` has no baseline (counted). The
+  publish modes and stats (`op` was added to each attempt) serve both operations.
+- **Tests**: `tests/e2e/listing-republish.spec.ts` (counted and free outcomes, the identity and non-identity edit cases, exhausted
+  allowance, errors, locks, replay, key reuse, account states, stale and conflict, restricted, sold and rented notes, axe at desktop and mobile).
+  `listing-lifecycle.spec.ts` was updated for the new Archived and Archive dialog copy.
 
 ## Layout
 

@@ -401,15 +401,16 @@ test("Published: a refused last-image delete from a stale page shows the backend
   expect(images.images[id(1)].images).toHaveLength(1);
 });
 
-test("Archived: everything is editable, identity fields included, with a note that republishing comes later", async ({ page, request }) => {
+test("Archived: everything is editable, identity fields included, with a Republish section", async ({ page, request }) => {
   await openListing(page, request, "archived_one");
   await expect(page.getByRole("heading", { level: 1, name: "Listing" })).toBeVisible();
   await expect(statusLine(page)).toHaveText("Archived");
-  await expect(page.getByTestId("archived-note")).toHaveText("This listing is archived and not visible to the public. Republishing will be available in a later update.");
+  await expect(page.getByTestId("archived-note")).toHaveText("This listing is archived and not visible to the public. Use the Republish section below to make it visible again.");
   await expect(page.getByTestId("identity-note")).toHaveCount(0);
   for (const name of ["City", "Locality", "Area value", "Unit"]) await expect(page.getByLabel(name, { exact: true }), name).toBeEnabled();
   await expect(page.getByTestId("images-section")).toBeVisible();
-  // No Publish (republishing is a later story), no Delete, no status actions.
+  // Republish instead of Publish, no Delete, no status actions.
+  await expect(page.getByTestId("republish-section")).toBeVisible();
   await expect(page.getByTestId("publish-section")).toHaveCount(0);
   await expect(page.getByTestId("delete-draft")).toHaveCount(0);
   await expect(page.getByTestId("status-section")).toHaveCount(0);
@@ -642,7 +643,7 @@ test("Archive: the dialog says what it does; Cancel and Escape change nothing an
   const box = dialog(page, "Archive this listing?");
   await expect(box).toBeVisible();
   await expect(box).toContainText("Archiving removes this listing from public view.");
-  await expect(box).toContainText("This cannot be undone yet: republishing will be available in a later update.");
+  await expect(box).toContainText("You can republish it later, which may use one of your monthly publications.");
   await expect(page.getByTestId("status-cancel")).toBeFocused();
   await page.getByTestId("status-cancel").click();
   await expect(box).toBeHidden();

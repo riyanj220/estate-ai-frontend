@@ -872,6 +872,13 @@ const publicListing = (item) => ({
 const statusOf = (item) => item.status ?? "draft";
 /** Story 2.17: only a Draft, Published or Archived Listing that is not restricted can be edited; the rest is view only. */
 const editableListing = (item) => item.restricted !== true && ["draft", "published", "archived"].includes(statusOf(item));
+// Story 2.18: the identity fields the quota rule watches (the registry's `quota_identity` ones) and the current Karachi month (the allowance's period).
+const IDENTITY_FIELDS = ["purpose", "category", "subtype", "city", "locality", "area_value", "area_unit", "marla_basis"];
+const KARACHI_MONTH = "2026-11";
+const canonicalNumber = (value) => (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value)) ? String(Number(value)) : value ?? null);
+const identityFingerprint = (item) => JSON.stringify(IDENTITY_FIELDS.map((name) => (name === "area_value" || name === "marla_basis" ? canonicalNumber(item.fields[name]) : item.fields[name] ?? null)));
+/** A Listing whose last counted publication was in `month` with its identity as it is now. */
+const countedIn = (item, month) => Object.assign(item, { baseline: { month, fp: identityFingerprint(item) } });
 const STATUS_NAMES = ["draft", "published", "archived", "sold", "rented", "removed"];
 const publishReady = (seq) =>
   withImages(
@@ -1105,6 +1112,15 @@ const LISTING_PRESETS = {
   published_rent: () => [Object.assign(publishReady(1), { status: "published", fields: { ...publishReady(1).fields, purpose: "rent", category: "apartment", subtype: "apartment", price_basis: "rental_period", rental_period: "month" } })],
   published_one_image: () => [Object.assign(withImages(publishReady(1), 1), { status: "published" })],
   archived_one: () => [Object.assign(publishReady(1), { status: "archived" })],
+  // Story 2.18: archived listings for republication. `archived_one` has no counted baseline (counted); the baseline of the others is a month and the identity as saved.
+  published_counted: () => [countedIn(Object.assign(publishReady(1), { status: "published" }), KARACHI_MONTH)],
+  archived_free: () => [countedIn(Object.assign(publishReady(1), { status: "archived" }), KARACHI_MONTH)],
+  archived_last_month: () => [countedIn(Object.assign(publishReady(1), { status: "archived" }), "2026-10")],
+  archived_two: () => [countedIn(Object.assign(publishReady(2), { status: "archived" }), KARACHI_MONTH), Object.assign(publishReady(1), { status: "archived" })],
+  archived_no_image: () => [Object.assign(publishReady(1), { status: "archived", images: [] })],
+  archived_empty: () => [Object.assign(makeListing(1, "mine", {}, 2), { status: "archived" })],
+  archived_ai_street: () => [Object.assign(publishReady(1), { status: "archived", provenance: { street: { origin: "ai", confirmed: false } } }, { fields: { ...publishReady(1).fields, street: "Cedar Lane" } })],
+  restricted_archived: () => [Object.assign(publishReady(1), { status: "archived", restricted: true, restrictionReason: "Under review." })],
   sold_one: () => [Object.assign(publishReady(1), { status: "sold" })],
   rented_one: () => [Object.assign(publishReady(1), { status: "rented", fields: { ...publishReady(1).fields, purpose: "rent", category: "apartment", subtype: "apartment", price_basis: "rental_period", rental_period: "month" } })],
   removed_one: () => [Object.assign(publishReady(1), { status: "removed", restrictionReason: "Removed after a report about the photos." })],
@@ -1807,7 +1823,7 @@ createServer((req, res) => {
     });
   }
   if (url.pathname === "/__listing-publish-mode") {
-    return choose("publishMode", ["ok", "hold", "error", "broken", "lost_once", "reuse_once", "reuse_always", "stale", "stale_no_current", "stale_published", "conflict", "conflict_draft", "quota", "quota_one", "quota_no_details", "invalid_extra", "garbled", "session_gone", "forbidden", "rate_limited", "csrf_once", "csrf_always"], (v) => {
+    return choose("publishMode", ["ok", "hold", "error", "broken", "lost_once", "reuse_once", "reuse_always", "stale", "stale_no_current", "stale_published", "conflict", "conflict_draft", "conflict_sold", "conflict_published_restricted", "stale_removed", "restricted_race", "no_kind", "quota", "quota_one", "quota_no_details", "invalid_extra", "garbled", "session_gone", "forbidden", "rate_limited", "csrf_once", "csrf_always"], (v) => {
       publishMode = v;
       csrfOnceSpent = false;
       publishLostSpent = publishReuseSpent = false;
@@ -2107,13 +2123,14 @@ createServer((req, res) => {
   // same key and content answers the original success, another content is 422), owner (404), stale revision (409 + current), Draft (409
   // conflict), account state (403, two reasons), validation (400, all at once), quota (409 with details), then the write. A refusal
   // changes nothing: no counted publication, no claimed key, no status.
-  const publishMatch = /^\/api\/v1\/listings\/([^/]+)\/publish$/.exec(url.pathname);
+  const publishMatch = /^\/api\/v1\/listings\/([^/]+)\/(publish|republish)$/.exec(url.pathname);
   if (publishMatch && req.method === "POST") {
     return readBody((parsed) => {
       unsafeCount += 1;
       const sentToken = req.headers["x-csrftoken"] ?? null;
       const key = req.headers["idempotency-key"] ?? null;
-      publishAttempts.push({ id: decodeURIComponent(publishMatch[1]), key, token: sentToken, body: parsed });
+      const isRepublish = publishMatch[2] === "republish";
+      publishAttempts.push({ id: decodeURIComponent(publishMatch[1]), key, token: sentToken, body: parsed, op: publishMatch[2] });
       res.setHeader("cache-control", "no-store");
       if (signedInUnsafe(publishMode, sentToken)) return;
       const fail = (fields) => json(400, envelope("validation_error", "The request contains invalid values.", fields));
@@ -2129,8 +2146,10 @@ createServer((req, res) => {
       const recordKey = `${accountVariant}:${key}`;
       const record = publishRecords.get(recordKey);
       if (record) {
-        if (record.id !== target.id || record.base !== body.base_revision) return json(422, envelope("idempotency_key_reused", "This idempotency key was used for a different request."));
-        return json(200, publicListing(target)); // the original success, the Listing as it is now, nothing charged again
+        // A key belongs to one operation (publish or republish), one Listing and one body.
+        if (record.id !== target.id || record.base !== body.base_revision || record.op !== publishMatch[2]) return json(422, envelope("idempotency_key_reused", "This idempotency key was used for a different request."));
+        // The original success, the Listing as it is now, nothing charged again; a republication keeps its original kind.
+        return json(200, isRepublish ? { ...publicListing(target), publication_kind: record.kind } : publicListing(target));
       }
       if (publishMode === "reuse_always" || (publishMode === "reuse_once" && !publishReuseSpent)) {
         publishReuseSpent = true;
@@ -2150,13 +2169,40 @@ createServer((req, res) => {
       }
       if (publishMode === "stale_no_current") return json(409, envelope("stale_revision", "This listing was changed since you loaded it."));
       if (body.base_revision !== target.revision) return stale();
+      // Story 2.18: the status moved under a republication (another session, moderation); the revision always moves.
+      if (isRepublish && publishMode === "stale_removed") {
+        target.status = "removed";
+        target.revision += 1;
+        return stale();
+      }
+      if (isRepublish && publishMode === "conflict_sold") {
+        target.status = "sold";
+        target.revision += 1;
+        return json(409, envelope("conflict", "The listing is not archived."));
+      }
+      if (isRepublish && publishMode === "conflict_published_restricted") {
+        target.status = "published";
+        target.restricted = true;
+        target.restrictionReason = "Under review.";
+        target.revision += 1;
+        return json(409, envelope("conflict", "The listing is not archived."));
+      }
+      // The listing was restricted meanwhile: the refusal is a plain 403 `forbidden`, like a restricted listing's.
+      if (isRepublish && publishMode === "restricted_race") {
+        target.restricted = true;
+        target.restrictionReason = "Under review.";
+        target.revision += 1;
+        return json(403, envelope("forbidden", "Forbidden."));
+      }
       if (publishMode === "conflict") {
         target.status = "published"; // published meanwhile, elsewhere (a publish bumps the revision)
         target.revision += 1;
       }
       // A refusal that claims "not a draft" while the Listing still is one (a claim without a result): nothing is published.
-      if (publishMode === "conflict_draft") return json(409, envelope("conflict", "The listing is not a draft."));
-      if (statusOf(target) !== "draft") return json(409, envelope("conflict", "The listing is not a draft."));
+      if (publishMode === "conflict_draft") return json(409, envelope("conflict", isRepublish ? "The listing is not archived." : "The listing is not a draft."));
+      // Republication starts from Archived only (Sold and Rented must be archived first; Draft, Published and Removed are refused too).
+      if (statusOf(target) !== (isRepublish ? "archived" : "draft")) return json(409, envelope("conflict", isRepublish ? "The listing is not archived." : "The listing is not a draft."));
+      if (target.restricted === true) return json(403, envelope("forbidden", "Forbidden."));
       if (signInMode === "unverified") return json(403, envelope("email_not_verified", "Verify your email address to publish."));
       if (signInMode === "suspended") return json(403, envelope("publishing_unavailable", "Your account cannot publish right now."));
       // Required items, from the stub's own registry and this Draft's data (applicability included).
@@ -2178,23 +2224,31 @@ createServer((req, res) => {
       }
       if (publishMode === "invalid_extra") problems.title = [...(problems.title ?? []), "too_short"];
       if (Object.keys(problems).length > 0) return fail(problems);
+      // Counted or free: a republication is free only when the last counted publication was in this Karachi month and the eight identity
+      // fields are unchanged; no baseline (sample data, never counted) is counted. A free one needs no allowance and uses none.
+      const kind = !isRepublish ? null : target.baseline && target.baseline.month === KARACHI_MONTH && target.baseline.fp === identityFingerprint(target) ? "republish_free" : "republish_counted";
+      const counted = kind !== "republish_free";
       const limit = account().account_type === "agency" ? 10 : 2;
       const used = (ALLOWANCE_BASE_USED(limit)[allowanceMode] ?? 1) + (publishUsed[accountVariant] ?? 0);
-      if (publishMode === "quota" || publishMode === "quota_one" || used >= limit) {
+      if (counted && (publishMode === "quota" || publishMode === "quota_one" || used >= limit)) {
         const shownLimit = publishMode === "quota_one" ? 1 : limit;
         return json(409, { ...envelope("quota_exhausted", "You have used all your publications for this month."), details: { limit: shownLimit, used: Math.max(used, shownLimit), resets_at: "2026-12-01T00:00:00+05:00" } });
       }
-      if (publishMode === "quota_no_details") return json(409, envelope("quota_exhausted", "You have used all your publications for this month."));
+      if (counted && publishMode === "quota_no_details") return json(409, envelope("quota_exhausted", "You have used all your publications for this month."));
       const commit = () => {
         target.status = "published";
         target.revision += 1;
-        publishUsed[accountVariant] = (publishUsed[accountVariant] ?? 0) + 1;
-        publishRecords.set(recordKey, { id: target.id, base: body.base_revision });
+        if (counted) {
+          publishUsed[accountVariant] = (publishUsed[accountVariant] ?? 0) + 1;
+          target.baseline = { month: KARACHI_MONTH, fp: identityFingerprint(target) }; // a counted publication is the new baseline; a free one does not move it
+        }
+        publishRecords.set(recordKey, { id: target.id, base: body.base_revision, op: publishMatch[2], kind });
       };
       const answer = () => {
         commit();
         if (publishMode === "garbled") return json(200, { status: "published" });
-        return json(200, publicListing(target));
+        if (isRepublish && publishMode === "no_kind") return json(200, publicListing(target));
+        return json(200, isRepublish ? { ...publicListing(target), publication_kind: kind } : publicListing(target));
       };
       if (publishMode === "lost_once" && !publishLostSpent) {
         // It happened, but the answer never arrives: the retry with the same key must replay it.
