@@ -51,6 +51,10 @@ export type ListingView = {
   details: Record<string, string>;
   /** The images in position order (Story 2.10). Always checked: see `readMedia`. */
   media: MediaItem[];
+  /** Set by moderation (Story 2.17): a restricted Listing is view only for its owner, who may still archive it. */
+  restricted: boolean;
+  /** A short plain-text reason for a restricted or removed Listing, shown to the owner only; null otherwise. */
+  restrictionReason: string | null;
 };
 
 /** One image of a Draft as the page needs it. The `url` is the relative path of the media endpoint, never anything else. */
@@ -139,6 +143,8 @@ export function readListing(value: unknown): ListingView | null {
     },
     details,
     media,
+    restricted: (value as Record<string, unknown>).restricted === true,
+    restrictionReason: text((value as Record<string, unknown>).restriction_reason),
   };
 }
 

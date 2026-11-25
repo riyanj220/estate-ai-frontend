@@ -33,6 +33,9 @@ import type { AmenityCatalogue, LocationLists, RefState } from "@/lib/use-refere
 import type { FieldDef } from "@/lib/use-registry";
 import { AmenitiesSection } from "./amenities-section";
 
+/** The id of the note the editor shows above the form while identity fields are locked. */
+export const IDENTITY_NOTE_ID = "identity-note";
+
 /**
  * The generic "Details" section of the Draft editor: one control per registry field it is given, grouped by the registry's
  * requirement, each group a fieldset with its legend. It holds no state and no rules: the editor owns the values, the errors,
@@ -58,7 +61,10 @@ export function DetailsSection({
   onDateInput,
   lists,
   amenities: amenityCatalogue,
+  locked = [],
 }: {
+  /** The ids of the details that cannot be changed now (identity fields of a published listing): disabled and described by the identity note. */
+  locked?: string[];
   /** The amenity catalogue (Story 2.8), loaded when the registry gives this Draft the amenities field. */
   amenities: AmenityCatalogue;
   /** The reference lists of the location section (cities, and the localities of the city the form has now). */
@@ -92,6 +98,7 @@ export function DetailsSection({
         label={detailLabel(id, category)}
         hint={hint || undefined}
         errors={errors[id]}
+        locked={locked.includes(id) ? IDENTITY_NOTE_ID : undefined}
         declared={def.sellerDeclared ? { tag: SELLER_DECLARED, help: SELLER_DECLARED_HELP } : undefined}
       >
         {(props) => {

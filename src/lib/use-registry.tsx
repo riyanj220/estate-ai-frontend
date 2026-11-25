@@ -52,6 +52,11 @@ export type FieldDef = {
   signed: boolean;
   /** A derived field is computed by the server and is never input (Story 2.3). */
   derived: boolean;
+  /**
+   * The registry marks the field as part of the Listing's identity (`quota_identity`, Story 2.17): it cannot be changed while the
+   * Listing is published. Read from the registry, never from a list in this code.
+   */
+  identity: boolean;
   /** The registry's short explanation of what a value means, when it documents one. */
   description: string | null;
   allowedValues: string[];
@@ -137,6 +142,7 @@ function readFields(value: unknown): Map<string, FieldDef> {
       signed: type === "decimal" && min !== null && max !== null && min.startsWith("-"),
       scale: typeof raw.scale === "number" && Number.isInteger(raw.scale) && raw.scale >= 1 && raw.scale <= 8 ? raw.scale : null,
       derived: raw.derived === true,
+      identity: raw.quota_identity === true,
       description: typeof raw.description === "string" && raw.description.trim() ? raw.description : null,
       allowedValues: allowed,
       sellerDeclared: raw.seller_declared === true,

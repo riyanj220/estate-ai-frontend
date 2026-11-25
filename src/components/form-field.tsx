@@ -7,6 +7,9 @@ export type InputProps = {
   name: string;
   "aria-invalid": boolean | undefined;
   "aria-describedby": string | undefined;
+  /** Set while the field cannot be changed (see `locked`): read only, never disabled, so it stays reachable and is announced as read only. */
+  readOnly: true | undefined;
+  "aria-readonly": true | undefined;
 };
 
 /** A labelled field with an optional hint and its error text, wired with aria-describedby. */
@@ -16,6 +19,7 @@ export function Field({
   hint,
   errors,
   declared,
+  locked,
   children,
 }: {
   name: string;
@@ -24,13 +28,15 @@ export function Field({
   errors?: string[];
   /** Seller-declared text next to the label and its helper line (Story 2.5); the owner's claim, never a platform check. */
   declared?: { tag: string; help: string };
+  /** The id of the note that explains why the field cannot be changed (a published listing, Story 2.17): the control is read only and described by it. */
+  locked?: string;
   children: (props: InputProps) => React.ReactNode;
 }) {
   const hintId = `${name}-hint`;
   const errorId = `${name}-error`;
   const declaredId = `${name}-declared`;
   const tagId = `${name}-declared-tag`;
-  const describedBy = [declared ? tagId : null, declared ? declaredId : null, hint ? hintId : null, errors?.length ? errorId : null].filter(Boolean).join(" ");
+  const describedBy = [declared ? tagId : null, declared ? declaredId : null, hint ? hintId : null, errors?.length ? errorId : null, locked ?? null].filter(Boolean).join(" ");
   return (
     <div className="field">
       {declared ? (
@@ -64,6 +70,8 @@ export function Field({
         name,
         "aria-invalid": errors?.length ? true : undefined,
         "aria-describedby": describedBy || undefined,
+        readOnly: locked ? true : undefined,
+        "aria-readonly": locked ? true : undefined,
       })}
     </div>
   );

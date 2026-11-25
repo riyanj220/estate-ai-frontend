@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { requireAccount } from "@/lib/current-account";
 import { ListingsClient } from "./listings-client";
 
@@ -9,5 +10,9 @@ export default async function ListingsPage() {
   const result = await requireAccount();
   if (result.kind === "unavailable") return null; // the layout shows the unavailable state
   // An administrator opens the same page and gets the server's 403 as a polite message.
-  return <ListingsClient admin={result.account.account_type === "admin"} />;
+  return (
+    <Suspense fallback={null}>
+      <ListingsClient admin={result.account.account_type === "admin"} />
+    </Suspense>
+  );
 }

@@ -72,7 +72,18 @@ import {
   SAVED,
   DELETE_DRAFT_PAUSED,
   LISTINGS_PATH,
-  NO_LONGER_DRAFT,
+  ARCHIVED_NOTE,
+  IDENTITY_LOCKED_ERROR,
+  PUBLISHED_IDENTITY_NOTE,
+  READ_ONLY_FALLBACK,
+  READ_ONLY_NOTES,
+  RESTRICTED_NOTE,
+  STATUS_ACTIONS,
+  STATUS_CONFLICT_NOT_LOADED,
+  lostEditsText,
+  statusChangedText,
+  STATUS_PAUSED,
+  restrictionReasonText,
   PREVIEW_SAVED_HINT,
   SAVE_PAUSED,
   SAVE_WAIT,
@@ -83,10 +94,12 @@ import { useSession } from "@/lib/session";
 import { useFormFeedback } from "@/lib/use-form-feedback";
 import { useAmenityCatalogue, useLocationLists } from "@/lib/use-reference";
 import { useRegistry, type FieldDef, type Registry } from "@/lib/use-registry";
+import { isEditableListing, targetsFor, type StatusTarget } from "@/lib/listing-status";
 import { DeleteDraft } from "./delete-draft";
-import { DetailsSection } from "./details-section";
+import { DetailsSection, IDENTITY_NOTE_ID } from "./details-section";
 import { ImagesSection } from "./images-section";
 import { PublishSection, PublishedAllowance } from "./publish-section";
+import { StatusActions } from "./status-actions";
 
 type FieldName = "title" | "description" | "asking_price" | "price_basis" | "rental_period" | "area_value" | "area_unit" | "marla_basis";
 /** The form's text per control: the hand-built fields always, the registry details (keyed by id) only when answered; read them with `at`. */
@@ -195,6 +208,11 @@ function detailMessages(def: FieldDef | undefined): Record<string, string> {
   return def && Object.hasOwn(DETAIL_MESSAGES, def.type) ? DETAIL_MESSAGES[def.type] : {};
 }
 
+/** The fields of `names` that cannot be changed now: the registry's identity fields while the Listing is published. */
+function lockedOf(registry: Registry, status: string | null, names: string[]): string[] {
+  return status === "published" ? names.filter((name) => registry.field(name)?.identity === true) : [];
+}
+
 /** The value the form sends for a changed field: trimmed, and null when emptied. Money stays the text that was typed. */
 const sentValue = (value: string): string | null => value.trim() || null;
 
@@ -213,8 +231,11 @@ export function DraftEditor({
   onSessionGone,
   onNotFound,
   fetchLatest,
+  onStatusChange,
 }: {
   initial: ListingView;
+  /** The page title follows the status: told whenever the Listing's status is known or changes. */
+  onStatusChange?: (status: string | null) => void;
   signInPath: string;
   onSessionGone: () => Promise<void>;
   /** The Draft cannot be found (404): the page shows its not-found state. */
@@ -244,6 +265,13 @@ export function DraftEditor({
   // The Draft is being published (Story 2.15): Save, the image actions and Delete wait, like the publish waits for them.
   const [publishing, setPublishing] = useState(false);
   const publishingRef = useRef(false);
+  // The status of the Listing is being changed (Story 2.17): Save, the image actions and the form wait, like the change waits for them.
+  const [changingStatus, setChangingStatus] = useState(false);
+  const statusRunning = useRef(false);
+  // The outcome of a status change or the reason one did not happen: a polite note that stays mounted.
+  const [statusNote, setStatusNote] = useState("");
+  const statusNoteRef = useRef<HTMLParagraphElement>(null);
+  const [statusNoteTick, setStatusNoteTick] = useState(0);
   // What a publish attempt was refused for (all at once): per field (shown next to it), per item without a control (form-level), the images.
   const [publishErrors, setPublishErrors] = useState<Fields>({});
   const [publishForm, setPublishForm] = useState<string[]>([]);
@@ -278,6 +306,16 @@ export function DraftEditor({
   useEffect(() => {
     if (publishTick > 0) publishSummary.current?.focus();
   }, [publishTick]);
+  useEffect(() => {
+    if (statusNoteTick > 0) statusNoteRef.current?.focus();
+  }, [statusNoteTick]);
+  const reportStatus = useRef(onStatusChange);
+  useEffect(() => {
+    reportStatus.current = onStatusChange;
+  });
+  useEffect(() => {
+    reportStatus.current?.(listing.status);
+  }, [listing.status]);
 
   function showAlert(next: Alert) {
     resetAnnouncement();
@@ -294,8 +332,11 @@ export function DraftEditor({
   // The amenity catalogue loads only when the registry gives this Draft the amenities field (Story 2.8).
   const catalogue = useAmenityCatalogue(detailDefs.some((def) => def.type === "amenities"));
   const controls: string[] = [...shown, ...detailIds];
+  // While the Listing is published its identity fields (the registry's own flag) are read only: shown, never sent, never counted as changes.
+  const lockedIds = registry ? lockedOf(registry, listing.status, controls) : [];
+  const isLocked = (name: string) => lockedIds.includes(name);
   const baseline = toValues(listing);
-  const dirty = controls.some((name) => !same(name, at(values, name), at(baseline, name))) || partialDates.length > 0 || incomplete.length > 0;
+  const dirty = controls.some((name) => !isLocked(name) && !same(name, at(values, name), at(baseline, name))) || partialDates.length > 0 || incomplete.length > 0;
 
   // An unsaved-changes guard on leaving the page. In-app links are not intercepted; nothing is stored.
   useEffect(() => {
@@ -317,6 +358,11 @@ export function DraftEditor({
     const current = listingRef.current;
     if (next.id !== current.id || !hasRevision(next)) return;
     if (current.revision !== null && next.revision < current.revision) return; // an older answer arriving late
+    // The images answer (or a read after a refused image action) shows a Listing that can no longer be edited: explained, never silent.
+    if (!isEditableListing(next.status, next.restricted) && isEditableListing(current.status, current.restricted)) {
+      adoptNonEditable(next);
+      return;
+    }
     const before = toValues(current);
     const after = toValues(next);
     const unchanged =
@@ -342,7 +388,8 @@ export function DraftEditor({
   }
 
   function setValue(name: string, value: string) {
-    if (publishingRef.current) return; // the form is read-only while the listing is published
+    if (publishingRef.current || statusRunning.current) return; // the form is read-only while the listing is published or its status changes
+    if (lockedIds.includes(name)) return; // an identity field of a published listing is read only
     // Moving the unit away from marla and kanal drops what was typed for the basis (it is hidden and never sent; the server clears it).
     // Changing or clearing the City clears the Locality at once (the server does the same, so a stale pair is never saved).
     // Going back to the saved city within the same editing session brings the saved locality back; any other change empties it.
@@ -445,7 +492,9 @@ export function DraftEditor({
       same("city", at(typed, "city"), at(before, "city")) &&
       !same("city", at(fresh, "city"), at(before, "city")) &&
       !same("locality", at(typed, "locality"), at(before, "locality"));
-    const ownerChanged = visible.filter((name) => !(name === "locality" && localityLost) && !same(name, at(typed, name), at(before, name)));
+    // A published listing's identity fields are read only: whatever was typed there (the form was built before it was published) is dropped.
+    const lockedLatest = lockedOf(registry, latest.status, visible);
+    const ownerChanged = visible.filter((name) => !lockedLatest.includes(name) && !(name === "locality" && localityLost) && !same(name, at(typed, name), at(before, name)));
     const differing = ownerChanged.filter((name) => !same(name, at(typed, name), at(fresh, name)));
     // "Already saved" only when nothing outside the owner's own changes moved on the server.
     const elsewhere = visible.some((name) => !ownerChanged.includes(name) && !same(name, at(before, name), at(fresh, name)));
@@ -464,6 +513,7 @@ export function DraftEditor({
       if (basisLost) merged.marla_basis = fresh.marla_basis;
       if (localityLost) merged.locality = at(fresh, "locality");
       for (const name of detailsLost) merged[name] = at(fresh, name);
+      for (const name of lockedLatest) merged[name] = at(fresh, name);
       // Codes the catalogue does not list that the latest saved map no longer holds are dropped from what was typed (they could only be refused).
       if (catalogue.status === "ready" && Object.hasOwn(merged, "amenities")) merged.amenities = pruneStale(merged.amenities, at(fresh, "amenities"), catalogue.items);
       return merged;
@@ -569,12 +619,14 @@ export function DraftEditor({
     const current = typeof error === "object" && error !== null ? readListing((error as { current?: unknown }).current) : null;
     const usable = hasRevision(current) && current.id === listing.id && current.revision > baseRevision ? current : null;
     if (usable) {
+      if (!isEditableListing(usable.status, usable.restricted)) return adoptNonEditable(usable);
       if (!applyConflict(usable)) showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
       return;
     }
     // No usable data in the answer: read the Draft again and keep what was typed.
     const again = await fetchLatest();
     if (again.kind === "found" && hasRevision(again.listing)) {
+      if (!isEditableListing(again.listing.status, again.listing.restricted)) return adoptNonEditable(again.listing);
       if (!applyConflict(again.listing)) showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
       return;
     }
@@ -585,7 +637,7 @@ export function DraftEditor({
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting.current || !registry || deleting || publishingRef.current) return;
+    if (submitting.current || !registry || deleting || publishingRef.current || statusRunning.current) return;
     if (imagesBusy) {
       announce(SAVE_WAIT);
       return;
@@ -609,8 +661,8 @@ export function DraftEditor({
     // refuse the whole map; omitting it is always allowed, so it is not sent.
     const sendValues: Values = { ...values };
     if (catalogue.status === "ready" && Object.hasOwn(values, "amenities")) sendValues.amenities = pruneStale(values.amenities, at(baseline, "amenities"), catalogue.items);
-    for (const name of shown) if (!same(name, values[name], baseline[name])) fields[name] = sentValue(values[name]);
-    for (const def of detailDefs) if (!same(def.id, at(sendValues, def.id), at(baseline, def.id))) fields[def.id] = sentDetail(def, at(sendValues, def.id));
+    for (const name of shown) if (!isLocked(name) && !same(name, values[name], baseline[name])) fields[name] = sentValue(values[name]);
+    for (const def of detailDefs) if (!isLocked(def.id) && !same(def.id, at(sendValues, def.id), at(baseline, def.id))) fields[def.id] = sentDetail(def, at(sendValues, def.id));
     if (Object.keys(fields).length === 0) {
       resetAnnouncement();
       setFieldErrors({});
@@ -656,12 +708,29 @@ export function DraftEditor({
       if (response.status === 404) return onNotFound();
       if (response.status === 409) return await handleStale(error, baseRevision);
       const parsed = response.status === 400 ? readErrorBody(error) : null;
+      // A refused identity field while this page still thinks the Listing is not published: it may have been published elsewhere. The
+      // answer is shown as usual, and the Listing is read again: when its status moved, the page takes it (the field is then locked).
+      const maybePublished =
+        parsed !== null && listing.status !== "published" && Object.entries(parsed.fields).some(([key, codes]) => codes.includes("not_editable") && registry.field(key)?.identity === true);
       if (parsed) {
         const mapped: Fields = {};
         const general: string[] = [];
         const together: string[] = [];
+        let imagesRefused: string | null = null;
         for (const [key, codes] of Object.entries(parsed.fields)) {
           if (codes.length === 0) continue;
+          // A published edit that would leave the listing without an image (the same refusal as publishing) shows next to the images too.
+          if (key === "images") {
+            imagesRefused = codes.includes("images_required") ? IMAGES_REQUIRED_ERROR : REJECTED_ERROR;
+            general.push(`Images: ${imagesRefused}`);
+            continue;
+          }
+          // A locked identity field of a published listing (a stale form): its own words, never the generic one.
+          if (listing.status === "published" && codes.includes("not_editable") && registry.field(key)?.identity === true) {
+            if (controls.includes(key)) mapped[key] = [IDENTITY_LOCKED_ERROR];
+            else general.push(IDENTITY_LOCKED_ERROR);
+            continue;
+          }
           // Known codes only: any other sentence, code or key is generic, never the server's text. A field with no
           // control on this form goes to the form-level list, so the summary never points at a hidden control.
           if (isFieldName(key) && shown.includes(key)) mapped[key] = mapKnownCodes(codes, EDIT_FIELD_MESSAGES[key]);
@@ -691,15 +760,22 @@ export function DraftEditor({
         general.splice(0, general.length, ...new Set(general));
         resetAnnouncement();
         setFieldErrors(mapped);
-        setPublishErrors({}); // one summary at a time: the save's replaces a publish one
+        setPublishErrors(imagesRefused ? { images: [imagesRefused] } : {}); // one summary at a time: the save's replaces a publish one
         setPublishForm([]);
         setLinked(linkedNow);
         setFormErrors(general);
         focusSummary();
         announce("The form has errors. Review the list at the top of the page.");
+        if (maybePublished) {
+          const again = await fetchLatest();
+          if (again.kind === "found" && hasRevision(again.listing) && again.listing.status !== listingRef.current.status) applyConflict(again.listing);
+        }
         return;
       }
       if (response.status === 403) {
+        // The page may be stale: a listing sold, rented, removed or restricted meanwhile refuses edits. Read it again first.
+        const again = await fetchLatest();
+        if (again.kind === "found" && hasRevision(again.listing) && !isEditableListing(again.listing.status, again.listing.restricted)) return adoptNonEditable(again.listing);
         // A CSRF rejection and a Suspended account both answer 403 `forbidden`, so the session decides: only a Suspended
         // account is told so; every other persistent 403 (after the one CSRF retry) is the generic message.
         showAlert({ kind: "notice", text: account?.state === "suspended" ? EDIT_FORBIDDEN : failureMessage(403, null) });
@@ -751,8 +827,8 @@ export function DraftEditor({
     return true;
   }
 
-  /** The Listing is published (200): the page switches to the published state, announces it, and re-reads the allowance. */
-  function onPublished(next: ListingView) {
+  /** The Listing as the server holds it now becomes the page: the form starts again from it and every old error and choice goes. */
+  function adoptLatest(next: ListingView) {
     setListing(next);
     setValues(toValues(next));
     setPublishErrors({});
@@ -761,8 +837,16 @@ export function DraftEditor({
     setAlert(null);
     setFieldErrors({});
     setFormErrors([]);
+    setLinked([]);
+    setIncomplete([]);
     resetAnnouncement();
     setInfo("");
+  }
+
+  /** The Listing is published (200): the page switches to the published state, announces it, and re-reads the allowance. */
+  function onPublished(next: ListingView) {
+    adoptLatest(next);
+    setStatusNote("");
     setPublishedNote("done");
   }
 
@@ -780,7 +864,7 @@ export function DraftEditor({
     if (latest.kind === "found") {
       // Still a draft (a claim without a result, a race that was undone): nothing is published, the page and its revision stay as they are.
       if (latest.listing.status === "draft") return "draft";
-      setListing((now) => ({ ...now, status: latest.listing.status, revision: latest.listing.revision, media: latest.listing.media }));
+      adoptStatusOnly(latest.listing);
       setPublishedNote("elsewhere");
       return "published";
     }
@@ -792,7 +876,7 @@ export function DraftEditor({
   async function publishStale(error: unknown, baseRevision: number): Promise<void> {
     const current = typeof error === "object" && error !== null ? readListing((error as { current?: unknown }).current) : null;
     if (current && current.id === listing.id && hasRevision(current) && current.status !== null && current.status !== "draft") {
-      setListing((now) => ({ ...now, status: current.status, revision: current.revision, media: current.media }));
+      adoptStatusOnly(current);
       setPublishedNote("elsewhere");
       return;
     }
@@ -852,9 +936,91 @@ export function DraftEditor({
     const latest = await fetchLatest();
     if (latest.kind === "gone") await onSessionGone();
     else if (latest.kind === "missing") onNotFound();
-    else if (latest.kind === "found") setListing((now) => ({ ...now, status: latest.listing.status, revision: latest.listing.revision, media: latest.listing.media }));
+    else if (latest.kind === "found") adoptStatusOnly(latest.listing);
   }
 
+  /** Says something about the status in the polite note that stays mounted, and takes the focus once (the button that was used is gone). */
+  function sayStatus(text: string) {
+    setStatusNote(text);
+    setStatusNoteTick((tick) => tick + 1);
+  }
+
+  /** The status was changed (200): the page switches to the new status and announces it. */
+  function onStatusChanged(next: ListingView, target: StatusTarget) {
+    adoptLatest(next);
+    setPublishedNote("");
+    sayStatus(STATUS_ACTIONS[target].done);
+  }
+
+  /** The Listing is no longer one the owner may edit (sold, rented, removed, restricted): it is shown view only and the typed changes are said to be gone. */
+  function adoptNonEditable(next: ListingView) {
+    const hadChanges = dirty;
+    adoptLatest(next);
+    setPublishedNote("");
+    sayStatus(lostEditsText(next.restricted ? "restricted" : label(next.status).toLowerCase(), hadChanges));
+  }
+
+  /**
+   * The Listing's status (or restriction) moved while the page was open (a publish or delete answered 409): the new status, revision, images and
+   * restriction are taken and what was typed stays. A Listing that can no longer be edited is explained (`adoptNonEditable`) instead.
+   */
+  function adoptStatusOnly(next: ListingView) {
+    if (!isEditableListing(next.status, next.restricted)) {
+      adoptNonEditable(next);
+      return;
+    }
+    const held = listingRef.current;
+    setListing((now) => ({ ...now, status: next.status, revision: next.revision, media: next.media, restricted: next.restricted, restrictionReason: next.restrictionReason }));
+    // The identity fields lock once published: whatever was typed there goes back to the saved value.
+    if (registry && next.status === "published") {
+      const saved = toValues(held);
+      setValues((current) => {
+        const merged = { ...current };
+        for (const def of registry.fieldList()) if (def.identity && Object.hasOwn(saved, def.id)) merged[def.id] = at(saved, def.id);
+        return merged;
+      });
+    }
+  }
+
+  /** The Listing now holds `target`? Then the move happened (a lost answer, a double submit): it is a success. */
+  function movedTo(next: ListingView, target: StatusTarget): boolean {
+    return next.status === target;
+  }
+
+  /** What changed under a status action that did not go through, in words: the status now, and whether the move is still possible. */
+  function explainStatus(next: ListingView, target: StatusTarget): string {
+    const allowed = targetsFor(next.status, next.fields.purpose, next.restricted, account?.state === "suspended").includes(target);
+    return statusChangedText(next.restricted ? "restricted" : label(next.status).toLowerCase(), target, allowed);
+  }
+
+  /** The move is not allowed any more (409 `conflict`): read the Listing again, show it as it is and say what happened. */
+  async function statusConflict(target: StatusTarget): Promise<void> {
+    const latest = await fetchLatest();
+    if (latest.kind === "gone") return await onSessionGone();
+    if (latest.kind === "missing") return onNotFound();
+    if (latest.kind === "found" && hasRevision(latest.listing)) {
+      adoptLatest(latest.listing);
+      setPublishedNote("");
+      sayStatus(movedTo(latest.listing, target) ? STATUS_ACTIONS[target].done : explainStatus(latest.listing, target));
+      return;
+    }
+    sayStatus(STATUS_CONFLICT_NOT_LOADED);
+  }
+
+  /** The status change answered `stale_revision`: a Listing whose status moved is shown as it is (and a move that already happened is a success); otherwise the usual conflict flow. */
+  async function statusStale(error: unknown, baseRevision: number, target: StatusTarget): Promise<void> {
+    const current = typeof error === "object" && error !== null ? readListing((error as { current?: unknown }).current) : null;
+    if (current && current.id === listing.id && hasRevision(current) && current.revision > baseRevision && (current.status !== listing.status || current.restricted !== listing.restricted)) {
+      adoptLatest(current);
+      setPublishedNote("");
+      sayStatus(movedTo(current, target) ? STATUS_ACTIONS[target].done : explainStatus(current, target));
+      return;
+    }
+    await handleStale(error, baseRevision);
+  }
+
+  // Draft, Published and Archived listings are edited; Sold, Rented, Removed and restricted ones (and any status this page does not know) are view only.
+  const editable = isEditableListing(listing.status, listing.restricted);
   const price = listing.fields.asking_price === null ? NOT_SET : `PKR ${formatPrice(listing.fields.asking_price)}`;
   const detailSummary = registry ? answeredDetails(detailDefs, listing) : [];
   const areaDirty = shown.some((name) => AREA_FIELDS.includes(name) && !same(name, values[name], baseline[name]));
@@ -1020,6 +1186,7 @@ export function DraftEditor({
     const errors = controlErrors[name];
     const common = { name, label: FIELD_LABELS[name], hint: (name === "marla_basis" ? MARLA_EXPLANATION : hintFor(def)) || undefined,
       errors,
+      locked: isLocked(name) ? IDENTITY_NOTE_ID : undefined,
       // A hand-built field a registry flags as the owner's claim gets the same tag and helper as a detail.
       declared: def.sellerDeclared ? { tag: SELLER_DECLARED, help: SELLER_DECLARED_HELP } : undefined,
     };
@@ -1033,7 +1200,7 @@ export function DraftEditor({
                 aria-describedby={describedBy(name, props["aria-describedby"], true)}
                 type="text"
                 autoComplete="off"
-                readOnly={publishing}
+                readOnly={publishing || changingStatus || props.readOnly === true}
                 value={values.title}
                 onChange={(e) => setValue("title", e.target.value)}
               />
@@ -1053,7 +1220,7 @@ export function DraftEditor({
                 {...props}
                 aria-describedby={describedBy(name, props["aria-describedby"], true)}
                 rows={6}
-                readOnly={publishing}
+                readOnly={publishing || changingStatus || props.readOnly === true}
                 value={values.description}
                 onChange={(e) => setValue("description", e.target.value)}
               />
@@ -1079,7 +1246,7 @@ export function DraftEditor({
                   type="text"
                   inputMode="decimal"
                   autoComplete="off"
-                  readOnly={publishing}
+                  readOnly={publishing || changingStatus || props.readOnly === true}
                   value={values.asking_price}
                   onChange={(e) => setValue("asking_price", e.target.value)}
                 />
@@ -1101,7 +1268,7 @@ export function DraftEditor({
                 type="text"
                 inputMode="decimal"
                 autoComplete="off"
-                readOnly={publishing}
+                readOnly={publishing || changingStatus || props.readOnly === true}
                 value={values.area_value}
                 onChange={(e) => setValue("area_value", e.target.value)}
               />
@@ -1151,6 +1318,10 @@ export function DraftEditor({
       <p role="status" aria-live="polite" className={publishedNote ? "notice" : "sr-only"} data-testid="publish-live">
         {publishedNote === "done" ? PUBLISH_DONE : publishedNote === "elsewhere" ? PUBLISH_ELSEWHERE : ""}
         {publishedNote === "done" && <PublishedAllowance />}
+      </p>
+      {/* The one announcement of a status change (or of why it did not happen): a visible status that stays mounted; it takes the focus once. */}
+      <p ref={statusNoteRef} tabIndex={-1} role="status" aria-live="polite" className={statusNote ? "notice" : "sr-only"} data-testid="status-live">
+        {statusNote}
       </p>
       {hasPublishErrors && listing.status === "draft" && (
         <ErrorSummary
@@ -1219,10 +1390,13 @@ export function DraftEditor({
           ))}
         </dl>
       </section>
-      {listing.status !== "draft" ? (
-        <p className="notice" data-testid="draft-not-editable">
-          {NO_LONGER_DRAFT}
-        </p>
+      {!editable ? (
+        <div className="notice" data-testid="draft-not-editable">
+          <p>{listing.restricted ? RESTRICTED_NOTE : Object.hasOwn(READ_ONLY_NOTES, listing.status ?? "") ? READ_ONLY_NOTES[listing.status ?? ""] : READ_ONLY_FALLBACK}</p>
+          {listing.restrictionReason !== null && (
+            <p data-testid="restriction-reason">{restrictionReasonText(listing.restrictionReason)}</p>
+          )}
+        </div>
       ) : (
         <>
       <ImagesSection
@@ -1230,7 +1404,8 @@ export function DraftEditor({
         revision={listing.revision}
         media={listing.media}
         onListing={applyImages}
-        locked={pending || deleting || publishing}
+        protectLast={listing.status === "published"}
+        locked={pending || deleting || publishing || changingStatus}
         publishError={shownPublish.images?.join(" ")}
         onBusyChange={setImagesBusy}
         refresh={fetchLatest}
@@ -1241,6 +1416,16 @@ export function DraftEditor({
         <h2 id="draft-edit-title" className="section-title">
           Edit details
         </h2>
+        {listing.status === "archived" && (
+          <p className="hint" data-testid="archived-note">
+            {ARCHIVED_NOTE}
+          </p>
+        )}
+        {lockedIds.length > 0 && (
+          <p id={IDENTITY_NOTE_ID} className="hint" data-testid="identity-note">
+            {PUBLISHED_IDENTITY_NOTE}
+          </p>
+        )}
         {status === "loading" && (
           <p className="muted" data-testid="draft-form-loading">
             Loading the form…
@@ -1330,6 +1515,7 @@ export function DraftEditor({
                 purpose={purpose}
                 category={listing.fields.category}
                 subtype={listing.fields.subtype}
+                locked={lockedIds}
                 onChange={setValue}
                 conflictRow={rowOf}
                 inConflict={showConflict}
@@ -1349,10 +1535,15 @@ export function DraftEditor({
                   {DELETE_DRAFT_PAUSED}
                 </p>
               )}
+              {changingStatus && (
+                <p className="hint" data-testid="status-paused">
+                  {STATUS_PAUSED}
+                </p>
+              )}
               <button
                 type="submit"
                 className="primary-button"
-                aria-disabled={pending || imagesBusy || deleting || publishing ? true : undefined}
+                aria-disabled={pending || imagesBusy || deleting || publishing || changingStatus ? true : undefined}
                 aria-describedby={imagesBusy ? "save-paused" : undefined}
               >
                 {pending ? "Saving…" : "Save changes"}
@@ -1363,7 +1554,7 @@ export function DraftEditor({
       </section>
         </>
       )}
-      {listing.status === "draft" && (
+      {listing.status === "draft" && !listing.restricted && (
         <PublishSection
           listingId={listing.id}
           revision={listing.revision}
@@ -1384,9 +1575,28 @@ export function DraftEditor({
           formState={status === "ready" ? "ready" : status === "loading" ? "loading" : "error"}
         />
       )}
+      <StatusActions
+        listingId={listing.id}
+        revision={listing.revision}
+        status={listing.status}
+        purpose={listing.fields.purpose}
+        restricted={listing.restricted}
+        dirty={dirty}
+        blocked={pending || imagesBusy}
+        saveRunning={() => submitting.current}
+        onBusyChange={(busy) => {
+          statusRunning.current = busy;
+          setChangingStatus(busy);
+        }}
+        onSessionGone={onSessionGone}
+        onNotFound={onNotFound}
+        onChanged={onStatusChanged}
+        onStale={statusStale}
+        onConflict={statusConflict}
+      />
       <DeleteDraft
           listingId={listing.id}
-          isDraft={listing.status === "draft"}
+          isDraft={listing.status === "draft" && !listing.restricted}
           blocked={pending || imagesBusy || publishing}
           saveRunning={() => submitting.current}
           onBusyChange={setDeleting}

@@ -329,3 +329,65 @@ export const CONFIRM_NO_CONTROL = "This value was filled in for you and has not 
 export const PUBLISH_FORM_LOADING = "Publishing is available when the form has loaded.";
 export const PUBLISH_FORM_UNAVAILABLE = "Publishing is not available until the form has loaded. Use Retry in the Edit details section.";
 export const PUBLISH_CHANGED = "The form changed while publishing was starting. Check it and try again.";
+
+// ---- The Listing lifecycle (Story 2.17).
+export const STATUS_ACTIONS: Record<"archived" | "sold" | "rented", { label: string; title: string; text: string; working: string; done: string }> = {
+  archived: {
+    label: "Archive",
+    title: "Archive this listing?",
+    text: "Archiving removes this listing from public view. This cannot be undone yet: republishing will be available in a later update. You will still find it in My listings under Archived.",
+    working: "Archiving the listing…",
+    done: "The listing is archived. It is no longer visible to the public.",
+  },
+  sold: {
+    label: "Mark as sold",
+    title: "Mark this listing as sold?",
+    text: "This removes the listing from public view and records it as sold. This cannot be undone. You will still find it in My listings under Sold, but it can no longer be edited.",
+    working: "Marking the listing as sold…",
+    done: "The listing is marked as sold. It is no longer visible to the public.",
+  },
+  rented: {
+    label: "Mark as rented",
+    title: "Mark this listing as rented?",
+    text: "This removes the listing from public view and records it as rented. This cannot be undone. You will still find it in My listings under Rented, but it can no longer be edited.",
+    working: "Marking the listing as rented…",
+    done: "The listing is marked as rented. It is no longer visible to the public.",
+  },
+};
+/** Archiving a Sold or Rented listing: it is already hidden from the public, so the dialog does not say it will be. */
+export const ARCHIVE_ENDED_TEXT = "Archiving moves this listing to Archived. It is already hidden from the public. This cannot be undone yet: republishing will be available in a later update.";
+export const STATUS_TITLE = "Change the status";
+export const STATUS_INTRO = "These actions take the listing out of public view.";
+export const STATUS_WAIT = "Wait for the current save or image change to finish, then try again.";
+export const STATUS_SAVE_FIRST = "Save your changes before you change the status of this listing.";
+export const STATUS_PAUSED = "Saving and image changes are paused while the status changes.";
+export const STATUS_FORBIDDEN_SUSPENDED = "Your account can only archive listings right now.";
+export const STATUS_FORBIDDEN = "The status of this listing cannot be changed right now.";
+export const STATUS_FAILED = "We could not change the status of this listing. Try again.";
+export const STATUS_UNSURE = "We could not confirm the new status. Reload the page to see the latest.";
+export const STATUS_CONFLICT_NOT_LOADED = "This listing has changed. We could not load the latest version: reload the page.";
+const STATUS_VERBS = { archived: "archived", sold: "marked as sold", rented: "marked as rented" } as const;
+/** What changed under a status action that did not go through: the listing's status now, and whether the move is still possible. */
+export function statusChangedText(now: string, target: "archived" | "sold" | "rented", allowed: boolean): string {
+  return allowed
+    ? `This listing was changed in another session and is now ${now}. We loaded the latest version: you can try again.`
+    : `This listing is now ${now}, so it cannot be ${STATUS_VERBS[target]} any more. We loaded the latest version.`;
+}
+/** A stale save or a refused edit revealed a listing that cannot be edited: what happened to the typed changes. */
+export function lostEditsText(now: string, hadChanges: boolean): string {
+  return `This listing is now ${now} and can no longer be edited.${hadChanges ? " Your unsaved changes could not be kept." : ""}`;
+}
+export const PUBLISHED_IDENTITY_NOTE = "These details cannot be changed while the listing is published.";
+export const IDENTITY_LOCKED_ERROR = "This detail cannot be changed while the listing is published.";
+export const ARCHIVED_NOTE = "This listing is archived and not visible to the public. Republishing will be available in a later update.";
+export const LAST_IMAGE_NOTE = "A published listing needs at least one image, so its last image cannot be deleted.";
+export const READ_ONLY_NOTES: Record<string, string> = {
+  sold: "This listing is sold. It is view only and cannot be edited.",
+  rented: "This listing is rented. It is view only and cannot be edited.",
+  removed: "This listing was removed. It is view only and cannot be changed.",
+};
+export const RESTRICTED_NOTE = "This listing is restricted. It is not visible to the public and is view only: it cannot be edited.";
+export const READ_ONLY_FALLBACK = "This listing cannot be edited here.";
+export const restrictionReasonText = (reason: string): string => `Reason: ${reason}`;
+export const noTabListings = (label: string): string => `You have no ${label.toLowerCase()} listings.`;
+export const SHOWING_TAB = (label: string): string => `Showing ${label.toLowerCase()} listings.`;

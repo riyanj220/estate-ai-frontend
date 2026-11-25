@@ -18,6 +18,8 @@ import {
   IMAGES_LIST_FULL,
   IMAGES_ONE_AT_A_TIME,
   IMAGES_REFRESH_FAILED,
+  IMAGES_REQUIRED_ERROR,
+  LAST_IMAGE_NOTE,
   IMAGES_UNKNOWN,
   IMAGES_UNREADABLE,
   LATEST_NOT_LOADED,
@@ -70,7 +72,10 @@ export function ImagesSection({
   onSessionGone,
   onNotFound,
   publishError,
+  protectLast = false,
 }: {
+  /** The Listing is published: its last image cannot be deleted (Story 2.17), so that Delete says why it waits. */
+  protectLast?: boolean;
   listingId: string;
   revision: number | null;
   media: MediaItem[];
@@ -229,7 +234,8 @@ export function ImagesSection({
       if (response.status === 409) return { state: "failed", message, stop: true, reread: true };
       // A server error may have come after the image was stored: the outcome is unknown.
       if (response.status >= 500 && response.status !== 503) return { state: "unknown", message, stop: true, reread: true };
-      return { state: "failed", message, stop: true, reread: false };
+      // A refused upload (403) may mean the Listing was sold, rented, removed or restricted meanwhile: it is read again.
+      return { state: "failed", message, stop: true, reread: response.status === 403 };
     } catch (thrown) {
       if (cancel.aborted) return { state: "failed", message: "", stop: true, reread: false };
       // A request that never left (no CSRF token) is a plain failure; a lost answer or a timeout may have stored the image.
@@ -395,6 +401,8 @@ export function ImagesSection({
         } else setNotice({ kind: "error", text: REJECTED_ERROR });
       } else if (response.status === 403) {
         setNotice({ kind: "error", text: account?.state === "suspended" ? IMAGES_FORBIDDEN : failureMessage(403, null) });
+        const read = await reload(); // the page may be stale (sold, rented, removed or restricted meanwhile)
+        if (read.kind === "gone" || read.kind === "missing") end = read.kind;
       } else {
         setNotice({ kind: "error", text: failureMessage(response.status, response.headers.get("Retry-After")) });
       }
@@ -447,7 +455,7 @@ export function ImagesSection({
     let focus = `image-${id}-delete`;
     try {
       const api = await getApi();
-      const { response } = await withCsrf((csrf) =>
+      const { error, response } = await withCsrf((csrf) =>
         withTimeout((signal) =>
           api.DELETE("/api/v1/listings/{listing_id}/images/{image_id}", {
             params: { path: { listing_id: listingId, image_id: id } },
@@ -457,7 +465,11 @@ export function ImagesSection({
         ),
       );
       if (response.status === 401) end = "gone";
-      else if (response.status === 403) setNotice({ kind: "error", text: account?.state === "suspended" ? IMAGES_FORBIDDEN : failureMessage(403, null) });
+      else if (response.status === 403) {
+        setNotice({ kind: "error", text: account?.state === "suspended" ? IMAGES_FORBIDDEN : failureMessage(403, null) });
+        const read = await reload(); // the page may be stale (sold, rented, removed or restricted meanwhile)
+        if (read.kind === "gone" || read.kind === "missing") end = read.kind;
+      } else if (response.status === 400 && readErrorBody(error)?.fields.images?.includes("images_required")) setNotice({ kind: "error", text: IMAGES_REQUIRED_ERROR });
       else if (response.ok || response.status === 404) {
         // The answer carries no revision (and a 404 may be this image or the Draft): the Draft is read again.
         const read = await reload();
@@ -504,6 +516,7 @@ export function ImagesSection({
   }
 
   const noRevision = revision === null;
+  const last = protectLast && count === 1;
   return (
     <section className="card" aria-labelledby="draft-images-title" data-testid="images-section" style={{ marginBottom: "var(--space)" }}>
       <h2 id="draft-images-title" className="section-title">
@@ -515,6 +528,11 @@ export function ImagesSection({
       <p className="muted" data-testid="images-count">
         {count} of {MAX_IMAGES} images
       </p>
+      {last && (
+        <p id="images-last-note" className="hint" data-testid="images-last-note">
+          {LAST_IMAGE_NOTE}
+        </p>
+      )}
       {/* The one live region of this section: the notice (a conflict or a failure) and the announcements of counts and results. */}
       <div role="status" aria-live="polite" data-testid="images-live">
         {notice && (
@@ -649,7 +667,14 @@ export function ImagesSection({
                         Set as cover<span className="sr-only"> {name}</span>
                       </button>
                     )}
-                    <button type="button" id={`image-${item.id}-delete`} className="secondary-button" aria-disabled={flag} onClick={() => askDelete(item.id)}>
+                    <button
+                      type="button"
+                      id={`image-${item.id}-delete`}
+                      className="secondary-button"
+                      aria-disabled={flag || last ? true : undefined}
+                      aria-describedby={last ? "images-last-note" : undefined}
+                      onClick={() => !last && askDelete(item.id)}
+                    >
                       Delete<span className="sr-only"> {name}</span>
                     </button>
                   </div>

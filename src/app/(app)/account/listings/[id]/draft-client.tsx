@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getApi } from "@/lib/api";
 import { rateLimitMessage, withTimeout } from "@/lib/forms";
 import { isListingId, readListing, type ListingView } from "@/lib/listing-labels";
 import { LISTINGS_PATH, LISTING_NOT_FOUND, signInPathFor } from "@/lib/listing-messages";
+import { isListingStatus } from "@/lib/listing-status";
 import { usePageshowRecheck } from "@/lib/use-pageshow-recheck";
 import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
 import { DraftEditor, type Latest } from "./draft-editor";
@@ -45,6 +46,8 @@ async function fetchDraft(id: string): Promise<ProfileFetch<Draft>> {
 export function DraftClient({ id, admin }: { id: string; admin: boolean }) {
   const signInPath = signInPathFor(`${LISTINGS_PATH}/${id}`, admin);
   const [missing, setMissing] = useState(false);
+  // The title follows the status the editor reports: "Draft" until the Listing is known and while it is one, "Listing" after.
+  const [status, setStatus] = useState<string | null>(null);
   // Every read of the Draft numbers itself, so the editor (keyed by it) starts again from what the server says now whenever the
   // page is read again, for example after a restore from the back-forward cache. Nothing typed is kept.
   const reads = useRef(0);
@@ -69,18 +72,25 @@ export function DraftClient({ id, admin }: { id: string; admin: boolean }) {
     return answer.profile.found ? { kind: "found", listing: answer.profile.listing } : { kind: "missing" };
   }
 
+  // The status as far as it is known: the editor's report, else what the first read says; neutral ("Listing") until then.
+  const known = status ?? (load.kind === "ready" && load.profile.found ? load.profile.listing.status : null);
+  const draft = known === "draft";
+  useEffect(() => {
+    document.title = draft ? "Draft | EstateAI" : "Listing | EstateAI";
+  }, [draft]);
   const heading = (
     <h1 id={HEADING_ID} tabIndex={-1} className="page-title">
-      Draft
+      {draft ? "Draft" : "Listing"}
     </h1>
   );
-  const back = (
+  const backTo = (href: string) => (
     <p>
-      <Link href={LISTINGS_PATH} className="text-link">
+      <Link href={href} className="text-link">
         Back to My listings
       </Link>
     </p>
   );
+  const back = backTo(isListingStatus(known) ? `${LISTINGS_PATH}?status=${known}` : LISTINGS_PATH);
 
   if (load.kind !== "ready") {
     return (
@@ -97,7 +107,7 @@ export function DraftClient({ id, admin }: { id: string; admin: boolean }) {
         <p className="card" data-testid="draft-not-found">
           {LISTING_NOT_FOUND}
         </p>
-        {back}
+        {backTo(LISTINGS_PATH)}
       </>
     );
   }
@@ -111,6 +121,7 @@ export function DraftClient({ id, admin }: { id: string; admin: boolean }) {
         onSessionGone={sessionGone}
         onNotFound={() => setMissing(true)}
         fetchLatest={fetchLatest}
+        onStatusChange={setStatus}
       />
       {back}
     </>
