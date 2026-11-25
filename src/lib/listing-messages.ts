@@ -328,6 +328,28 @@ export const CONFIRMED = "The value is confirmed.";
 export const CONFIRM_NO_CONTROL = "This value was filled in for you and has not been confirmed. It cannot be confirmed on this page.";
 export const PUBLISH_FORM_LOADING = "Publishing is available when the form has loaded.";
 export const PUBLISH_FORM_UNAVAILABLE = "Publishing is not available until the form has loaded. Use Retry in the Edit details section.";
+// ---- Republication (Story 2.18).
+export const REPUBLISH_TITLE = "Republish";
+export const REPUBLISH_TEXT =
+  "Republishing makes this listing visible to everyone again. It uses 1 of your monthly publications unless you republish in the same month as your last counted publication without changing the category, subtype, purpose, city, locality, area value, area unit or marla basis.";
+export const REPUBLISH_LABEL = "Republish listing";
+export const REPUBLISH_SAVE_FIRST = "Save your changes before republishing";
+export const REPUBLISH_WAIT = "Wait for the current save or image change to finish, then republish.";
+export const REPUBLISH_WORKING = "Republishing the listing…";
+export const REPUBLISH_DONE_COUNTED = "Republished. This used 1 of your publications.";
+export const REPUBLISH_DONE_FREE = "Republished. This did not use any of your publications.";
+export const REPUBLISH_DONE_UNKNOWN = "Republished. Your listing is visible to everyone again.";
+export const REPUBLISH_ERRORS_ANNOUNCE = "The listing cannot be republished yet. Review the list at the top of the page.";
+export const REPUBLISH_EMAIL_UNVERIFIED = "Verify your email to republish.";
+export const REPUBLISH_FAILED = "We could not republish the listing. Try again.";
+export const REPUBLISH_UNSURE = "We could not confirm whether the listing was republished. Retrying is safe: it never republishes twice.";
+export const REPUBLISH_CHANGED = "The form changed while republishing was starting. Check it and try again.";
+export const REPUBLISH_FORM_LOADING = "Republishing is available when the form has loaded.";
+export const REPUBLISH_FORM_UNAVAILABLE = "Republishing is not available until the form has loaded. Use Retry in the Edit details section.";
+export const REPUBLISH_FORBIDDEN = "This listing cannot be republished.";
+/** A republication that found the listing in another status: what it is now and why Republish is gone. */
+export const republishGoneText = (now: string): string => `This listing is now ${now}, so it cannot be republished any more. We loaded the latest version.`;
+export const REPUBLISH_ARCHIVE_FIRST = "Archive this listing first to republish it.";
 export const PUBLISH_CHANGED = "The form changed while publishing was starting. Check it and try again.";
 
 // ---- The Listing lifecycle (Story 2.17).
@@ -335,7 +357,7 @@ export const STATUS_ACTIONS: Record<"archived" | "sold" | "rented", { label: str
   archived: {
     label: "Archive",
     title: "Archive this listing?",
-    text: "Archiving removes this listing from public view. This cannot be undone yet: republishing will be available in a later update. You will still find it in My listings under Archived.",
+    text: "Archiving removes this listing from public view. You can republish it later, which may use one of your monthly publications. You will still find it in My listings under Archived.",
     working: "Archiving the listing…",
     done: "The listing is archived. It is no longer visible to the public.",
   },
@@ -355,7 +377,7 @@ export const STATUS_ACTIONS: Record<"archived" | "sold" | "rented", { label: str
   },
 };
 /** Archiving a Sold or Rented listing: it is already hidden from the public, so the dialog does not say it will be. */
-export const ARCHIVE_ENDED_TEXT = "Archiving moves this listing to Archived. It is already hidden from the public. This cannot be undone yet: republishing will be available in a later update.";
+export const ARCHIVE_ENDED_TEXT = "Archiving moves this listing to Archived. It is already hidden from the public. You can republish it from there.";
 export const STATUS_TITLE = "Change the status";
 export const STATUS_INTRO = "These actions take the listing out of public view.";
 export const STATUS_WAIT = "Wait for the current save or image change to finish, then try again.";
@@ -379,7 +401,7 @@ export function lostEditsText(now: string, hadChanges: boolean): string {
 }
 export const PUBLISHED_IDENTITY_NOTE = "These details cannot be changed while the listing is published.";
 export const IDENTITY_LOCKED_ERROR = "This detail cannot be changed while the listing is published.";
-export const ARCHIVED_NOTE = "This listing is archived and not visible to the public. Republishing will be available in a later update.";
+export const ARCHIVED_NOTE = "This listing is archived and not visible to the public. Use the Republish section below to make it visible again.";
 export const LAST_IMAGE_NOTE = "A published listing needs at least one image, so its last image cannot be deleted.";
 export const READ_ONLY_NOTES: Record<string, string> = {
   sold: "This listing is sold. It is view only and cannot be edited.",

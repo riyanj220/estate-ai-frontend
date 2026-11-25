@@ -24,6 +24,18 @@ import {
   PUBLISH_UNSURE,
   PUBLISH_WAIT,
   PUBLISH_WORKING,
+  REPUBLISH_CHANGED,
+  REPUBLISH_EMAIL_UNVERIFIED,
+  REPUBLISH_FAILED,
+  REPUBLISH_FORM_LOADING,
+  REPUBLISH_FORM_UNAVAILABLE,
+  REPUBLISH_LABEL,
+  REPUBLISH_SAVE_FIRST,
+  REPUBLISH_TEXT,
+  REPUBLISH_TITLE,
+  REPUBLISH_UNSURE,
+  REPUBLISH_WAIT,
+  REPUBLISH_WORKING,
   VERIFY_EMAIL_PATH,
   quotaExhaustedText,
 } from "@/lib/listing-messages";
@@ -76,15 +88,60 @@ function readQuota(body: unknown): { limit: number | null; date: string | null }
   };
 }
 
+/** What the section does: publish a Draft (Story 2.15) or republish an Archived Listing (Story 2.18); the machinery is the same. */
+export type PublishMode = "publish" | "republish";
+export type PublicationKind = "republish_counted" | "republish_free";
+
+const COPY = {
+  publish: {
+    title: PUBLISH_TITLE,
+    text: PUBLISH_TEXT,
+    label: PUBLISH_LABEL,
+    saveFirst: PUBLISH_SAVE_FIRST,
+    wait: PUBLISH_WAIT,
+    working: PUBLISH_WORKING,
+    busyLabel: "Publishing…",
+    failed: PUBLISH_FAILED,
+    unsure: PUBLISH_UNSURE,
+    changed: PUBLISH_CHANGED,
+    emailUnverified: PUBLISH_EMAIL_UNVERIFIED,
+    formLoading: PUBLISH_FORM_LOADING,
+    formUnavailable: PUBLISH_FORM_UNAVAILABLE,
+  },
+  republish: {
+    title: REPUBLISH_TITLE,
+    text: REPUBLISH_TEXT,
+    label: REPUBLISH_LABEL,
+    saveFirst: REPUBLISH_SAVE_FIRST,
+    wait: REPUBLISH_WAIT,
+    working: REPUBLISH_WORKING,
+    busyLabel: "Republishing…",
+    failed: REPUBLISH_FAILED,
+    unsure: REPUBLISH_UNSURE,
+    changed: REPUBLISH_CHANGED,
+    emailUnverified: REPUBLISH_EMAIL_UNVERIFIED,
+    formLoading: REPUBLISH_FORM_LOADING,
+    formUnavailable: REPUBLISH_FORM_UNAVAILABLE,
+  },
+} as const;
+
+/** The outcome of a republication: `publication_kind` of the 200 answer; anything else is unknown (the republication still happened). */
+function readKind(data: unknown): PublicationKind | null {
+  const kind = typeof data === "object" && data !== null ? (data as { publication_kind?: unknown }).publication_kind : null;
+  return kind === "republish_counted" || kind === "republish_free" ? kind : null;
+}
+
 type Note = { text: string; link?: { href: string; label: string }; retry?: boolean; kind: "quota" | "other" };
 
 /**
- * The Publish section of a Draft page (Story 2.15). The click sends `POST .../publish` with the CSRF token, the revision last loaded and
+ * The Publish section of a Draft page (Story 2.15) and, with `mode="republish"`, the Republish section of an Archived page (Story 2.18: the
+ * same flow against `POST .../republish`, with its own words and test ids). The click sends `POST .../publish` with the CSRF token, the revision last loaded and
  * an `Idempotency-Key` made per attempt: a retry of the same attempt (a network error, a timeout, a server error) reuses it, so the server
  * never publishes twice; any edit or a new revision starts a new attempt. While it runs the section holds the image lock and the page
  * pauses Save, the images and Delete. The page decides what a validation error, a stale revision or a success mean (callbacks).
  */
 export function PublishSection({
+  mode = "publish",
   listingId,
   revision,
   stamp,
@@ -98,8 +155,10 @@ export function PublishSection({
   onPublished,
   onStale,
   onConflict,
+  onForbidden,
   formState,
 }: {
+  mode?: PublishMode;
   listingId: string;
   revision: number | null;
   /** Changes with every edit or revision: a new stamp means a new attempt (a new Idempotency-Key). */
@@ -115,15 +174,21 @@ export function PublishSection({
   onNotFound: () => void;
   /** The server named what is missing (400): true when it was shown, false when the answer had nothing the page can show. */
   onInvalid: (fields: Record<string, string[]>) => boolean;
-  onPublished: (listing: ListingView) => void;
+  /** 200: the Listing and, for a republication, how it was recorded (null when the answer does not say). */
+  onPublished: (listing: ListingView, kind: PublicationKind | null) => void;
   /** 409 `stale_revision`: the answer's body and the revision that was sent; the page runs its conflict flow. */
   onStale: (body: unknown, baseRevision: number) => Promise<void>;
-  /** 409 `conflict`: the Listing is not a draft any more; the page reads it again. */
-  onConflict: () => Promise<"published" | "draft" | "handled">;
+  /** 409 `conflict`: the Listing is not in the expected status any more; the page reads it again ("unchanged": it still is, nothing happened). */
+  onConflict: () => Promise<"published" | "unchanged" | "handled">;
+  /** Republish only: a plain 403 `forbidden`. The page reads the Listing again: true when it is restricted (the page took over), false otherwise. */
+  onForbidden?: () => Promise<boolean>;
   /** The editor's form (the registry) has loaded; until it has, unsaved changes cannot be told, so publishing waits. */
   formState: "loading" | "ready" | "error";
 }) {
-  const [token] = useState(() => Symbol("publish"));
+  const copy = COPY[mode];
+  const republish = mode === "republish";
+  const id = mode; // test ids and element ids: "publish-…" or "republish-…"
+  const [token] = useState(() => Symbol(mode));
   const [allowance, setAllowance] = useState<Allowance | "failed" | "loading">("loading");
   // The remaining count is read when the section mounts and after a quota refusal; it can be stale (another tab may have published), so
   // it informs and never blocks: the server's answer is the one that counts.
@@ -173,7 +238,7 @@ export function PublishSection({
 
   const busy = blocked || working;
   const notReady = formState !== "ready";
-  const reason = busy ? PUBLISH_WAIT : notReady ? (formState === "loading" ? PUBLISH_FORM_LOADING : PUBLISH_FORM_UNAVAILABLE) : dirty ? PUBLISH_SAVE_FIRST : "";
+  const reason = busy ? copy.wait : notReady ? (formState === "loading" ? copy.formLoading : copy.formUnavailable) : dirty ? copy.saveFirst : "";
   const disabled = busy || dirty || notReady;
 
   async function publish(again = true): Promise<void> {
@@ -182,12 +247,12 @@ export function PublishSection({
     const now = latest.current;
     if (now.blocked || now.dirty || now.formState !== "ready" || saveRunning() || imageLockHeld()) {
       // Declined: the form changed (or something started) since the click; say so instead of doing nothing.
-      if (!again) show({ text: PUBLISH_CHANGED, kind: "other" });
+      if (!again) show({ text: copy.changed, kind: "other" });
       return;
     }
     if (!acquireImageLock(token)) return;
     if (base === null) {
-      show({ text: PUBLISH_FAILED, kind: "other" });
+      show({ text: copy.failed, kind: "other" });
       releaseImageLock(token);
       return;
     }
@@ -203,12 +268,19 @@ export function PublishSection({
       const api = await getApi();
       const send = async (csrf: string) =>
         withTimeout((signal) =>
-          api.POST("/api/v1/listings/{listing_id}/publish", {
-            params: { path: { listing_id: listingId }, header: { "Idempotency-Key": key } },
-            body: { base_revision: base },
-            headers: { "X-CSRFToken": csrf },
-            signal,
-          }),
+          republish
+            ? api.POST("/api/v1/listings/{listing_id}/republish", {
+                params: { path: { listing_id: listingId }, header: { "Idempotency-Key": key } },
+                body: { base_revision: base },
+                headers: { "X-CSRFToken": csrf },
+                signal,
+              })
+            : api.POST("/api/v1/listings/{listing_id}/publish", {
+                params: { path: { listing_id: listingId }, header: { "Idempotency-Key": key } },
+                body: { base_revision: base },
+                headers: { "X-CSRFToken": csrf },
+                signal,
+              }),
         );
       // Not `withCsrf`: that retries on any 403, and a 403 here can be a real answer (email not verified, publishing unavailable) that must not be
       // sent twice. Only the plain `forbidden` answer (a stale token) is retried, once, with the same key.
@@ -218,15 +290,22 @@ export function PublishSection({
         result = await send(await getCsrfToken());
       }
       const { data, error, response } = result;
+      // A restricted Listing is refused `forbidden` for good (a stale token was retried above): the same words as the page's own note.
+      if (republish && onForbidden && response.status === 403 && readErrorBody(error)?.code === "forbidden") {
+        attempt.current = null;
+        if (await onForbidden()) return;
+        show({ text: failureMessage(403, null), kind: "other" }); // not restricted: the generic refusal, as Publish shows it
+        return;
+      }
       if (response.ok) {
         const next = readListing(data);
         if (next && next.id === listingId && next.status === "published" && Number.isInteger(next.revision)) {
           attempt.current = null;
-          onPublished(next);
+          onPublished(next, republish ? readKind(data) : null);
           return;
         }
         // A success nobody can read: the key stays, so a retry can only replay it.
-        show({ text: PUBLISH_UNSURE, retry: true, kind: "other" });
+        show({ text: copy.unsure, retry: true, kind: "other" });
         return;
       }
       if (response.status === 401) return await onSessionGone();
@@ -237,11 +316,11 @@ export function PublishSection({
         attempt.current = null;
         const fields = parsed?.fields ?? {};
         if (Object.values(fields).some((codes) => codes.length > 0) && onInvalid(fields)) return;
-        show({ text: PUBLISH_FAILED, kind: "other" });
+        show({ text: copy.failed, kind: "other" });
         return;
       }
       if (response.status === 403 && code === "email_not_verified") {
-        show({ text: PUBLISH_EMAIL_UNVERIFIED, link: { href: VERIFY_EMAIL_PATH, label: "Verify your email" }, kind: "other" });
+        show({ text: copy.emailUnverified, link: { href: VERIFY_EMAIL_PATH, label: "Verify your email" }, kind: "other" });
         return;
       }
       if (response.status === 403 && code === "publishing_unavailable") {
@@ -253,7 +332,7 @@ export function PublishSection({
         if (code === "stale_revision") return await onStale(error, base);
         if (code === "conflict") {
           // Re-read: published elsewhere switches the page; a draft that still is one means nothing was published, so Publish stays.
-          if ((await onConflict()) === "draft") show({ text: PUBLISH_FAILED, kind: "other" });
+          if ((await onConflict()) === "unchanged") show({ text: copy.failed, kind: "other" });
           return;
         }
         if (code === "quota_exhausted") {
@@ -262,26 +341,26 @@ export function PublishSection({
           loadAllowance();
           return;
         }
-        show({ text: PUBLISH_FAILED, kind: "other" });
+        show({ text: copy.failed, kind: "other" });
         return;
       }
       if (response.status === 422 && code === "idempotency_key_reused") {
         // Refused without any effect: one automatic try with a new key; a second refusal is shown.
         attempt.current = null;
         if (again) retryWithNewKey = true;
-        else show({ text: PUBLISH_FAILED, kind: "other" });
+        else show({ text: copy.failed, kind: "other" });
         return;
       }
       if (response.status >= 500 || response.status === 429) {
         // The key stays: a retry of this attempt is a replay at worst.
-        show({ text: `${failureMessage(response.status, response.headers.get("Retry-After"))} ${response.status >= 500 ? PUBLISH_UNSURE : ""}`.trim(), retry: true, kind: "other" });
+        show({ text: `${failureMessage(response.status, response.headers.get("Retry-After"))} ${response.status >= 500 ? copy.unsure : ""}`.trim(), retry: true, kind: "other" });
         return;
       }
       attempt.current = null;
-      show({ text: response.status === 403 ? failureMessage(403, null) : PUBLISH_FAILED, kind: "other" });
+      show({ text: response.status === 403 ? failureMessage(403, null) : copy.failed, kind: "other" });
     } catch (thrown) {
       // A network failure or a timeout: the request may have reached the server, so the key stays.
-      show({ text: `${thrownMessage(thrown)} ${PUBLISH_UNSURE}`, retry: true, kind: "other" });
+      show({ text: `${thrownMessage(thrown)} ${copy.unsure}`, retry: true, kind: "other" });
     } finally {
       running.current = false;
       releaseImageLock(token);
@@ -291,15 +370,16 @@ export function PublishSection({
     }
   }
 
-  const exhausted = allowance !== "loading" && allowance !== "failed" && allowance.remaining === 0;
+  // A republication may be free, so an empty allowance is only said as a number there; Publish says what it means.
+  const exhausted = !republish && allowance !== "loading" && allowance !== "failed" && allowance.remaining === 0;
   return (
-    <section className="card" aria-labelledby="publish-title" data-testid="publish-section" style={{ marginBottom: "var(--space)" }}>
-      <h2 id="publish-title" className="section-title">
-        {PUBLISH_TITLE}
+    <section className="card" aria-labelledby={`${id}-title`} data-testid={`${id}-section`} style={{ marginBottom: "var(--space)" }}>
+      <h2 id={`${id}-title`} className="section-title">
+        {copy.title}
       </h2>
-      <p>{PUBLISH_TEXT}</p>
+      <p>{copy.text}</p>
       {note?.kind !== "quota" && (
-        <p className="muted" data-testid="publish-allowance">
+        <p className="muted" data-testid={`${id}-allowance`}>
           {allowance === "loading"
             ? PUBLISH_ALLOWANCE_CHECKING
             : allowance === "failed"
@@ -318,39 +398,39 @@ export function PublishSection({
         </p>
       )}
       {note && (
-        <div ref={noteRef} tabIndex={-1} role="alert" className="notice" data-testid="publish-note">
+        <div ref={noteRef} tabIndex={-1} role="alert" className="notice" data-testid={`${id}-note`}>
           <p>{note.text}</p>
           {note.link && (
             <p>
-              <Link href={note.link.href} className="text-link" data-testid="publish-note-link">
+              <Link href={note.link.href} className="text-link" data-testid={`${id}-note-link`}>
                 {note.link.label}
               </Link>
             </p>
           )}
           {note.retry && (
-            <button type="button" className="secondary-button" aria-disabled={disabled ? true : undefined} aria-describedby={reason ? "publish-reason" : undefined} onClick={() => void publish()} data-testid="publish-retry">
+            <button type="button" className="secondary-button" aria-disabled={disabled ? true : undefined} aria-describedby={reason ? `${id}-reason` : undefined} onClick={() => void publish()} data-testid={`${id}-retry`}>
               Retry
             </button>
           )}
         </div>
       )}
       {reason && (
-        <p id="publish-reason" className="hint" data-testid="publish-reason">
+        <p id={`${id}-reason`} className="hint" data-testid={`${id}-reason`}>
           {reason}
         </p>
       )}
-      <p role="status" className="sr-only" data-testid="publish-working">
-        {working ? PUBLISH_WORKING : ""}
+      <p role="status" className="sr-only" data-testid={`${id}-working`}>
+        {working ? copy.working : ""}
       </p>
       <button
         type="button"
         className="primary-button"
         aria-disabled={disabled ? true : undefined}
-        aria-describedby={reason ? "publish-reason" : undefined}
+        aria-describedby={reason ? `${id}-reason` : undefined}
         onClick={() => void publish()}
-        data-testid="publish-button"
+        data-testid={`${id}-button`}
       >
-        {working ? "Publishing…" : PUBLISH_LABEL}
+        {working ? copy.busyLabel : copy.label}
       </button>
     </section>
   );

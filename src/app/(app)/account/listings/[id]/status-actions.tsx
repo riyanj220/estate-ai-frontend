@@ -8,6 +8,7 @@ import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/image-l
 import { readListing, type ListingView } from "@/lib/listing-labels";
 import {
   ARCHIVE_ENDED_TEXT,
+  REPUBLISH_ARCHIVE_FIRST,
   STATUS_ACTIONS,
   STATUS_FAILED,
   STATUS_FORBIDDEN,
@@ -278,6 +279,11 @@ export function StatusActions({
         {STATUS_TITLE}
       </h2>
       <p className="muted">{STATUS_INTRO}</p>
+      {(status === "sold" || status === "rented") && !restricted && (
+        <p className="hint" data-testid="republish-archive-first">
+          {REPUBLISH_ARCHIVE_FIRST}
+        </p>
+      )}
       {pageNote && (
         <div
           ref={pageAlert}

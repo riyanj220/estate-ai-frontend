@@ -73,6 +73,12 @@ import {
   DELETE_DRAFT_PAUSED,
   LISTINGS_PATH,
   ARCHIVED_NOTE,
+  REPUBLISH_DONE_COUNTED,
+  REPUBLISH_DONE_FREE,
+  REPUBLISH_DONE_UNKNOWN,
+  REPUBLISH_ERRORS_ANNOUNCE,
+  REPUBLISH_FORBIDDEN,
+  republishGoneText,
   IDENTITY_LOCKED_ERROR,
   PUBLISHED_IDENTITY_NOTE,
   READ_ONLY_FALLBACK,
@@ -98,7 +104,7 @@ import { isEditableListing, targetsFor, type StatusTarget } from "@/lib/listing-
 import { DeleteDraft } from "./delete-draft";
 import { DetailsSection, IDENTITY_NOTE_ID } from "./details-section";
 import { ImagesSection } from "./images-section";
-import { PublishSection, PublishedAllowance } from "./publish-section";
+import { PublishSection, PublishedAllowance, type PublicationKind, type PublishMode } from "./publish-section";
 import { StatusActions } from "./status-actions";
 
 type FieldName = "title" | "description" | "asking_price" | "price_basis" | "rental_period" | "area_value" | "area_unit" | "marla_basis";
@@ -280,7 +286,7 @@ export function DraftEditor({
   // Every edit of the form moves this, so a publish attempt after an edit gets a new Idempotency-Key.
   const [edits, setEdits] = useState(0);
   // After the Listing was published here ("done") or found published elsewhere ("elsewhere"): the note and the live announcement.
-  const [publishedNote, setPublishedNote] = useState<"" | "done" | "elsewhere">("");
+  const [publishedNote, setPublishedNote] = useState<"" | "done" | "elsewhere" | "republished_counted" | "republished_free" | "republished">("");
   const [conflict, setConflict] = useState<Conflict | null>(null);
   // The fields a problem between two fields (the floor rule) is shown under: editing either clears them all.
   const [linked, setLinked] = useState<string[]>([]);
@@ -804,7 +810,7 @@ export function DraftEditor({
    * Images section) and in the summary at the top; an item with no control here (Purpose, Category, Subtype, a field this form does not
    * show) goes to the summary only. Header problems (key, revision) are not the owner's to fix: they alone are not shown here.
    */
-  function showPublishErrors(fields: Fields): boolean {
+  function showPublishErrors(fields: Fields, mode: PublishMode): boolean {
     const mapped: Fields = {};
     const general: string[] = [];
     for (const [key, codes] of Object.entries(fields)) {
@@ -823,7 +829,7 @@ export function DraftEditor({
     setPublishErrors(mapped);
     setPublishForm(general);
     setPublishTick((tick) => tick + 1);
-    announce(PUBLISH_ERRORS_ANNOUNCE);
+    announce(mode === "republish" ? REPUBLISH_ERRORS_ANNOUNCE : PUBLISH_ERRORS_ANNOUNCE);
     return true;
   }
 
@@ -844,14 +850,15 @@ export function DraftEditor({
   }
 
   /** The Listing is published (200): the page switches to the published state, announces it, and re-reads the allowance. */
-  function onPublished(next: ListingView) {
+  function onPublished(next: ListingView, kind: PublicationKind | null, mode: PublishMode) {
     adoptLatest(next);
     setStatusNote("");
-    setPublishedNote("done");
+    setPublishedNote(mode === "republish" ? (kind === "republish_counted" ? "republished_counted" : kind === "republish_free" ? "republished_free" : "republished") : "done");
   }
 
   /** The server says it is not a draft (409 `conflict`): read it again; a published one switches the page to its published state. */
-  async function publishConflict(): Promise<"published" | "draft" | "handled"> {
+  async function publishConflict(mode: PublishMode): Promise<"published" | "unchanged" | "handled"> {
+    const expected = mode === "republish" ? "archived" : "draft";
     const latest = await fetchLatest();
     if (latest.kind === "gone") {
       await onSessionGone();
@@ -863,21 +870,49 @@ export function DraftEditor({
     }
     if (latest.kind === "found") {
       // Still a draft (a claim without a result, a race that was undone): nothing is published, the page and its revision stay as they are.
-      if (latest.listing.status === "draft") return "draft";
+      if (latest.listing.status === expected) return "unchanged";
       adoptStatusOnly(latest.listing);
-      setPublishedNote("elsewhere");
+      if (latest.listing.status === "published" && !latest.listing.restricted) setPublishedNote("elsewhere");
+      else if (mode === "republish") explainRepublishGone(latest.listing);
       return "published";
     }
     showAlert({ kind: "notice", text: LATEST_NOT_LOADED });
     return "handled";
   }
 
+  /** A republication found the listing sold, rented, removed or restricted: say what it is now and why Republish is gone (in the status note). */
+  function explainRepublishGone(next: ListingView) {
+    if (isEditableListing(next.status, next.restricted) && next.status !== "published") return; // still editable and not archived-gone: nothing vanished
+    if (next.status === "published" && !next.restricted) return;
+    sayStatus(republishGoneText(next.restricted ? "restricted" : label(next.status).toLowerCase()));
+  }
+
+  /** A republication answered a plain 403: read the listing again; a restricted one is explained (true), anything else is a generic refusal (false). */
+  async function republishForbidden(): Promise<boolean> {
+    const latest = await fetchLatest();
+    if (latest.kind === "gone") {
+      await onSessionGone();
+      return true;
+    }
+    if (latest.kind === "missing") {
+      onNotFound();
+      return true;
+    }
+    if (latest.kind === "found" && latest.listing.restricted) {
+      adoptStatusOnly(latest.listing);
+      explainRepublishGone(latest.listing);
+      return true;
+    }
+    return false;
+  }
+
   /** A publish answered `stale_revision`: a Listing that is no longer a draft (it was published meanwhile) is the "published elsewhere" outcome; otherwise the conflict flow. */
-  async function publishStale(error: unknown, baseRevision: number): Promise<void> {
+  async function publishStale(error: unknown, baseRevision: number, mode: PublishMode): Promise<void> {
     const current = typeof error === "object" && error !== null ? readListing((error as { current?: unknown }).current) : null;
-    if (current && current.id === listing.id && hasRevision(current) && current.status !== null && current.status !== "draft") {
+    if (current && current.id === listing.id && hasRevision(current) && current.status !== null && (current.status !== (mode === "republish" ? "archived" : "draft") || (mode === "republish" && current.restricted))) {
       adoptStatusOnly(current);
-      setPublishedNote("elsewhere");
+      if (current.status === "published" && !current.restricted) setPublishedNote("elsewhere");
+      else if (mode === "republish") explainRepublishGone(current);
       return;
     }
     await handleStale(error, baseRevision);
@@ -1316,14 +1351,24 @@ export function DraftEditor({
       </p>
       {/* The one announcement of the publish outcome: a visible status that stays mounted, so its text is announced once (it takes no focus). */}
       <p role="status" aria-live="polite" className={publishedNote ? "notice" : "sr-only"} data-testid="publish-live">
-        {publishedNote === "done" ? PUBLISH_DONE : publishedNote === "elsewhere" ? PUBLISH_ELSEWHERE : ""}
-        {publishedNote === "done" && <PublishedAllowance />}
+        {publishedNote === "done"
+          ? PUBLISH_DONE
+          : publishedNote === "elsewhere"
+            ? PUBLISH_ELSEWHERE
+            : publishedNote === "republished_counted"
+              ? REPUBLISH_DONE_COUNTED
+              : publishedNote === "republished_free"
+                ? REPUBLISH_DONE_FREE
+                : publishedNote === "republished"
+                  ? REPUBLISH_DONE_UNKNOWN
+                  : ""}
+        {publishedNote !== "" && publishedNote !== "elsewhere" && <PublishedAllowance />}
       </p>
       {/* The one announcement of a status change (or of why it did not happen): a visible status that stays mounted; it takes the focus once. */}
       <p ref={statusNoteRef} tabIndex={-1} role="status" aria-live="polite" className={statusNote ? "notice" : "sr-only"} data-testid="status-live">
         {statusNote}
       </p>
-      {hasPublishErrors && listing.status === "draft" && (
+      {hasPublishErrors && (listing.status === "draft" || listing.status === "archived") && (
         <ErrorSummary
           ref={publishSummary}
           order={["images", ...controls]}
@@ -1396,6 +1441,7 @@ export function DraftEditor({
           {listing.restrictionReason !== null && (
             <p data-testid="restriction-reason">{restrictionReasonText(listing.restrictionReason)}</p>
           )}
+          {listing.restricted && listing.status === "archived" && <p data-testid="republish-forbidden">{REPUBLISH_FORBIDDEN}</p>}
         </div>
       ) : (
         <>
@@ -1568,10 +1614,33 @@ export function DraftEditor({
           }}
           onSessionGone={onSessionGone}
           onNotFound={onNotFound}
-          onInvalid={showPublishErrors}
-          onPublished={onPublished}
-          onStale={publishStale}
-          onConflict={publishConflict}
+          onInvalid={(fields) => showPublishErrors(fields, "publish")}
+          onPublished={(next, kind) => onPublished(next, kind, "publish")}
+          onStale={(error, base) => publishStale(error, base, "publish")}
+          onConflict={() => publishConflict("publish")}
+          formState={status === "ready" ? "ready" : status === "loading" ? "loading" : "error"}
+        />
+      )}
+      {listing.status === "archived" && !listing.restricted && (
+        <PublishSection
+          mode="republish"
+          listingId={listing.id}
+          revision={listing.revision}
+          stamp={`${listing.revision}:${edits}`}
+          dirty={dirty}
+          blocked={pending || imagesBusy || deleting || changingStatus}
+          saveRunning={() => submitting.current}
+          onBusyChange={(busy) => {
+            publishingRef.current = busy;
+            setPublishing(busy);
+          }}
+          onSessionGone={onSessionGone}
+          onNotFound={onNotFound}
+          onInvalid={(fields) => showPublishErrors(fields, "republish")}
+          onPublished={(next, kind) => onPublished(next, kind, "republish")}
+          onStale={(error, base) => publishStale(error, base, "republish")}
+          onConflict={() => publishConflict("republish")}
+          onForbidden={republishForbidden}
           formState={status === "ready" ? "ready" : status === "loading" ? "loading" : "error"}
         />
       )}
