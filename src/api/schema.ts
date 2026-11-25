@@ -207,7 +207,7 @@ export interface paths {
         head?: never;
         /**
          * Edit one of the signed-in account's own Listings
-         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`) and the sale and rent terms (`price_negotiable` for both; sale only `possession_availability`; rent only `security_deposit` and `advance_rent` as decimal strings in PKR with at most two decimals, `availability_date` as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`, `notice_period_days`, the four `utility_*_included` answers, `pets_allowed` and `occupant_restrictions`; the rent terms are `not_applicable` on a sale Draft and the other way round; a rental period is never assumed) and the location: `city` and `locality` as uuid text of an active city and one of its localities (`/api/v1/reference/cities` and `/api/v1/reference/cities/{city_id}/localities`; a locality of another city is `locality_not_in_city`, a locality without a city `invalid`; changing or clearing `city` clears the stored `locality` in the same write), the public location text `society`, `phase`, `sector` and `block` (up to 60 characters, no phone numbers or email addresses) and the PRIVATE address `street` (up to 120 characters), `house_number` (up to 30) and `latitude` and `longitude` (decimal strings with at most six decimals, -90 to 90 and -180 to 180, both or neither; `out_of_range` otherwise): the private fields are returned only to the owner and never appear in any public response. `amenities` is the map `{code: "present" | "none"}` of catalogue codes (`/api/v1/reference/amenities`): the sent map replaces the whole stored one, `null` or `{}` clears it, a code that is left out is unanswered (never `none`), an unknown or inactive code, another state, a non-object or more than 40 entries is `invalid`; nearby facilities are seller-declared (no distance, no verification). Installment, payment type, down payment and title or approval document terms are not supported yet (`unknown_field`). Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define (for example installment, down payment, title document or mortgage attributes) are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`, `contains_contact_details`, `not_editable`; unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`) and the sale and rent terms (`price_negotiable` for both; sale only `possession_availability`; rent only `security_deposit` and `advance_rent` as decimal strings in PKR with at most two decimals, `availability_date` as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`, `notice_period_days`, the four `utility_*_included` answers, `pets_allowed` and `occupant_restrictions`; the rent terms are `not_applicable` on a sale Draft and the other way round; a rental period is never assumed) and the location: `city` and `locality` as uuid text of an active city and one of its localities (`/api/v1/reference/cities` and `/api/v1/reference/cities/{city_id}/localities`; a locality of another city is `locality_not_in_city`, a locality without a city `invalid`; changing or clearing `city` clears the stored `locality` in the same write), the public location text `society`, `phase`, `sector` and `block` (up to 60 characters, no phone numbers or email addresses) and the PRIVATE address `street` (up to 120 characters), `house_number` (up to 30) and `latitude` and `longitude` (decimal strings with at most six decimals, -90 to 90 and -180 to 180, both or neither; `out_of_range` otherwise): the private fields are returned only to the owner and never appear in any public response. `amenities` is the map `{code: "present" | "none"}` of catalogue codes (`/api/v1/reference/amenities`): the sent map replaces the whole stored one, `null` or `{}` clears it, a code that is left out is unanswered (never `none`), an unknown or inactive code, another state, a non-object or more than 40 entries is `invalid`; nearby facilities are seller-declared (no distance, no verification). Installment, payment type, down payment and title or approval document terms are not supported yet (`unknown_field`). Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define (for example installment, down payment, title document or mortgage attributes) are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`, `contains_contact_details`, `not_editable` (also an identity field of a `published` Listing: `city`, `locality`, `area_value`, `area_unit` and `marla_basis` are locked while it is published, editable as a Draft or Archived); unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`, and so is a `sold`, `rented` or `removed` Listing or a restricted one (view only). A `draft`, `published` and `archived` Listing may be edited. An edit of a `published` Listing must leave it complete (the same rules as publication): otherwise `400 validation_error` names every missing or invalid item at once (clearing the title or a price, a locality outside the city) and nothing is written; an edit of an `archived` one is judged like a Draft edit. These edits use no publication and write no event. Never cached.
          */
         patch: operations["update_listing"];
         trace?: never;
@@ -222,8 +222,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Add an image to one of the signed-in account's own Drafts
-         * @description Needs `X-CSRFToken` and a `multipart/form-data` body with exactly one part, `file` (any other part, a non-file `file` or more than one file is `validation_error`). The request body may be at most 6 MB and the image at most 5 MB (5,242,880 bytes). The file name and declared content type are ignored and never stored: the type is decided from the decoded image (JPEG, PNG or WebP only; animated images, GIF, SVG, TIFF, BMP, HEIC and the like are refused). The image is decoded, rotated by its EXIF orientation, stripped of ALL metadata (EXIF, GPS, XMP, comments, colour profile) and encoded again, with its long side at most 2,048 px; the response describes that stored file. `400 validation_error` carries a code under `fields.file`: `too_large`, `unsupported_type`, `too_large_dimensions` (above 10,000 px on a side or 40 megapixels), `too_small` (below 200 x 200), `invalid_image`, `required` or `invalid`. Another account's, an unknown or a malformed Listing is `404 not_found`; an account that may not edit, or a Listing that is not an editable Draft, is `403 forbidden`. `409` carries `too_many_images` (a Listing holds at most 10) or `storage_cap_exceeded` (200 MB for an Individual, 1 GB for an Agency, counted on the stored size). `429` is the upload limit (30 per hour per account) with `Retry-After`. `503 busy` (with `Retry-After`) means image processing is at capacity or too slow: retry. The Listing `revision` rises by one, so a concurrent editor gets `409 stale_revision`. Never cached. The first image of a Listing becomes its cover; a later upload never changes it.
+         * Add an image to one of the signed-in account's own editable Listings
+         * @description Needs `X-CSRFToken` and a `multipart/form-data` body with exactly one part, `file` (any other part, a non-file `file` or more than one file is `validation_error`). The request body may be at most 6 MB and the image at most 5 MB (5,242,880 bytes). The file name and declared content type are ignored and never stored: the type is decided from the decoded image (JPEG, PNG or WebP only; animated images, GIF, SVG, TIFF, BMP, HEIC and the like are refused). The image is decoded, rotated by its EXIF orientation, stripped of ALL metadata (EXIF, GPS, XMP, comments, colour profile) and encoded again, with its long side at most 2,048 px; the response describes that stored file. `400 validation_error` carries a code under `fields.file`: `too_large`, `unsupported_type`, `too_large_dimensions` (above 10,000 px on a side or 40 megapixels), `too_small` (below 200 x 200), `invalid_image`, `required` or `invalid`. Another account's, an unknown or a malformed Listing is `404 not_found`; an account that may not edit, or a Listing that is not editable (sold, rented, removed or restricted), is `403 forbidden`. `409` carries `too_many_images` (a Listing holds at most 10) or `storage_cap_exceeded` (200 MB for an Individual, 1 GB for an Agency, counted on the stored size). `429` is the upload limit (30 per hour per account) with `Retry-After`. `503 busy` (with `Retry-After`) means image processing is at capacity or too slow: retry. The Listing `revision` rises by one, so a concurrent editor gets `409 stale_revision`. Never cached. The first image of a Listing becomes its cover; a later upload never changes it.
          */
         post: operations["upload_listing_image"];
         delete?: never;
@@ -231,7 +231,7 @@ export interface paths {
         head?: never;
         /**
          * Reorder the images of an own Draft and/or choose its cover
-         * @description Needs `X-CSRFToken`. Body: `{base_revision, order, cover_id?}` and nothing else (any other key is `validation_error` `unknown_field`). `order` is the full list of the Listing's image ids in the wanted order, each exactly once; the positions become 0..n-1 in that order. `cover_id` (optional; null or omitted keeps the cover) must be one of the Listing's images. The Listing always has exactly one cover while it has images. `400 validation_error` carries `invalid` under `fields.order` (a missing, duplicate, unknown or another Listing's id, or not a list of ids), `fields.cover_id` or `fields.base_revision` (`required` or `invalid`). A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a replay is also a 409: reload). A request that changes nothing is `200` and keeps the revision; otherwise the revision rises by one. Another account's, an unknown or a malformed Listing is `404 not_found`; an account that may not edit, or a Listing that is not an editable Draft, is `403 forbidden`. The body may be at most 64 KiB (`400` with `fields.order` `invalid`) and the `image_order` limit (120 per hour per account) applies: `429` with `Retry-After`. Files are never touched. Never cached.
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, order, cover_id?}` and nothing else (any other key is `validation_error` `unknown_field`). `order` is the full list of the Listing's image ids in the wanted order, each exactly once; the positions become 0..n-1 in that order. `cover_id` (optional; null or omitted keeps the cover) must be one of the Listing's images. The Listing always has exactly one cover while it has images. `400 validation_error` carries `invalid` under `fields.order` (a missing, duplicate, unknown or another Listing's id, or not a list of ids), `fields.cover_id` or `fields.base_revision` (`required` or `invalid`). A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a replay is also a 409: reload). A request that changes nothing is `200` and keeps the revision; otherwise the revision rises by one. Another account's, an unknown or a malformed Listing is `404 not_found`; an account that may not edit, or a Listing that is not editable (sold, rented, removed or restricted), is `403 forbidden`. The body may be at most 64 KiB (`400` with `fields.order` `invalid`) and the `image_order` limit (120 per hour per account) applies: `429` with `Retry-After`. Files are never touched. Never cached.
          */
         patch: operations["set_listing_image_order"];
         trace?: never;
@@ -248,7 +248,7 @@ export interface paths {
         post?: never;
         /**
          * Remove an image from one of the signed-in account's own Drafts
-         * @description Needs `X-CSRFToken`. Deletes the image and its stored file, gives its bytes back to the account's storage, renumbers the other images 0..n-1 (removing the cover makes the image with the lowest remaining position the cover) and raises the Listing `revision` by one. `204` has no body. Another account's, an unknown or an already removed image or Listing is `404 not_found`; an account that may not edit, or a Listing that is not an editable Draft, is `403 forbidden`. Never cached.
+         * @description Needs `X-CSRFToken`. Deletes the image and its stored file, gives its bytes back to the account's storage, renumbers the other images 0..n-1 (removing the cover makes the image with the lowest remaining position the cover) and raises the Listing `revision` by one. `204` has no body. Another account's, an unknown or an already removed image or Listing is `404 not_found`; an account that may not edit, or a Listing that is not editable (sold, rented, removed or restricted), is `403 forbidden`. A `published` Listing can never lose its last image: `400 validation_error` with `images_required` under `fields.images`, nothing changed. Images of a Draft, Published or Archived Listing may be removed. Never cached.
          */
         delete: operations["delete_listing_image"];
         options?: never;
@@ -285,7 +285,7 @@ export interface paths {
         };
         /**
          * Preview what the public will see of one of the signed-in account's own Listings
-         * @description Owner only, for the account's own `draft` and `published` Listing. The body is the public projection (the same fields a visitor would get, built by the same function): never a private address, coordinates, a phone number, the revision, the provenance or the status. `media` lists the images in the public shape; their `url` is the media endpoint, which serves a Draft's image to its owner only. `estimate` is always `null` until the valuation feature exists. Another account's, an administrator's, an unknown and a malformed id are all `404 not_found`. A Visitor gets `401`. Opening the preview counts as opening the Draft (it postpones the idle-Draft notice). Never cached.
+         * @description Owner only, for the account's own Listing in any status (draft, published, archived, sold, rented, removed). The body is the public projection (the same fields a visitor would get, built by the same function): never a private address, coordinates, a phone number, the revision, the provenance or the status. `media` lists the images in the public shape; their `url` is the media endpoint, which serves a Draft's image to its owner only. `estimate` is always `null` until the valuation feature exists. Another account's, an administrator's, an unknown and a malformed id are all `404 not_found`. A Visitor gets `401`. Opening the preview counts as opening the Draft (it postpones the idle-Draft notice). Never cached.
          */
         get: operations["preview_listing"];
         put?: never;
@@ -310,6 +310,26 @@ export interface paths {
          * @description Needs `X-CSRFToken` and an `Idempotency-Key` header (1 to 128 characters from `A-Za-z0-9._:-`; a missing or malformed one is `400 validation_error` under `fields.idempotency_key`). Body: `{base_revision}` and nothing else. Publishing is immediate (no approval) and all-or-nothing: it uses one of the owner's monthly publications and makes the Listing public if its owner is Active. The same key with the same body within 24 hours returns the Listing as it is now with no second publication; the same key with another body is `422 idempotency_key_reused`. Refusals, in order: another account's, an administrator's, an unknown and a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision` that is not the current `revision` is `409 stale_revision` with the Listing under `current`; a Listing that is not a `draft` is `409 conflict`; an Email-unverified account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`; every missing or invalid required item is `400 validation_error`, all at once, keyed by registry field id (`required` and the field's own codes), `images` (`images_required`: at least one image) and a field of class `private` or of the quota identity that the Assistant filled in and the owner has not confirmed (`confirm_required`); a used-up allowance is `409 quota_exhausted` with the caller's own `limit`, `used` and `resets_at` under `details`. A refused attempt consumes nothing. Never cached.
          */
         post: operations["publish_listing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/listings/{listing_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive, mark sold or mark rented one of the signed-in account's own Listings
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, status}` and nothing else; `status` is `archived`, `sold` or `rented` (anything else is `400 validation_error`, `fields.status`). Allowed moves: `published` to `archived`, `sold` or `rented`; `sold` and `rented` to `archived`. Every other move (from a `draft`, an `archived` or the same status) is `409 conflict` and nothing is written; a Listing never returns to `published` here. `sold` is only for a Listing with purpose `sale` and `rented` only for purpose `rent` (`409 conflict` otherwise). No publication is used and no key is needed. `200` is the updated Listing; it is no longer public. A Suspended owner may only archive (`403 forbidden` for `sold` and `rented`); a restricted Listing may only be archived by its owner (`403 forbidden` otherwise) and a `removed` one cannot be changed (`403 forbidden`). A `base_revision` that is not the current `revision` is `409 stale_revision` with the Listing under `current`. Another account's, an administrator's, an unknown and a malformed id are `404 not_found`; a Visitor gets `401`. Never cached.
+         */
+        post: operations["change_listing_status"];
         delete?: never;
         options?: never;
         head?: never;
@@ -430,9 +450,29 @@ export interface paths {
         };
         /**
          * The signed-in account's own Listings, newest first
-         * @description Own Listings only, newest first, with cursor pagination (`next` link, `previous` is always null; 20 per page, `page_size` up to 50, an invalid `page_size` falls back to the default). `status` filters by a known status. A bad `cursor` or `status` is `validation_error` (`fields.cursor`, `fields.status`). Never cached.
+         * @description Own Listings only, newest first, with cursor pagination (`next` link, `previous` is always null; 20 per page, `page_size` up to 50, an invalid `page_size` falls back to the default). `status` filters by one of the six statuses. A bad `cursor` or `status` is `validation_error` (`fields.cursor`, `fields.status`). Never cached.
          */
         get: operations["list_my_listings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/listings/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How many Listings the signed-in account has in each status
+         * @description The caller's own Listings only, one count per status (every status is present, 0 when none): `draft`, `published`, `archived`, `sold`, `rented`, `removed`. Same rules as the list: a Visitor gets `401`, an administrator or a Deactivated account `403 forbidden`, a Suspended owner may read it. Never cached.
+         */
+        get: operations["get_my_listing_counts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1230,12 +1270,24 @@ export interface components {
             };
             /** @description The images in `position` order; empty when there are none. */
             media: components["schemas"]["Image"][];
+            /** @description Set by moderation: a restricted Listing is never public and the owner cannot edit it (it may still be archived). Owner resource only, never in a public shape. */
+            restricted: boolean;
+            /** @description A short plain-text reason for a restricted or removed Listing, shown to the owner only; null otherwise. */
+            restriction_reason: string | null;
         };
         /** @description `409 stale_revision`: the error envelope plus the Listing as it is now. */
         ListingConflict: {
             error: components["schemas"]["ErrorBody"];
             /** @description The current Listing, to reload and reapply the edit. */
             current: components["schemas"]["Listing"];
+        };
+        ListingCounts: {
+            draft: number;
+            published: number;
+            archived: number;
+            sold: number;
+            rented: number;
+            removed: number;
         };
         /** @description Flat registry ids. Null means unknown. */
         ListingFields: {
@@ -1715,9 +1767,13 @@ export interface components {
         /**
          * @description * `draft` - draft
          *     * `published` - published
+         *     * `archived` - archived
+         *     * `sold` - sold
+         *     * `rented` - rented
+         *     * `removed` - removed
          * @enum {string}
          */
-        ListingStatusEnum: "draft" | "published";
+        ListingStatusEnum: "draft" | "published" | "archived" | "sold" | "rented" | "removed";
         ListingUpdateRequest: {
             /** @description The `revision` of the Listing the client last read. */
             base_revision: number;
@@ -2284,6 +2340,25 @@ export interface components {
          * @enum {string}
          */
         StateEnum: "email_unverified" | "active" | "suspended" | "deactivated";
+        StatusBodyRequest: {
+            /** @description The `revision` of the Listing the client last read. */
+            base_revision: number;
+            /**
+             * @description The status to move to: `archived`, `sold` or `rented`.
+             *
+             *     * `archived` - archived
+             *     * `sold` - sold
+             *     * `rented` - rented
+             */
+            status: components["schemas"]["StatusBodyStatusEnum"];
+        };
+        /**
+         * @description * `archived` - archived
+         *     * `sold` - sold
+         *     * `rented` - rented
+         * @enum {string}
+         */
+        StatusBodyStatusEnum: "archived" | "sold" | "rented";
         /**
          * @description * `house` - house
          *     * `apartment` - apartment
@@ -3856,6 +3931,97 @@ export interface operations {
             };
         };
     };
+    change_listing_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusBodyRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated Listing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Listing"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: Suspended, restricted, removed, or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `stale_revision` (with `current`) or `conflict` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingConflict"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     get_me: {
         parameters: {
             query?: never;
@@ -4425,7 +4591,7 @@ export interface operations {
             query?: {
                 cursor?: string;
                 page_size?: number;
-                status?: "draft" | "published";
+                status?: "archived" | "draft" | "published" | "removed" | "rented" | "sold";
             };
             header?: never;
             path?: never;
@@ -4467,6 +4633,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_my_listing_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingCounts"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Not found */

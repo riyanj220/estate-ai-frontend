@@ -714,10 +714,19 @@ paths:
         codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`,
         `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`,
         `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`,
-        `contains_contact_details`, `not_editable`; unknown ids are `unknown_field`
-        under `non_field_errors`) and never echoes a value. Another account''s, an
-        unknown or a malformed id is `404 not_found`; an account that may not edit
-        (Suspended, Deactivated) is `403 forbidden`. Never cached.'
+        `contains_contact_details`, `not_editable` (also an identity field of a `published`
+        Listing: `city`, `locality`, `area_value`, `area_unit` and `marla_basis` are
+        locked while it is published, editable as a Draft or Archived); unknown ids
+        are `unknown_field` under `non_field_errors`) and never echoes a value. Another
+        account''s, an unknown or a malformed id is `404 not_found`; an account that
+        may not edit (Suspended, Deactivated) is `403 forbidden`, and so is a `sold`,
+        `rented` or `removed` Listing or a restricted one (view only). A `draft`,
+        `published` and `archived` Listing may be edited. An edit of a `published`
+        Listing must leave it complete (the same rules as publication): otherwise
+        `400 validation_error` names every missing or invalid item at once (clearing
+        the title or a price, a locality outside the city) and nothing is written;
+        an edit of an `archived` one is judged like a Draft edit. These edits use
+        no publication and write no event. Never cached.'
       summary: Edit one of the signed-in account's own Listings
       parameters:
       - in: path
@@ -876,15 +885,15 @@ paths:
         `too_large_dimensions` (above 10,000 px on a side or 40 megapixels), `too_small`
         (below 200 x 200), `invalid_image`, `required` or `invalid`. Another account''s,
         an unknown or a malformed Listing is `404 not_found`; an account that may
-        not edit, or a Listing that is not an editable Draft, is `403 forbidden`.
-        `409` carries `too_many_images` (a Listing holds at most 10) or `storage_cap_exceeded`
-        (200 MB for an Individual, 1 GB for an Agency, counted on the stored size).
-        `429` is the upload limit (30 per hour per account) with `Retry-After`. `503
-        busy` (with `Retry-After`) means image processing is at capacity or too slow:
-        retry. The Listing `revision` rises by one, so a concurrent editor gets `409
-        stale_revision`. Never cached. The first image of a Listing becomes its cover;
-        a later upload never changes it.'
-      summary: Add an image to one of the signed-in account's own Drafts
+        not edit, or a Listing that is not editable (sold, rented, removed or restricted),
+        is `403 forbidden`. `409` carries `too_many_images` (a Listing holds at most
+        10) or `storage_cap_exceeded` (200 MB for an Individual, 1 GB for an Agency,
+        counted on the stored size). `429` is the upload limit (30 per hour per account)
+        with `Retry-After`. `503 busy` (with `Retry-After`) means image processing
+        is at capacity or too slow: retry. The Listing `revision` rises by one, so
+        a concurrent editor gets `409 stale_revision`. Never cached. The first image
+        of a Listing becomes its cover; a later upload never changes it.'
+      summary: Add an image to one of the signed-in account's own editable Listings
       parameters:
       - in: path
         name: listing_id
@@ -981,10 +990,10 @@ paths:
         (a replay is also a 409: reload). A request that changes nothing is `200`
         and keeps the revision; otherwise the revision rises by one. Another account''s,
         an unknown or a malformed Listing is `404 not_found`; an account that may
-        not edit, or a Listing that is not an editable Draft, is `403 forbidden`.
-        The body may be at most 64 KiB (`400` with `fields.order` `invalid`) and the
-        `image_order` limit (120 per hour per account) applies: `429` with `Retry-After`.
-        Files are never touched. Never cached.'
+        not edit, or a Listing that is not editable (sold, rented, removed or restricted),
+        is `403 forbidden`. The body may be at most 64 KiB (`400` with `fields.order`
+        `invalid`) and the `image_order` limit (120 per hour per account) applies:
+        `429` with `Retry-After`. Files are never touched. Never cached.'
       summary: Reorder the images of an own Draft and/or choose its cover
       parameters:
       - in: path
@@ -1059,13 +1068,16 @@ paths:
   /api/v1/listings/{listing_id}/images/{image_id}:
     delete:
       operationId: delete_listing_image
-      description: Needs `X-CSRFToken`. Deletes the image and its stored file, gives
-        its bytes back to the account's storage, renumbers the other images 0..n-1
+      description: 'Needs `X-CSRFToken`. Deletes the image and its stored file, gives
+        its bytes back to the account''s storage, renumbers the other images 0..n-1
         (removing the cover makes the image with the lowest remaining position the
         cover) and raises the Listing `revision` by one. `204` has no body. Another
-        account's, an unknown or an already removed image or Listing is `404 not_found`;
-        an account that may not edit, or a Listing that is not an editable Draft,
-        is `403 forbidden`. Never cached.
+        account''s, an unknown or an already removed image or Listing is `404 not_found`;
+        an account that may not edit, or a Listing that is not editable (sold, rented,
+        removed or restricted), is `403 forbidden`. A `published` Listing can never
+        lose its last image: `400 validation_error` with `images_required` under `fields.images`,
+        nothing changed. Images of a Draft, Published or Archived Listing may be removed.
+        Never cached.'
       summary: Remove an image from one of the signed-in account's own Drafts
       parameters:
       - in: path
@@ -1222,15 +1234,16 @@ paths:
   /api/v1/listings/{listing_id}/preview:
     get:
       operationId: preview_listing
-      description: 'Owner only, for the account''s own `draft` and `published` Listing.
-        The body is the public projection (the same fields a visitor would get, built
-        by the same function): never a private address, coordinates, a phone number,
-        the revision, the provenance or the status. `media` lists the images in the
-        public shape; their `url` is the media endpoint, which serves a Draft''s image
-        to its owner only. `estimate` is always `null` until the valuation feature
-        exists. Another account''s, an administrator''s, an unknown and a malformed
-        id are all `404 not_found`. A Visitor gets `401`. Opening the preview counts
-        as opening the Draft (it postpones the idle-Draft notice). Never cached.'
+      description: 'Owner only, for the account''s own Listing in any status (draft,
+        published, archived, sold, rented, removed). The body is the public projection
+        (the same fields a visitor would get, built by the same function): never a
+        private address, coordinates, a phone number, the revision, the provenance
+        or the status. `media` lists the images in the public shape; their `url` is
+        the media endpoint, which serves a Draft''s image to its owner only. `estimate`
+        is always `null` until the valuation feature exists. Another account''s, an
+        administrator''s, an unknown and a malformed id are all `404 not_found`. A
+        Visitor gets `401`. Opening the preview counts as opening the Draft (it postpones
+        the idle-Draft notice). Never cached.'
       summary: Preview what the public will see of one of the signed-in account's
         own Listings
       parameters:
@@ -1378,6 +1391,96 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/listings/{listing_id}/status:
+    post:
+      operationId: change_listing_status
+      description: 'Needs `X-CSRFToken`. Body: `{base_revision, status}` and nothing
+        else; `status` is `archived`, `sold` or `rented` (anything else is `400 validation_error`,
+        `fields.status`). Allowed moves: `published` to `archived`, `sold` or `rented`;
+        `sold` and `rented` to `archived`. Every other move (from a `draft`, an `archived`
+        or the same status) is `409 conflict` and nothing is written; a Listing never
+        returns to `published` here. `sold` is only for a Listing with purpose `sale`
+        and `rented` only for purpose `rent` (`409 conflict` otherwise). No publication
+        is used and no key is needed. `200` is the updated Listing; it is no longer
+        public. A Suspended owner may only archive (`403 forbidden` for `sold` and
+        `rented`); a restricted Listing may only be archived by its owner (`403 forbidden`
+        otherwise) and a `removed` one cannot be changed (`403 forbidden`). A `base_revision`
+        that is not the current `revision` is `409 stale_revision` with the Listing
+        under `current`. Another account''s, an administrator''s, an unknown and a
+        malformed id are `404 not_found`; a Visitor gets `401`. Never cached.'
+      summary: Archive, mark sold or mark rented one of the signed-in account's own
+        Listings
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusBodyRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+          description: The updated Listing
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: Suspended, restricted, removed, or a missing
+            CSRF token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingConflict'
+          description: '`stale_revision` (with `current`) or `conflict`'
         '429':
           description: Too many requests
           content:
@@ -1881,9 +1984,9 @@ paths:
       operationId: list_my_listings
       description: Own Listings only, newest first, with cursor pagination (`next`
         link, `previous` is always null; 20 per page, `page_size` up to 50, an invalid
-        `page_size` falls back to the default). `status` filters by a known status.
-        A bad `cursor` or `status` is `validation_error` (`fields.cursor`, `fields.status`).
-        Never cached.
+        `page_size` falls back to the default). `status` filters by one of the six
+        statuses. A bad `cursor` or `status` is `validation_error` (`fields.cursor`,
+        `fields.status`). Never cached.
       summary: The signed-in account's own Listings, newest first
       parameters:
       - in: query
@@ -1899,8 +2002,12 @@ paths:
         schema:
           type: string
           enum:
+          - archived
           - draft
           - published
+          - removed
+          - rented
+          - sold
       tags:
       - me
       security:
@@ -1926,6 +2033,67 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '403':
           description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/listings/counts:
+    get:
+      operationId: get_my_listing_counts
+      description: 'The caller''s own Listings only, one count per status (every status
+        is present, 0 when none): `draft`, `published`, `archived`, `sold`, `rented`,
+        `removed`. Same rules as the list: a Visitor gets `401`, an administrator
+        or a Deactivated account `403 forbidden`, a Suspended owner may read it. Never
+        cached.'
+      summary: How many Listings the signed-in account has in each status
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingCounts'
+          description: The counts
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`'
+        '400':
+          description: Bad request or validation error
           content:
             application/json:
               schema:
@@ -4047,12 +4215,25 @@ components:
           items:
             $ref: '#/components/schemas/Image'
           description: The images in `position` order; empty when there are none.
+        restricted:
+          type: boolean
+          description: 'Set by moderation: a restricted Listing is never public and
+            the owner cannot edit it (it may still be archived). Owner resource only,
+            never in a public shape.'
+        restriction_reason:
+          type: string
+          nullable: true
+          description: A short plain-text reason for a restricted or removed Listing,
+            shown to the owner only; null otherwise.
+          maxLength: 200
       required:
       - fields
       - id
       - media
       - provenance
       - registry_version
+      - restricted
+      - restriction_reason
       - revision
       - status
       - visibility
@@ -4070,6 +4251,34 @@ components:
       required:
       - current
       - error
+    ListingCounts:
+      type: object
+      properties:
+        draft:
+          type: integer
+          minimum: 0
+        published:
+          type: integer
+          minimum: 0
+        archived:
+          type: integer
+          minimum: 0
+        sold:
+          type: integer
+          minimum: 0
+        rented:
+          type: integer
+          minimum: 0
+        removed:
+          type: integer
+          minimum: 0
+      required:
+      - archived
+      - draft
+      - published
+      - removed
+      - rented
+      - sold
     ListingFields:
       type: object
       description: Flat registry ids. Null means unknown.
@@ -5324,10 +5533,18 @@ components:
       enum:
       - draft
       - published
+      - archived
+      - sold
+      - rented
+      - removed
       type: string
       description: |-
         * `draft` - draft
         * `published` - published
+        * `archived` - archived
+        * `sold` - sold
+        * `rented` - rented
+        * `removed` - removed
     ListingUpdateRequest:
       type: object
       properties:
@@ -6591,6 +6808,35 @@ components:
         * `active` - active
         * `suspended` - suspended
         * `deactivated` - deactivated
+    StatusBodyRequest:
+      type: object
+      properties:
+        base_revision:
+          type: integer
+          minimum: 1
+          description: The `revision` of the Listing the client last read.
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusBodyStatusEnum'
+          description: |-
+            The status to move to: `archived`, `sold` or `rented`.
+
+            * `archived` - archived
+            * `sold` - sold
+            * `rented` - rented
+      required:
+      - base_revision
+      - status
+    StatusBodyStatusEnum:
+      enum:
+      - archived
+      - sold
+      - rented
+      type: string
+      description: |-
+        * `archived` - archived
+        * `sold` - sold
+        * `rented` - rented
     SubtypeEnum:
       enum:
       - house
