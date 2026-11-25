@@ -28,6 +28,13 @@ body {
   outline-offset: 2px;
 }
 
+progress {
+  display: block;
+  width: 100%;
+  max-width: 24rem;
+  margin: 0.5rem 0;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

@@ -24,7 +24,11 @@ export const PROFILE_PATH = "/account/profile";
 export function useProfileLoad<T>(
   fetchProfile: () => Promise<ProfileFetch<T>>,
   headingId: string,
-  { signInPath = `/sign-in?next=${encodeURIComponent(PROFILE_PATH)}`, refreshOnFocus = true }: { signInPath?: string; refreshOnFocus?: boolean } = {},
+  {
+    signInPath = `/sign-in?next=${encodeURIComponent(PROFILE_PATH)}`,
+    refreshOnFocus = true,
+    focusIntervalMs = 0,
+  }: { signInPath?: string; refreshOnFocus?: boolean; focusIntervalMs?: number } = {},
 ) {
   const { refresh } = useSession();
   const router = useRouter();
@@ -33,6 +37,9 @@ export function useProfileLoad<T>(
   const started = useRef(false);
   const loadKind = useRef<ProfileLoad<T>["kind"]>("loading");
   const retried = useRef(false);
+  const lastFocusRead = useRef(0);
+  // True while the numbers on screen come from an earlier read and the latest quiet re-read failed.
+  const [stale, setStale] = useState(false);
   const fetcher = useRef(fetchProfile);
   useEffect(() => {
     fetcher.current = fetchProfile;
@@ -56,7 +63,11 @@ export function useProfileLoad<T>(
           await sessionGone();
           return "failed";
         }
-        if (quiet && next.kind !== "ready") return "failed";
+        if (quiet && next.kind !== "ready") {
+          setStale(true);
+          return "failed";
+        }
+        setStale(false);
         // A Retry that did not end in a form must not leave the focus hand-over armed for a later quiet success.
         if (!quiet && next.kind !== "ready") retried.current = false;
         setLoad(next);
@@ -78,7 +89,11 @@ export function useProfileLoad<T>(
   useEffect(() => {
     if (!refreshOnFocus) return;
     const again = () => {
-      if (loadKind.current === "ready") void read(true);
+      if (loadKind.current !== "ready") return;
+      const now = Date.now();
+      if (focusIntervalMs > 0 && now - lastFocusRead.current < focusIntervalMs) return; // focus and visibility fire together
+      lastFocusRead.current = now;
+      void read(true);
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") again();
@@ -89,7 +104,7 @@ export function useProfileLoad<T>(
       window.removeEventListener("focus", again);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [read, refreshOnFocus]);
+  }, [read, refreshOnFocus, focusIntervalMs]);
 
   useEffect(() => {
     loadKind.current = load.kind;
@@ -107,7 +122,7 @@ export function useProfileLoad<T>(
     void read(false);
   }
 
-  return { load, read, readDetailed, retry, sessionGone };
+  return { load, read, readDetailed, retry, sessionGone, stale };
 }
 
 /** The loading and load-failure states of a profile page (the heading and Retry button stay mounted while retrying). */

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { STATE_LABELS, canOwnListings, displayName, profileLinkLabel, typeLabel } from "@/lib/account";
 import { LISTINGS_PATH } from "@/lib/listing-messages";
+import { AllowanceCard } from "./allowance-card";
 import { requireAccount } from "@/lib/current-account";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -36,6 +37,7 @@ export default async function DashboardPage() {
           </Link>
         </p>
       )}
+      {canOwnListings(account.account_type) && <AllowanceCard />}
       <p>
         <Link href="/account/password" className="text-link">
           Change password
