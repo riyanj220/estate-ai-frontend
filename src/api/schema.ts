@@ -509,6 +509,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/publication-allowance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in owner's publication allowance this month
+         * @description Individual and Agency accounts (Active, Email-unverified or Suspended). The month is the calendar month in Asia/Karachi; `period_start` and `resets_at` carry the +05:00 offset. `used` counts only this account's counted publications and can exceed `limit` after a later limit decrease, `remaining` never goes below 0. A Visitor and a Deactivated account (which has no session) get `unauthenticated` (401); an administrator gets `forbidden` (403). Never cached.
+         */
+        get: operations["get_my_publication_allowance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications": {
         parameters: {
             query?: never;
@@ -2085,6 +2105,25 @@ export interface components {
             /** @description Relative path of the media endpoint, `/api/v1/listings/{id}/images/{image_id}/file`. */
             url: string;
         };
+        PublicationAllowance: {
+            /** @description The monthly limit in force now. */
+            limit: number;
+            /** @description Counted publications this Karachi month. */
+            used: number;
+            /** @description `max(limit - used, 0)`. */
+            remaining: number;
+            /**
+             * Format: date-time
+             * @description Start of the month, +05:00.
+             */
+            period_start: string;
+            /**
+             * Format: date-time
+             * @description Start of the next month, +05:00.
+             */
+            resets_at: string;
+            timezone: components["schemas"]["TimezoneEnum"];
+        };
         /**
          * @description * `sale` - sale
          *     * `rent` - rent
@@ -2215,6 +2254,11 @@ export interface components {
             id: string;
             subtypes: string[];
         };
+        /**
+         * @description * `Asia/Karachi` - Asia/Karachi
+         * @enum {string}
+         */
+        TimezoneEnum: "Asia/Karachi";
         /**
          * @description * `enum` - enum
          *     * `text` - text
@@ -4760,6 +4804,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_my_publication_allowance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The allowance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationAllowance"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Not found */

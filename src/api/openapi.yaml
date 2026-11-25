@@ -2264,6 +2264,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/publication-allowance:
+    get:
+      operationId: get_my_publication_allowance
+      description: Individual and Agency accounts (Active, Email-unverified or Suspended).
+        The month is the calendar month in Asia/Karachi; `period_start` and `resets_at`
+        carry the +05:00 offset. `used` counts only this account's counted publications
+        and can exceed `limit` after a later limit decrease, `remaining` never goes
+        below 0. A Visitor and a Deactivated account (which has no session) get `unauthenticated`
+        (401); an administrator gets `forbidden` (403). Never cached.
+      summary: The signed-in owner's publication allowance this month
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicationAllowance'
+          description: The allowance
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: administrator'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/notifications:
     get:
       operationId: list_notifications
@@ -6117,6 +6179,35 @@ components:
       - position
       - url
       - width
+    PublicationAllowance:
+      type: object
+      properties:
+        limit:
+          type: integer
+          description: The monthly limit in force now.
+        used:
+          type: integer
+          description: Counted publications this Karachi month.
+        remaining:
+          type: integer
+          description: '`max(limit - used, 0)`.'
+        period_start:
+          type: string
+          format: date-time
+          description: Start of the month, +05:00.
+        resets_at:
+          type: string
+          format: date-time
+          description: Start of the next month, +05:00.
+        timezone:
+          $ref: '#/components/schemas/TimezoneEnum'
+      required:
+      - limit
+      - period_start
+      - remaining
+      - resets_at
+      - timezone
+      - used
     PurposeEnum:
       enum:
       - sale
@@ -6390,6 +6481,11 @@ components:
       required:
       - id
       - subtypes
+    TimezoneEnum:
+      enum:
+      - Asia/Karachi
+      type: string
+      description: '* `Asia/Karachi` - Asia/Karachi'
     TypeEnum:
       enum:
       - enum
