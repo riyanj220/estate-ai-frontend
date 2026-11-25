@@ -198,7 +198,11 @@ export interface paths {
         get: operations["get_listing"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete one of the signed-in account's own Drafts
+         * @description Needs `X-CSRFToken`. Deletes the Draft and everything of it: its images (the stored files go and the bytes are given back to the account's storage), its fields, private address and revision history. This cannot be undone. `204` has no body. Only a `draft` can be deleted here: any other status is `409 conflict` and nothing changes. Another account's, an administrator's, an unknown, a malformed and an already deleted id are all `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`. Never cached.
+         */
+        delete: operations["delete_listing"];
         options?: never;
         head?: never;
         /**
@@ -264,6 +268,26 @@ export interface paths {
          * @description The media endpoint: the only place an image is served, decided at request time by the single visibility policy. An image of a public Listing (Published, not restricted, owner Active) goes to anyone, a Visitor and an administrator included, with `Cache-Control: public, max-age=60` (so it may stay in a cache for up to a minute after the Listing stops being public), no cookie and nothing varying by cookie, whatever cookies the request carries. An image of any other Listing (a Draft, a restricted one, one whose owner is Suspended or Deactivated) goes only to the owning account (Suspended and Email-unverified owners included, a Deactivated one not) with `Cache-Control: private, no-store`. Anyone else (another account, an administrator, a Visitor), an unknown or malformed id and another Listing's image get the same `404 not_found` (a Visitor gets 404, never 401). The body is the stored, re-encoded image with its stored `Content-Type` (`image/jpeg`, `image/png` or `image/webp`), `Content-Length`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` (no file name) and `Content-Security-Policy: default-src 'none'; sandbox`. `HEAD` answers the same headers without a body. `Range` is ignored (always `200`, the whole file) and there is no `ETag`. `Accept` is ignored.
          */
         get: operations["get_listing_image_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/listings/{listing_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview what the public will see of one of the signed-in account's own Listings
+         * @description Owner only, for the account's own `draft` and `published` Listing. The body is the public projection (the same fields a visitor would get, built by the same function): never a private address, coordinates, a phone number, the revision, the provenance or the status. `media` lists the images in the public shape; their `url` is the media endpoint, which serves a Draft's image to its owner only. `estimate` is always `null` until the valuation feature exists. Another account's, an administrator's, an unknown and a malformed id are all `404 not_found`. A Visitor gets `401`. Opening the preview counts as opening the Draft (it postpones the idle-Draft notice). Never cached.
+         */
+        get: operations["preview_listing"];
         put?: never;
         post?: never;
         delete?: never;
@@ -951,6 +975,7 @@ export interface components {
          *     * `method_not_allowed` - method_not_allowed
          *     * `not_acceptable` - not_acceptable
          *     * `stale_revision` - stale_revision
+         *     * `conflict` - conflict
          *     * `storage_cap_exceeded` - storage_cap_exceeded
          *     * `too_many_images` - too_many_images
          *     * `link_used` - link_used
@@ -962,7 +987,7 @@ export interface components {
          *     * `busy` - busy
          * @enum {string}
          */
-        CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
+        CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
         /**
          * @description * `new` - new
          *     * `excellent` - excellent
@@ -1624,6 +1649,27 @@ export interface components {
             results: components["schemas"]["Listing"][];
         };
         /**
+         * @description What the public will see of the owner's own Listing, plus an `estimate` that is always
+         *     null until the valuation feature exists.
+         */
+        ListingPreview: {
+            /** Format: uuid */
+            id: string;
+            purpose: components["schemas"]["PurposeEnum"];
+            category: components["schemas"]["CategoryEnum"];
+            subtype: components["schemas"]["SubtypeEnum"];
+            title: string | null;
+            description: string | null;
+            fields: components["schemas"]["PublicFields"];
+            /** @description The images in `position` order. */
+            media: components["schemas"]["PublicImage"][];
+            registry_version: number;
+            /** @description Always null for now; reserved for the valuation estimate. */
+            readonly estimate: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
          * @description * `draft` - draft
          *     * `published` - published
          * @enum {string}
@@ -1815,6 +1861,230 @@ export interface components {
             origin: components["schemas"]["OriginEnum"];
             confirmed: boolean;
         };
+        /** @description The registry fields of class `public`, flat by registry id. Null means unknown. */
+        PublicFields: {
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            asking_price: string | null;
+            price_basis: (components["schemas"]["PriceBasisEnum"] | components["schemas"]["NullEnum"]) | null;
+            rental_period: (components["schemas"]["RentalPeriodEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. */
+            area_value: string | null;
+            area_unit: (components["schemas"]["AreaUnitEnum"] | components["schemas"]["NullEnum"]) | null;
+            marla_basis: (components["schemas"]["MarlaBasisEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            bedrooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            bathrooms: number | null;
+            /** @description Whole number from 1900 to 2100, a JSON integer (never text). Null clears it. */
+            construction_year: number | null;
+            condition: (components["schemas"]["ConditionEnum"] | components["schemas"]["NullEnum"]) | null;
+            furnishing: (components["schemas"]["FurnishingEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            parking_spaces: number | null;
+            occupancy_status: (components["schemas"]["OccupancyStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. */
+            covered_area_sqft: string | null;
+            /** @description Whole number from 1 to 200, a JSON integer (never text). Null clears it. */
+            total_floors: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            kitchens: number | null;
+            construction_status: (components["schemas"]["ConstructionStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            drawing_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            dining_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            tv_lounges: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            study_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            prayer_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            store_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            laundry_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            powder_rooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            servant_quarters: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            basement: boolean | null;
+            /** @description Whole number from 0 to 200, a JSON integer (never text). Null clears it. */
+            floor_number: number | null;
+            /** @description Whole number from 1 to 200, a JSON integer (never text). Null clears it. */
+            building_floors: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            lift: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            backup_electricity: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            building_security: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            balcony_or_terrace: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            building_lobby: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            intercom: boolean | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            maintenance_charges: string | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            electricity: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            water: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            gas: boolean | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `99999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            plot_width: string | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `99999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            plot_depth: string | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI. The choices depend on the Subtype (see the registry).
+             *
+             *     * `possession_ready` - possession_ready
+             *     * `possession_pending` - possession_pending
+             *     * `file_only` - file_only
+             */
+            possession_status: (components["schemas"]["PossessionStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            corner_plot: boolean | null;
+            /** @description Decimal string with up to 2 decimals (`1.00` to `999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            road_width_ft: string | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `not_applicable` - not_applicable
+             *     * `balloting_pending` - balloting_pending
+             *     * `balloted` - balloted
+             */
+            balloting_status: (components["schemas"]["BallotingStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            sewerage: boolean | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `developed` - developed
+             *     * `partially_developed` - partially_developed
+             *     * `undeveloped` - undeveloped
+             */
+            development_status: (components["schemas"]["DevelopmentStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `lda` - lda
+             *     * `cda` - cda
+             *     * `kda` - kda
+             *     * `rda` - rda
+             *     * `fda` - fda
+             *     * `mda` - mda
+             *     * `gda` - gda
+             *     * `bda` - bda
+             *     * `peshawar_development_authority` - peshawar_development_authority
+             *     * `private_society` - private_society
+             *     * `none` - none
+             *     * `other` - other
+             */
+            approval_authority: (components["schemas"]["ApprovalAuthorityEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            park_facing: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            main_boulevard: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            boundary_wall: boolean | null;
+            orientation: (components["schemas"]["OrientationEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `open_file` - open_file
+             *     * `allocation_letter` - allocation_letter
+             *     * `possession_letter` - possession_letter
+             */
+            plot_file_status: (components["schemas"]["PlotFileStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            business_use: (components["schemas"]["BusinessUseEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `9999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            frontage_ft: string | null;
+            road_access: (components["schemas"]["RoadAccessEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with up to 2 decimals (`1.00` to `99.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            ceiling_height_ft: string | null;
+            /** @description Decimal string with up to 2 decimals (`0.01` to `99999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            power_load_kw: string | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            three_phase_electricity: boolean | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            conference_rooms: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            business_centre_facilities: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            price_negotiable: boolean | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `available_now` - available_now
+             *     * `within_one_month` - within_one_month
+             *     * `within_three_months` - within_three_months
+             *     * `after_three_months` - after_three_months
+             */
+            possession_availability: (components["schemas"]["PossessionAvailabilityEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            security_deposit: string | null;
+            /**
+             * Format: date
+             * @description A calendar date as text `YYYY-MM-DD` (`2000-01-01` to `2100-12-31`), never a timestamp or a JSON number. Returned the same way.
+             */
+            availability_date: string | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            advance_rent: string | null;
+            /** @description Whole number from 1 to 120, a JSON integer (never text). Null clears it. */
+            minimum_lease_months: number | null;
+            /** @description Whole number from 0 to 365, a JSON integer (never text). Null clears it. */
+            notice_period_days: number | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_electricity_included: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_gas_included: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_water_included: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            utility_internet_included: boolean | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            pets_allowed: boolean | null;
+            occupant_restrictions: (components["schemas"]["OccupantRestrictionsEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * Format: uuid
+             * @description The uuid of an active city from the reference lists (`/api/v1/reference/cities`), as text; never a name. Null clears it.
+             */
+            city: string | null;
+            /**
+             * Format: uuid
+             * @description The uuid of an active locality from the reference lists (`/api/v1/reference/cities`), as text; never a name. Null clears it.
+             */
+            locality: string | null;
+            /** @description Up to 60 characters. */
+            society: string | null;
+            /** @description Up to 60 characters. */
+            phase: string | null;
+            /** @description Up to 60 characters. */
+            sector: string | null;
+            /** @description Up to 60 characters. */
+            block: string | null;
+            /** @description An object `{code: state}` with catalogue codes (`/api/v1/reference/amenities`) and the state `"present"` or `"none"`, at most 40 entries. It REPLACES the whole map; `null` or `{}` clears it. A code left out is unanswered, never `none`. `nearby` entries are the seller's own declaration: show them as seller-declared; there is no distance and no verification. Returned as the answered codes only, or `null` when none is answered. */
+            amenities: {
+                [key: string]: string;
+            } | null;
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. Computed by the server; read-only. */
+            area_sqft: string | null;
+        };
+        /** @description An image as the public sees it: no asset id, storage key, owner or stored size. */
+        PublicImage: {
+            /** Format: uuid */
+            id: string;
+            position: number;
+            is_cover: boolean;
+            content_type: components["schemas"]["ContentTypeEnum"];
+            width: number;
+            height: number;
+            /** @description Relative path of the media endpoint, `/api/v1/listings/{id}/images/{image_id}/file`. */
+            url: string;
+        };
         /**
          * @description * `sale` - sale
          *     * `rent` - rent
@@ -1978,7 +2248,7 @@ export interface components {
          * @description Stable error code catalogue.
          * @enum {string}
          */
-        ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
+        ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
         ErrorEnvelope: {
             error: components["schemas"]["ErrorBody"];
         };
@@ -2786,6 +3056,91 @@ export interface operations {
             };
         };
     };
+    delete_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `unauthenticated`: a Visitor */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: Suspended, or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `conflict`: the Listing is not a Draft */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     update_listing: {
         parameters: {
             query?: never;
@@ -3168,6 +3523,84 @@ export interface operations {
                     "image/jpeg": string;
                     "image/png": string;
                     "image/webp": string;
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    preview_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingPreview"];
                 };
             };
             /** @description Bad request or validation error */

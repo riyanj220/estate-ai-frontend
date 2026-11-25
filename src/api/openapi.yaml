@@ -789,6 +789,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      operationId: delete_listing
+      description: 'Needs `X-CSRFToken`. Deletes the Draft and everything of it: its
+        images (the stored files go and the bytes are given back to the account''s
+        storage), its fields, private address and revision history. This cannot be
+        undone. `204` has no body. Only a `draft` can be deleted here: any other status
+        is `409 conflict` and nothing changes. Another account''s, an administrator''s,
+        an unknown, a malformed and an already deleted id are all `404 not_found`;
+        an account that may not edit (Suspended, Deactivated) is `403 forbidden`.
+        Never cached.'
+      summary: Delete one of the signed-in account's own Drafts
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: Suspended, or a missing CSRF token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`conflict`: the Listing is not a Draft'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/listings/{listing_id}/images:
     post:
       operationId: upload_listing_image
@@ -1107,6 +1178,78 @@ paths:
                 type: string
                 format: binary
           description: The stored image bytes
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/listings/{listing_id}/preview:
+    get:
+      operationId: preview_listing
+      description: 'Owner only, for the account''s own `draft` and `published` Listing.
+        The body is the public projection (the same fields a visitor would get, built
+        by the same function): never a private address, coordinates, a phone number,
+        the revision, the provenance or the status. `media` lists the images in the
+        public shape; their `url` is the media endpoint, which serves a Draft''s image
+        to its owner only. `estimate` is always `null` until the valuation feature
+        exists. Another account''s, an administrator''s, an unknown and a malformed
+        id are all `404 not_found`. A Visitor gets `401`. Opening the preview counts
+        as opening the Draft (it postpones the idle-Draft notice). Never cached.'
+      summary: Preview what the public will see of one of the signed-in account's
+        own Listings
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingPreview'
+          description: The preview
         '400':
           description: Bad request or validation error
           content:
@@ -3364,6 +3507,7 @@ components:
       - method_not_allowed
       - not_acceptable
       - stale_revision
+      - conflict
       - storage_cap_exceeded
       - too_many_images
       - link_used
@@ -3385,6 +3529,7 @@ components:
         * `method_not_allowed` - method_not_allowed
         * `not_acceptable` - not_acceptable
         * `stale_revision` - stale_revision
+        * `conflict` - conflict
         * `storage_cap_exceeded` - storage_cap_exceeded
         * `too_many_images` - too_many_images
         * `link_used` - link_used
@@ -4955,6 +5100,54 @@ components:
       - next
       - previous
       - results
+    ListingPreview:
+      type: object
+      description: |-
+        What the public will see of the owner's own Listing, plus an `estimate` that is always
+        null until the valuation feature exists.
+      properties:
+        id:
+          type: string
+          format: uuid
+        purpose:
+          $ref: '#/components/schemas/PurposeEnum'
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        subtype:
+          $ref: '#/components/schemas/SubtypeEnum'
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        fields:
+          $ref: '#/components/schemas/PublicFields'
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicImage'
+          description: The images in `position` order.
+        registry_version:
+          type: integer
+          minimum: 1
+        estimate:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+          nullable: true
+          description: Always null for now; reserved for the valuation estimate.
+      required:
+      - category
+      - description
+      - estimate
+      - fields
+      - id
+      - media
+      - purpose
+      - registry_version
+      - subtype
+      - title
     ListingStatusEnum:
       enum:
       - draft
@@ -5308,6 +5501,622 @@ components:
       required:
       - confirmed
       - origin
+    PublicFields:
+      type: object
+      description: The registry fields of class `public`, flat by registry id. Null
+        means unknown.
+      properties:
+        asking_price:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        price_basis:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PriceBasisEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        rental_period:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RentalPeriodEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        area_value:
+          type: string
+          nullable: true
+          description: Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`),
+            digits and a point only, never a JSON number. Returned with 4 decimals.
+        area_unit:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/AreaUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        marla_basis:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/MarlaBasisEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        bedrooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        bathrooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        construction_year:
+          type: integer
+          maximum: 2100
+          minimum: 1900
+          nullable: true
+          description: Whole number from 1900 to 2100, a JSON integer (never text).
+            Null clears it.
+        condition:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/ConditionEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        furnishing:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/FurnishingEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        parking_spaces:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        occupancy_status:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/OccupancyStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        covered_area_sqft:
+          type: string
+          nullable: true
+          description: Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`),
+            digits and a point only, never a JSON number. Returned with 4 decimals.
+        total_floors:
+          type: integer
+          maximum: 200
+          minimum: 1
+          nullable: true
+          description: Whole number from 1 to 200, a JSON integer (never text). Null
+            clears it.
+        kitchens:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        construction_status:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/ConstructionStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        drawing_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        dining_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        tv_lounges:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        study_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        prayer_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        store_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        laundry_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        powder_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        servant_quarters:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        basement:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        floor_number:
+          type: integer
+          maximum: 200
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 200, a JSON integer (never text). Null
+            clears it.
+        building_floors:
+          type: integer
+          maximum: 200
+          minimum: 1
+          nullable: true
+          description: Whole number from 1 to 200, a JSON integer (never text). Null
+            clears it.
+        lift:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        backup_electricity:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        building_security:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        balcony_or_terrace:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        building_lobby:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        intercom:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        maintenance_charges:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        electricity:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        water:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        gas:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        plot_width:
+          type: string
+          nullable: true
+          description: Decimal string with up to 2 decimals (`0.01` to `99999.99`),
+            digits and a point only, never a JSON number. Returned with 2 decimals.
+        plot_depth:
+          type: string
+          nullable: true
+          description: Decimal string with up to 2 decimals (`0.01` to `99999.99`),
+            digits and a point only, never a JSON number. Returned with 2 decimals.
+        possession_status:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI. The choices depend on the Subtype (see the registry).
+
+            * `possession_ready` - possession_ready
+            * `possession_pending` - possession_pending
+            * `file_only` - file_only
+          oneOf:
+          - $ref: '#/components/schemas/PossessionStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        corner_plot:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        road_width_ft:
+          type: string
+          nullable: true
+          description: Decimal string with up to 2 decimals (`1.00` to `999.99`),
+            digits and a point only, never a JSON number. Returned with 2 decimals.
+        balloting_status:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `not_applicable` - not_applicable
+            * `balloting_pending` - balloting_pending
+            * `balloted` - balloted
+          oneOf:
+          - $ref: '#/components/schemas/BallotingStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        sewerage:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        development_status:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `developed` - developed
+            * `partially_developed` - partially_developed
+            * `undeveloped` - undeveloped
+          oneOf:
+          - $ref: '#/components/schemas/DevelopmentStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        approval_authority:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `lda` - lda
+            * `cda` - cda
+            * `kda` - kda
+            * `rda` - rda
+            * `fda` - fda
+            * `mda` - mda
+            * `gda` - gda
+            * `bda` - bda
+            * `peshawar_development_authority` - peshawar_development_authority
+            * `private_society` - private_society
+            * `none` - none
+            * `other` - other
+          oneOf:
+          - $ref: '#/components/schemas/ApprovalAuthorityEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        park_facing:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        main_boulevard:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        boundary_wall:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        orientation:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/OrientationEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        plot_file_status:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `open_file` - open_file
+            * `allocation_letter` - allocation_letter
+            * `possession_letter` - possession_letter
+          oneOf:
+          - $ref: '#/components/schemas/PlotFileStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        business_use:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/BusinessUseEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        frontage_ft:
+          type: string
+          nullable: true
+          description: Decimal string with up to 2 decimals (`0.01` to `9999.99`),
+            digits and a point only, never a JSON number. Returned with 2 decimals.
+        road_access:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RoadAccessEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        ceiling_height_ft:
+          type: string
+          nullable: true
+          description: Decimal string with up to 2 decimals (`1.00` to `99.99`), digits
+            and a point only, never a JSON number. Returned with 2 decimals.
+        power_load_kw:
+          type: string
+          nullable: true
+          description: Decimal string with up to 2 decimals (`0.01` to `99999.99`),
+            digits and a point only, never a JSON number. Returned with 2 decimals.
+        three_phase_electricity:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        conference_rooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        business_centre_facilities:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        price_negotiable:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        possession_availability:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `available_now` - available_now
+            * `within_one_month` - within_one_month
+            * `within_three_months` - within_three_months
+            * `after_three_months` - after_three_months
+          oneOf:
+          - $ref: '#/components/schemas/PossessionAvailabilityEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        security_deposit:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        availability_date:
+          type: string
+          format: date
+          nullable: true
+          description: A calendar date as text `YYYY-MM-DD` (`2000-01-01` to `2100-12-31`),
+            never a timestamp or a JSON number. Returned the same way.
+        advance_rent:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        minimum_lease_months:
+          type: integer
+          maximum: 120
+          minimum: 1
+          nullable: true
+          description: Whole number from 1 to 120, a JSON integer (never text). Null
+            clears it.
+        notice_period_days:
+          type: integer
+          maximum: 365
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 365, a JSON integer (never text). Null
+            clears it.
+        utility_electricity_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        utility_gas_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        utility_water_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        utility_internet_included:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        pets_allowed:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        occupant_restrictions:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/OccupantRestrictionsEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        city:
+          type: string
+          format: uuid
+          nullable: true
+          description: The uuid of an active city from the reference lists (`/api/v1/reference/cities`),
+            as text; never a name. Null clears it.
+        locality:
+          type: string
+          format: uuid
+          nullable: true
+          description: The uuid of an active locality from the reference lists (`/api/v1/reference/cities`),
+            as text; never a name. Null clears it.
+        society:
+          type: string
+          nullable: true
+          description: Up to 60 characters.
+        phase:
+          type: string
+          nullable: true
+          description: Up to 60 characters.
+        sector:
+          type: string
+          nullable: true
+          description: Up to 60 characters.
+        block:
+          type: string
+          nullable: true
+          description: Up to 60 characters.
+        amenities:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: 'An object `{code: state}` with catalogue codes (`/api/v1/reference/amenities`)
+            and the state `"present"` or `"none"`, at most 40 entries. It REPLACES
+            the whole map; `null` or `{}` clears it. A code left out is unanswered,
+            never `none`. `nearby` entries are the seller''s own declaration: show
+            them as seller-declared; there is no distance and no verification. Returned
+            as the answered codes only, or `null` when none is answered.'
+        area_sqft:
+          type: string
+          nullable: true
+          description: Decimal string with up to 4 decimals (`0.0001` to `9999999999999999.9999`),
+            digits and a point only, never a JSON number. Returned with 4 decimals.
+            Computed by the server; read-only.
+      required:
+      - advance_rent
+      - amenities
+      - approval_authority
+      - area_sqft
+      - area_unit
+      - area_value
+      - asking_price
+      - availability_date
+      - backup_electricity
+      - balcony_or_terrace
+      - balloting_status
+      - basement
+      - bathrooms
+      - bedrooms
+      - block
+      - boundary_wall
+      - building_floors
+      - building_lobby
+      - building_security
+      - business_centre_facilities
+      - business_use
+      - ceiling_height_ft
+      - city
+      - condition
+      - conference_rooms
+      - construction_status
+      - construction_year
+      - corner_plot
+      - covered_area_sqft
+      - development_status
+      - dining_rooms
+      - drawing_rooms
+      - electricity
+      - floor_number
+      - frontage_ft
+      - furnishing
+      - gas
+      - intercom
+      - kitchens
+      - laundry_rooms
+      - lift
+      - locality
+      - main_boulevard
+      - maintenance_charges
+      - marla_basis
+      - minimum_lease_months
+      - notice_period_days
+      - occupancy_status
+      - occupant_restrictions
+      - orientation
+      - park_facing
+      - parking_spaces
+      - pets_allowed
+      - phase
+      - plot_depth
+      - plot_file_status
+      - plot_width
+      - possession_availability
+      - possession_status
+      - powder_rooms
+      - power_load_kw
+      - prayer_rooms
+      - price_basis
+      - price_negotiable
+      - rental_period
+      - road_access
+      - road_width_ft
+      - sector
+      - security_deposit
+      - servant_quarters
+      - sewerage
+      - society
+      - store_rooms
+      - study_rooms
+      - three_phase_electricity
+      - total_floors
+      - tv_lounges
+      - utility_electricity_included
+      - utility_gas_included
+      - utility_internet_included
+      - utility_water_included
+      - water
+    PublicImage:
+      type: object
+      description: 'An image as the public sees it: no asset id, storage key, owner
+        or stored size.'
+      properties:
+        id:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 0
+        is_cover:
+          type: boolean
+        content_type:
+          $ref: '#/components/schemas/ContentTypeEnum'
+        width:
+          type: integer
+        height:
+          type: integer
+        url:
+          type: string
+          description: Relative path of the media endpoint, `/api/v1/listings/{id}/images/{image_id}/file`.
+      required:
+      - content_type
+      - height
+      - id
+      - is_cover
+      - position
+      - url
+      - width
     PurposeEnum:
       enum:
       - sale
@@ -5648,6 +6457,7 @@ components:
       - method_not_allowed
       - not_acceptable
       - stale_revision
+      - conflict
       - storage_cap_exceeded
       - too_many_images
       - link_used
