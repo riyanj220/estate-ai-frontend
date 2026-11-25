@@ -144,6 +144,12 @@ export const DETAIL_MESSAGES: Record<string, Record<string, string>> = {
     not_applicable: DETAIL_NOT_APPLICABLE,
     not_editable: NOT_EDITABLE,
   },
+  // Story 2.8: the amenity map has one code, `invalid` (an item that is not offered, another state, too many answers).
+  amenities: {
+    invalid: "One of the amenity choices could not be saved. Check your choices and try again.",
+    not_applicable: DETAIL_NOT_APPLICABLE,
+    not_editable: NOT_EDITABLE,
+  },
 };
 
 /**
@@ -194,6 +200,11 @@ export const LOCALITIES_FAILED = "We could not load the localities.";
 export const CHOOSE_CITY_FIRST = "Choose a city first";
 export const SAVED_CHOICE_GONE = "Saved choice (not in the current list)";
 export const LOCALITY_CLEARED = "The locality was cleared because the city changed. Choose a locality for the new city.";
+
+export const AMENITIES_LOADING = "Loading the amenities…";
+export const AMENITIES_LOADED = "The amenities are loaded.";
+export const AMENITIES_EMPTY = "No amenities are available right now.";
+export const AMENITIES_FAILED = "We could not load the list of amenities.";
 
 export const INCOMPLETE_DATE = "Finish the date or clear it.";
 export const EDIT_FORBIDDEN = "Your account cannot edit listings right now.";

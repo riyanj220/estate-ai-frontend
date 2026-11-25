@@ -29,8 +29,9 @@ import {
   LOCALITIES_LOADING,
   SAVED_CHOICE_GONE,
 } from "@/lib/listing-messages";
-import type { LocationLists, RefState } from "@/lib/use-reference";
+import type { AmenityCatalogue, LocationLists, RefState } from "@/lib/use-reference";
 import type { FieldDef } from "@/lib/use-registry";
+import { AmenitiesSection } from "./amenities-section";
 
 /**
  * The generic "Details" section of the Draft editor: one control per registry field it is given, grouped by the registry's
@@ -41,7 +42,7 @@ import type { FieldDef } from "@/lib/use-registry";
  * for a value that is not a real ISO date, so what was typed is shown and sent as it is for the server to judge). The registry fields marked
  * `section: terms` (Story 2.6) go in one "Terms for sale" or "Terms for rent" fieldset before the Details, grouped the same way. Stories
  * 2.5 and 2.6 add registry fields (and their labels), not code here. A registry field flagged `seller_declared` shows the
- * "Seller-declared" tag and its helper line (the owner's claim, never a platform check).
+ * "Seller-declared" tag and its helper line (the owner's claim, never a platform check). The registry field of type `amenities` (Story 2.8) goes in its own Amenities block.
  */
 export function DetailsSection({
   fields,
@@ -56,7 +57,10 @@ export function DetailsSection({
   inConflict,
   onDateInput,
   lists,
+  amenities: amenityCatalogue,
 }: {
+  /** The amenity catalogue (Story 2.8), loaded when the registry gives this Draft the amenities field. */
+  amenities: AmenityCatalogue;
   /** The reference lists of the location section (cities, and the localities of the city the form has now). */
   lists: LocationLists;
   fields: FieldDef[];
@@ -74,7 +78,7 @@ export function DetailsSection({
   onDateInput: (id: string, incomplete: boolean) => void;
 }) {
   if (fields.length === 0) return null;
-  const { terms, details, publicLocation, privateAddress } = splitTerms(fields);
+  const { terms, details, publicLocation, privateAddress, amenities } = splitTerms(fields);
 
   function control(def: FieldDef) {
     const id = def.id;
@@ -274,6 +278,16 @@ export function DetailsSection({
             </fieldset>
           ))}
         </div>
+      )}
+      {amenities.length > 0 && (
+        <AmenitiesSection
+          value={Object.hasOwn(values, "amenities") ? values.amenities : ""}
+          errors={errors.amenities}
+          catalogue={amenityCatalogue}
+          onChange={(next) => onChange("amenities", next)}
+          conflictRow={conflictRow}
+          inConflict={inConflict}
+        />
       )}
     </>
   );

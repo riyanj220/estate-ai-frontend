@@ -1,3 +1,4 @@
+import { CATALOGUE_UNAVAILABLE_LINE, sameAmenities, sentAmenities, type AmenityMap } from "@/lib/amenities";
 import {
   HAND_BUILT_KEYS,
   choiceLabel,
@@ -27,8 +28,16 @@ const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money", "date"];
  * Whether a field has a control in the generic sections. The location section (Story 2.7) also has controls for plain text and for a
  * `reference` (a city or locality chosen from a list); a text field elsewhere has none, and a reference this client does not know has none.
  */
+/**
+ * The one amenity map field (Story 2.8): the type, the id and the section must ALL say so. A field that claims any one of them without the
+ * others gets no control at all (checked before every other rule, so it never falls into a generic control).
+ */
+export const isAmenitiesField = (def: FieldDef): boolean => def.type === "amenities" && def.id === "amenities" && def.section === "amenities";
+const claimsAmenities = (def: FieldDef): boolean => def.type === "amenities" || def.id === "amenities" || def.section === "amenities";
 const hasControl = (def: FieldDef): boolean =>
-  DETAIL_TYPES.includes(def.type) || (def.section === "location" && (def.type === "text" || (def.type === "reference" && def.reference !== null)));
+  claimsAmenities(def)
+    ? isAmenitiesField(def)
+    : DETAIL_TYPES.includes(def.type) || (def.section === "location" && (def.type === "text" || (def.type === "reference" && def.reference !== null)));
 
 /** Labels by registry id. The registry carries ids only; text a person reads lives here. */
 const DETAIL_LABELS: Record<string, string> = {
@@ -110,6 +119,7 @@ const DETAIL_LABELS: Record<string, string> = {
   house_number: "House number",
   latitude: "Latitude",
   longitude: "Longitude",
+  amenities: "Amenities",
 };
 
 /** Labels that differ by Category (so a new Subtype of the Category inherits them): commercial property is fitted out rather than furnished. */
@@ -150,11 +160,12 @@ export function shownDetails(registry: Registry, listing: ListingView): FieldDef
  * guessed from applicability; every other detail stays in Details. The location splits by the registry's `class`: the public part and the
  * private address (a field whose class is not exactly `public` is private).
  */
-export function splitTerms(defs: FieldDef[]): { terms: FieldDef[]; details: FieldDef[]; publicLocation: FieldDef[]; privateAddress: FieldDef[] } {
+export function splitTerms(defs: FieldDef[]): { terms: FieldDef[]; details: FieldDef[]; publicLocation: FieldDef[]; privateAddress: FieldDef[]; amenities: FieldDef[] } {
   const location = defs.filter((def) => def.section === "location");
   return {
     terms: defs.filter((def) => def.section === "terms"),
-    details: defs.filter((def) => def.section !== "terms" && def.section !== "location"),
+    amenities: defs.filter(isAmenitiesField),
+    details: defs.filter((def) => def.section !== "terms" && def.section !== "location" && !claimsAmenities(def)),
     publicLocation: location.filter((def) => def.visibility === "public"),
     privateAddress: location.filter((def) => def.visibility !== "public"),
   };
@@ -164,6 +175,11 @@ export const PUBLIC_LOCATION = "Public location";
 export const PUBLIC_LOCATION_HELP = "Shown to everyone on your listing.";
 export const PRIVATE_ADDRESS = "Private address (only you can see this)";
 export const PRIVATE_ADDRESS_HELP = "Never shown to buyers. Only you can see this.";
+/** The Amenities block (Story 2.8). Nearby facilities are the seller's own declaration: no distance, no check by the platform. */
+export const AMENITIES_HELP = "Choose Present or None for each item you want to state. Leave an item as Not answered if you do not say: that is not the same as None.";
+export const NEARBY_HELP = "Declared by you, not verified. No distance is shown.";
+export const OTHER_AMENITIES = "Other";
+export const OTHER_AMENITIES_HELP = "Saved earlier and no longer in the list. They are kept as they are and cannot be changed here, only removed.";
 
 /** The title of the Terms fieldset by the Draft's purpose; a purpose this client does not know gets the plain "Terms". */
 export function termsTitle(purpose: string | null): string {
@@ -236,6 +252,7 @@ export function sameDetail(def: FieldDef, a: string, b: string): boolean {
     return measureKey(a, limit, def.signed) === measureKey(b, limit, def.signed);
   }
   if (def.type === "money") return moneyKey(a, def.scale ?? 2) === moneyKey(b, def.scale ?? 2);
+  if (def.type === "amenities") return sameAmenities(a, b); // the same answers, whatever the order of the text
   if (def.type === "date") return a.trim() === b.trim(); // ISO text compared as text: no Date, no time zone
   if (def.type === "text") return normalizeText(a, false) === normalizeText(b, false); // as the server normalises a line of text
   if (def.type === "reference") return a.trim() === b.trim(); // an id: exact text
@@ -247,7 +264,8 @@ export function sameDetail(def: FieldDef, a: string, b: string): boolean {
  * integer (`Number` only ever sees text that matched, never arbitrary input); any other text goes as typed (trimmed) for the
  * server to refuse. A yes/no choice is true or false. Decimals and money stay text.
  */
-export function sentDetail(def: FieldDef, value: string): string | number | boolean | null {
+export function sentDetail(def: FieldDef, value: string): string | number | boolean | AmenityMap | null {
+  if (def.type === "amenities") return sentAmenities(value); // the whole map; null when nothing is answered
   const text = value.trim();
   if (!text) return null;
   if (def.type === "integer") return INTEGER_TEXT.test(text) ? Number(text) : text;
@@ -262,6 +280,7 @@ export function latestDetail(def: FieldDef, value: string): string {
   if (value === "") return NOT_ANSWERED;
   if (def.type === "boolean") return value === "true" ? "Yes" : value === "false" ? "No" : value;
   if (def.type === "enum") return choiceLabel(def.id, value);
+  if (def.type === "amenities") return CATALOGUE_UNAVAILABLE_LINE; // the editor words this itself, from the catalogue; no label is guessed from a bare code
   // Every decimal shows its registry scale ("35.00", "1,200.50") except the area fields, the hand-listed exceptions that keep the trimmed
   // form ("2,400.5"). The payload carries no marker for them, so this list is the rule (documented in the README).
   if (def.type === "decimal") return TRIMMED_DECIMALS.includes(def.id) || def.scale === null ? formatArea(value) : formatMoney(value, def.scale);
@@ -295,7 +314,7 @@ export function answeredDetails(
 ): { id: string; label: string; text: string; sellerDeclared: boolean }[] {
   const { terms, details } = splitTerms(defs); // the summary follows the form: the terms first
   return [...terms, ...details]
-    .filter((def) => Object.hasOwn(listing.details, def.id))
+    .filter((def) => def.type !== "amenities" && Object.hasOwn(listing.details, def.id))
     .map((def) => ({
       id: def.id,
       label: detailLabel(def.id, listing.fields.category),

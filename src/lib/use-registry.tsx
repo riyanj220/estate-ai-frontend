@@ -57,8 +57,8 @@ export type FieldDef = {
   allowedValues: string[];
   /** The registry marks the field as the owner's own claim, never checked by EstateAI (Story 2.5): the form says so next to it. */
   sellerDeclared: boolean;
-  /** Where a form groups the field (Stories 2.6 and 2.7): `terms` for the sale and rent terms, `location` for the location, else `details`; a missing or unknown marker is `details`. */
-  section: "terms" | "location" | "details";
+  /** Where a form groups the field (Stories 2.6 and 2.7): `terms` for the sale and rent terms, `location` for the location, `amenities` for the amenity map (Story 2.8), else `details`; a missing or unknown marker is `details`. */
+  section: "terms" | "location" | "amenities" | "details";
   /** What a `reference` field points at (Story 2.7): `city` or `locality`; null for every other type and for a reference this client does not know (no control then). */
   reference: "city" | "locality" | null;
   /** `private` fields are only ever shown to their owner. Anything that is not exactly `public` counts as private (fail closed). */
@@ -140,7 +140,7 @@ function readFields(value: unknown): Map<string, FieldDef> {
       description: typeof raw.description === "string" && raw.description.trim() ? raw.description : null,
       allowedValues: allowed,
       sellerDeclared: raw.seller_declared === true,
-      section: raw.section === "terms" ? "terms" : raw.section === "location" ? "location" : "details",
+      section: raw.section === "terms" ? "terms" : raw.section === "location" ? "location" : raw.section === "amenities" ? "amenities" : "details",
       reference: type === "reference" && (raw.reference === "city" || raw.reference === "locality") ? raw.reference : null,
       visibility: raw.class === "public" ? "public" : "private",
       valuesFor: (purpose, subtype = null) => {

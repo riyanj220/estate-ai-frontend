@@ -1,3 +1,5 @@
+import { encodeAmenities, readAmenityMap } from "./amenities";
+
 /**
  * Human text for Listing values. The registry carries ids only, so every label is derived from the id by one function:
  * `label("plot_file")` is "Plot file". Nothing here knows which purposes, Categories or Subtypes exist.
@@ -91,7 +93,7 @@ export const HAND_BUILT_KEYS = new Set(["purpose", "category", "subtype", "title
 function readDetails(known: Record<string, unknown>): Record<string, string> {
   const details: Record<string, string> = {};
   for (const [key, value] of Object.entries(known)) {
-    if (HAND_BUILT_KEYS.has(key) || !/^[a-z0-9_]+$/.test(key) || key in Object.prototype) continue;
+    if (HAND_BUILT_KEYS.has(key) || key === "amenities" || !/^[a-z0-9_]+$/.test(key) || key in Object.prototype) continue;
     // A JSON number the form cannot call an integer (a float, an unsafe one, a decimal or money sent as a number) keeps its text, so
     // the control shows what the server holds and the summary agrees; saving it unchanged sends nothing.
     if (typeof value === "number" && Number.isFinite(value)) details[key] = String(value);
@@ -109,6 +111,11 @@ export function readListing(value: unknown): ListingView | null {
   const known = typeof fields === "object" && fields !== null ? (fields as Record<string, unknown>) : {};
   const media = readMedia((value as Record<string, unknown>).media, id);
   if (media === null) return null;
+  // The amenity map (Story 2.8) fails closed: a map that cannot be trusted is no Listing to build on (a save would replace it whole).
+  const amenities = readAmenityMap(known.amenities);
+  if (amenities === undefined) return null;
+  const details = readDetails(known);
+  if (amenities !== null) details.amenities = encodeAmenities(amenities);
   return {
     id,
     status: text(status),
@@ -130,7 +137,7 @@ export function readListing(value: unknown): ListingView | null {
       marla_basis: text(known.marla_basis),
       area_sqft: decimalString(known.area_sqft),
     },
-    details: readDetails(known),
+    details,
     media,
   };
 }

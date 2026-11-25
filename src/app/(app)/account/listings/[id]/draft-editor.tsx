@@ -4,6 +4,20 @@ import { useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
 import { ErrorSummary } from "@/components/error-summary";
 import { Field } from "@/components/form-field";
+import {
+  CATALOGUE_LOADING_LINE,
+  CATALOGUE_UNAVAILABLE_LINE,
+  KIND_ORDER,
+  KIND_TITLES,
+  STATE_TEXT,
+  amenityGroupedSummary,
+  amenityLabel,
+  answeredOfKind,
+  decodeAmenities,
+  otherCodes,
+  pruneStale,
+  type AmenityMap,
+} from "@/lib/amenities";
 import { getApi } from "@/lib/api";
 import { withCsrf } from "@/lib/csrf";
 import { REJECTED_ERROR, SERVER_ERROR, readErrorBody, withTimeout } from "@/lib/forms";
@@ -52,7 +66,7 @@ import { GENERIC_FIELD_MESSAGE, mapKnownCodes } from "@/lib/password-messages";
 import { failureMessage, thrownMessage } from "@/lib/request-errors";
 import { useSession } from "@/lib/session";
 import { useFormFeedback } from "@/lib/use-form-feedback";
-import { useLocationLists } from "@/lib/use-reference";
+import { useAmenityCatalogue, useLocationLists } from "@/lib/use-reference";
 import { useRegistry, type FieldDef, type Registry } from "@/lib/use-registry";
 import { DetailsSection } from "./details-section";
 import { ImagesSection } from "./images-section";
@@ -240,6 +254,8 @@ export function DraftEditor({
   const detailIds = detailDefs.map((def) => def.id);
   // The reference lists load only when the registry gives this Draft location fields; the localities follow the city the form has now.
   const lists = useLocationLists(at(values, "city"), detailDefs.some((def) => def.section === "location"));
+  // The amenity catalogue loads only when the registry gives this Draft the amenities field (Story 2.8).
+  const catalogue = useAmenityCatalogue(detailDefs.some((def) => def.type === "amenities"));
   const controls: string[] = [...shown, ...detailIds];
   const baseline = toValues(listing);
   const dirty = controls.some((name) => !same(name, at(values, name), at(baseline, name)));
@@ -401,6 +417,8 @@ export function DraftEditor({
       if (basisLost) merged.marla_basis = fresh.marla_basis;
       if (localityLost) merged.locality = at(fresh, "locality");
       for (const name of detailsLost) merged[name] = at(fresh, name);
+      // Codes the catalogue does not list that the latest saved map no longer holds are dropped from what was typed (they could only be refused).
+      if (catalogue.status === "ready" && Object.hasOwn(merged, "amenities")) merged.amenities = pruneStale(merged.amenities, at(fresh, "amenities"), catalogue.items);
       return merged;
     });
     setListing(latest);
@@ -508,9 +526,13 @@ export function DraftEditor({
       announce("The form has errors. Review the list at the top of the page.");
       return;
     }
-    const fields: Record<string, string | number | boolean | null> = {};
+    const fields: Record<string, string | number | boolean | AmenityMap | null> = {};
+    // A code the active catalogue does not list and the latest saved map no longer holds (another session removed it) would make the backend
+    // refuse the whole map; omitting it is always allowed, so it is not sent.
+    const sendValues: Values = { ...values };
+    if (catalogue.status === "ready" && Object.hasOwn(values, "amenities")) sendValues.amenities = pruneStale(values.amenities, at(baseline, "amenities"), catalogue.items);
     for (const name of shown) if (!same(name, values[name], baseline[name])) fields[name] = sentValue(values[name]);
-    for (const def of detailDefs) if (!same(def.id, at(values, def.id), at(baseline, def.id))) fields[def.id] = sentDetail(def, at(values, def.id));
+    for (const def of detailDefs) if (!same(def.id, at(sendValues, def.id), at(baseline, def.id))) fields[def.id] = sentDetail(def, at(sendValues, def.id));
     if (Object.keys(fields).length === 0) {
       resetAnnouncement();
       setFieldErrors({});
@@ -658,7 +680,66 @@ export function DraftEditor({
       } else if (lists.city.status === "loading" || lists.city.status === "idle") return LOADING_VALUE;
       return lists.nameOf(def.reference, latest) ?? SAVED_CHOICE_GONE;
     }
+    if (def?.type === "amenities") {
+      if (at(baseline, name) === "") return NOT_ANSWERED;
+      if (catalogue.status === "ready") return amenityGroupedSummary(at(baseline, name), catalogue.items);
+      return catalogue.status === "idle" || catalogue.status === "loading" ? CATALOGUE_LOADING_LINE : CATALOGUE_UNAVAILABLE_LINE;
+    }
     return def ? latestDetail(def, at(baseline, name)) : at(baseline, name) || NOT_SET;
+  }
+
+  /** The summary rows of the saved amenities: one per kind (Nearby tagged seller-declared), "Other" for codes the list no longer holds. */
+  function amenityRows() {
+    const text = at(toValues(listing), "amenities");
+    if (text === "") return null;
+    const map = decodeAmenities(text);
+    if (catalogue.status !== "ready") {
+      return (
+        <div>
+          <dt>Amenities</dt>
+          <dd data-testid="draft-amenities">{catalogue.status === "idle" || catalogue.status === "loading" ? CATALOGUE_LOADING_LINE : CATALOGUE_UNAVAILABLE_LINE}</dd>
+        </div>
+      );
+    }
+    const states = (codes: string[]) =>
+      (["present", "none"] as const)
+        .map((state) => {
+          const names = codes.filter((code) => map[code] === state).map((code) => amenityLabel(code, catalogue.items));
+          return names.length > 0 ? `${STATE_TEXT[state]}: ${names.join(", ")}.` : "";
+        })
+        .filter(Boolean)
+        .join(" ");
+    const other = otherCodes(text, catalogue.items);
+    return (
+      <>
+        {KIND_ORDER.map((kind) => {
+          const codes = answeredOfKind(text, catalogue.items, kind).map((item) => item.code);
+          if (codes.length === 0) return null;
+          return (
+            <div key={kind}>
+              <dt>{KIND_TITLES[kind]}</dt>
+              <dd data-testid={`draft-amenities-${kind}`}>
+                {states(codes)}
+                {kind === "nearby" && (
+                  <>
+                    <span className="sr-only">. </span>
+                    <span className="declared-tag declared-tag-inline" data-testid="draft-amenities-nearby-tag">
+                      {SELLER_DECLARED}
+                    </span>
+                  </>
+                )}
+              </dd>
+            </div>
+          );
+        })}
+        {other.length > 0 && (
+          <div>
+            <dt>Other amenities</dt>
+            <dd data-testid="draft-amenities-other">{states(other)}</dd>
+          </div>
+        )}
+      </>
+    );
   }
 
   /** The "Latest saved" line with its two actions, shown under a field whose typed value differs from the latest one. */
@@ -857,6 +938,7 @@ export function DraftEditor({
             <dt>Area</dt>
             <dd data-testid="draft-area">{areaSummary(listing.fields)}</dd>
           </div>
+          {registry?.field("amenities")?.type === "amenities" && amenityRows()}
           {detailSummary.map((item) => (
             <div key={item.id}>
               <dt>{item.label}</dt>
@@ -975,6 +1057,7 @@ export function DraftEditor({
                 errors={shownErrors}
                 onDateInput={onDateInput}
                 lists={lists}
+                amenities={catalogue}
                 purpose={purpose}
                 category={listing.fields.category}
                 subtype={listing.fields.subtype}
