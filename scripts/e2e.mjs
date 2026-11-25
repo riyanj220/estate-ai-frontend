@@ -22,8 +22,10 @@ const extra = argv.filter((a) => a !== "--smoke" && a !== "--changed");
 if (smoke || changed) {
   // @smoke tests plus, with --changed, every test of the spec files changed against main (committed, staged, unstaged, untracked).
   const git = (...a) => spawnSync("git", a, { cwd: root, encoding: "utf8" }).stdout.split("\n").filter(Boolean);
+  // The base is `main`, or `origin/main` where only the remote ref exists (a CI checkout); E2E_BASE overrides.
+  const base = process.env.E2E_BASE || (git("rev-parse", "--verify", "--quiet", "main").length ? "main" : "origin/main");
   const files = changed
-    ? [...new Set([...git("diff", "--name-only", "main"), ...git("ls-files", "--others", "--exclude-standard")])]
+    ? [...new Set([...git("diff", "--name-only", base), ...git("ls-files", "--others", "--exclude-standard")])]
         .filter((f) => /^tests\/e2e\/[^/]+\.spec\.ts$/.test(f) && fs.existsSync(path.join(root, f)))
         .map((f) => path.basename(f).replaceAll(".", "\\."))
     : [];
