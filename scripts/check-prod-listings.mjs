@@ -64,6 +64,14 @@ try {
     console.log(`ok  Signed in ${path} -> 200 no-store`);
   }
 
+  // Story 2.14: the owner's allowance passes the proxy as no-store JSON, and a Visitor gets the 401 envelope.
+  const allowance = await fetch(`${APP}/api/v1/me/publication-allowance`, { headers: { cookie: "estate_session=stub-live" } });
+  assert.equal(allowance.status, 200, "the allowance passes the proxy");
+  assert.match(allowance.headers.get("cache-control") ?? "", /no-store/, "the allowance is no-store");
+  assert.equal((await allowance.json()).timezone, "Asia/Karachi");
+  assert.equal((await fetch(`${APP}/api/v1/me/publication-allowance`)).status, 401, "a Visitor gets no allowance");
+  console.log("ok  /api/v1/me/publication-allowance -> 200 no-store, 401 for a Visitor");
+
   // Story 2.10: the production proxy forwards a multipart upload of up to 6 MiB (and more, so the backend's own cap decides) in full,
   // and returns the binary image answer untouched.
   const cookie = "estate_session=stub-live";

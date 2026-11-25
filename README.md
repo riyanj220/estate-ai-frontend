@@ -1097,6 +1097,35 @@ shared Save. Backend routes: `PUT`/`DELETE /api/v1/me/profile/image` and `GET ..
   mobile for the preview, its not-found state, the Delete section, the dialog and its error). Playwright treats `aria-disabled` as disabled, so
   the clicks that test a blocked control use `force`.
 
+## Publication allowance on the dashboard (Story 2.14)
+
+Story 2.14 (frontend half). The contract is the backend's `docs/listings.md`: `GET /api/v1/me/publication-allowance` answers
+`{limit, used, remaining, period_start, resets_at, timezone: "Asia/Karachi"}` (datetimes carry `+05:00`), `no-store`. The frontend
+only shows it; nothing here publishes or enforces the quota (Story 2.15).
+
+- **Card** (`src/app/(app)/dashboard/allowance-card.tsx`, mounted by the dashboard page for Individual and Agency accounts only,
+  so an administrator sends no request): "Publications this month", "N of M used, R publication(s) remaining", a native
+  `<progress>` named by the heading (`max` = limit, `value` = used capped at the limit), and "Resets on 1 December 2026". At zero
+  remaining it says "You have used all your publications this month. The allowance resets on ..."; with a limit of 0 it says
+  "Your account has no publications this month." (empty bar, no reset line). Unverified and Suspended owners see it too (the
+  backend lets them read it).
+- **Time zone**: the date is formatted with `Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Karachi" })`, never in the browser's
+  zone (the reset instant is 19:00 UTC the day before). The spec runs the page in three other browser time zones.
+- **Loading and failure**: the shared `useProfileLoad` hook. A Retry keeps its button (`aria-disabled`, "Retrying…") and returns
+  focus to the card heading. Returning to the tab re-reads quietly, at most once per 5 s (`focusIntervalMs`); a failed quiet
+  re-read keeps the numbers and adds "These numbers may be out of date." (the hook's `stale` flag; the next good read clears
+  it). A `401` (also on a quiet re-read) takes the same session-gone path as the other pages: the session provider is
+  refreshed and the browser goes to `/sign-in?next=%2Fdashboard`. A `403` shows no card. Any other failure or an
+  unusable answer shows "We could not load your publication allowance" with Retry; the rest of the dashboard is unaffected.
+- **Fail-closed parsing** (`src/lib/publication-allowance.ts`): exactly the six documented keys; counts are non-negative safe
+  integers; `remaining` is exactly `max(limit - used, 0)`; both datetimes are ISO 8601 with an explicit offset and fall on the
+  first midnight of a Karachi month, `resets_at` the month after `period_start`; `timezone` is `Asia/Karachi`.
+- **Stub**: `/__allowance-mode` (`ok`, `empty`, `last`, `exhausted`, `over`, `year_end`, `cacheable`, `error`, `broken`, `hang`,
+  `session_gone`, `forbidden`, `rate_limited`, `zero` and the malformed shapes), `/__allowance-stats` (request count). The default mode
+  answers every signed-in owner (limit 2, or 10 for an Agency; an administrator gets `403`), so older dashboard specs see a card.
+- **Tests**: `tests/e2e/publication-allowance.spec.ts` (states, time zones including one where the reset instant is still the day before, quiet re-reads and their throttle, timeouts with `page.clock`, fail-closed shapes, axe at desktop and mobile in
+  each state); `npm run check:prod-listings` also asserts the route passes the production proxy as `no-store`.
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),

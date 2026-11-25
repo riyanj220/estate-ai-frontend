@@ -219,6 +219,10 @@ let notificationReadAllCount = 0;
 let lastNotificationReadAllToken = null;
 let unreadCountMode = "ok";
 let unreadCountGets = 0;
+// The owner's publication allowance (Story 2.14): `allowanceMode` shapes the answer (limit 2 for an Individual, 10 for an Agency;
+// datetimes carry the +05:00 offset like the real API); `allowanceGets` counts the requests so tests can prove an administrator sends none.
+let allowanceMode = "ok";
+let allowanceGets = 0;
 const publicNotification = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key !== "seq"));
 // Listings and the Field registry (Story 2.1). The registry serves the real taxonomy (or another one, to prove the choices
 // come from it) with a strong ETag. Listings are stateful: a created Draft shows in the list and in the detail. Ids are
@@ -2632,6 +2636,10 @@ createServer((req, res) => {
     });
   }
   if (url.pathname === "/__unread-count-mode") return choose("unreadCountMode", ["ok", "error", "broken", "hang", "forbidden", "rate_limited", "session_gone"], (v) => (unreadCountMode = v));
+  if (url.pathname === "/__allowance-mode") {
+    return choose("allowanceMode", ["ok", "empty", "last", "exhausted", "over", "year_end", "cacheable", "error", "broken", "hang", "session_gone", "forbidden", "rate_limited", "malformed", "float", "negative", "remaining_over_limit", "over_with_remaining", "bad_date", "bad_zone", "missing", "remaining_mismatch", "remaining_mismatch_high", "no_offset", "odd_date", "mid_month", "extra_key", "zero"], (v) => (allowanceMode = v));
+  }
+  if (url.pathname === "/__allowance-stats") return json(200, { gets: allowanceGets });
   if (url.pathname === "/__notifications-cacheable") {
     cacheable = url.searchParams.get("value") === "1";
     return json(200, { cacheable });
@@ -2734,6 +2742,41 @@ createServer((req, res) => {
     if (unreadCountMode === "forbidden") return json(403, envelope("forbidden", "Forbidden."));
     if (unreadCountMode === "rate_limited") return throttled();
     return json(200, { unread: notifications.filter((item) => !item.read).length });
+  }
+  if (url.pathname === "/api/v1/me/publication-allowance" && req.method === "GET") {
+    allowanceGets += 1;
+    res.setHeader("cache-control", allowanceMode === "cacheable" ? "public, max-age=600" : "no-store");
+    if (allowanceMode === "session_gone") liveSession = false;
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    if (sessionAdmin || allowanceMode === "forbidden") return json(403, envelope("forbidden", "Forbidden."));
+    if (allowanceMode === "error" || allowanceMode === "broken" || allowanceMode === "hang") return serverFailure(allowanceMode);
+    if (allowanceMode === "rate_limited") return throttled();
+    const limit = account().account_type === "agency" ? 10 : 2;
+    const used = { ok: 1, empty: 0, last: limit - 1, exhausted: limit, over: limit + 2, zero: 0 }[allowanceMode] ?? 1;
+    const body = {
+      limit: allowanceMode === "zero" ? 0 : limit,
+      used,
+      remaining: Math.max((allowanceMode === "zero" ? 0 : limit) - used, 0),
+      period_start: "2026-11-01T00:00:00+05:00",
+      resets_at: allowanceMode === "year_end" ? "2027-01-01T00:00:00+05:00" : "2026-12-01T00:00:00+05:00",
+      timezone: "Asia/Karachi",
+    };
+    if (allowanceMode === "year_end") body.period_start = "2026-12-01T00:00:00+05:00";
+    if (allowanceMode === "malformed") return json(200, { limit: "2" });
+    if (allowanceMode === "float") body.used = 0.5;
+    if (allowanceMode === "negative") body.used = -1;
+    if (allowanceMode === "remaining_over_limit") body.remaining = limit + 1;
+    if (allowanceMode === "over_with_remaining") Object.assign(body, { used: limit + 1, remaining: 1 });
+    if (allowanceMode === "bad_date") body.resets_at = "next month";
+    if (allowanceMode === "bad_zone") body.timezone = "UTC";
+    if (allowanceMode === "missing") delete body.remaining;
+    if (allowanceMode === "remaining_mismatch") Object.assign(body, { limit: 2, used: 0, remaining: 0 });
+    if (allowanceMode === "remaining_mismatch_high") Object.assign(body, { limit: 2, used: 1, remaining: 2 });
+    if (allowanceMode === "no_offset") body.resets_at = "2026-12-01T00:00:00";
+    if (allowanceMode === "odd_date") body.resets_at = "Dec 1 2026 00:00 +0500";
+    if (allowanceMode === "mid_month") body.resets_at = "2026-12-02T00:00:00+05:00";
+    if (allowanceMode === "extra_key") body.policy_id = "00000000-0000-4000-8000-000000000001";
+    return json(200, body);
   }
   if (url.pathname === "/api/v1/notifications/read-all" && req.method === "POST") {
     return readBody(() => {
@@ -3123,6 +3166,8 @@ createServer((req, res) => {
     notificationsMode = notificationReadMode = notificationReadAllMode = unreadCountMode = "ok";
     notificationsGets = notificationReadCount = notificationReadAllCount = unreadCountGets = 0;
     notificationQueries = [];
+    allowanceMode = "ok";
+    allowanceGets = 0;
     accountVariant = "1";
     cacheable = false;
     lastNotificationReadId = lastNotificationReadToken = lastNotificationReadAllToken = null;
