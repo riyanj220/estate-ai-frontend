@@ -6,6 +6,8 @@ import { backendUrl } from "./src/lib/backend-url";
 const target = backendUrl();
 
 const nextConfig: NextConfig = {
+  // Parallel e2e shards each run their own dev server and need their own build directory (set by playwright.config.ts).
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   allowedDevOrigins: ["127.0.0.1"],
   // Next.js buffers a request body for a proxied path up to this size (default 10 MB) and answers 500 beyond it, even with `/api/` excluded
   // from the page proxy's matcher. Uploads are at most 6 MiB (the backend's cap, which refuses a bigger body itself with a 400), and the
