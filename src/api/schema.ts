@@ -296,6 +296,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/listings/{listing_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish one of the signed-in account's own Drafts
+         * @description Needs `X-CSRFToken` and an `Idempotency-Key` header (1 to 128 characters from `A-Za-z0-9._:-`; a missing or malformed one is `400 validation_error` under `fields.idempotency_key`). Body: `{base_revision}` and nothing else. Publishing is immediate (no approval) and all-or-nothing: it uses one of the owner's monthly publications and makes the Listing public if its owner is Active. The same key with the same body within 24 hours returns the Listing as it is now with no second publication; the same key with another body is `422 idempotency_key_reused`. Refusals, in order: another account's, an administrator's, an unknown and a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision` that is not the current `revision` is `409 stale_revision` with the Listing under `current`; a Listing that is not a `draft` is `409 conflict`; an Email-unverified account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`; every missing or invalid required item is `400 validation_error`, all at once, keyed by registry field id (`required` and the field's own codes), `images` (`images_required`: at least one image) and a field of class `private` or of the quota identity that the Assistant filled in and the owner has not confirmed (`confirm_required`); a used-up allowance is `409 quota_exhausted` with the caller's own `limit`, `used` and `resets_at` under `details`. A refused attempt consumes nothing. Never cached.
+         */
+        post: operations["publish_listing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -991,11 +1011,14 @@ export interface components {
          *     * `unauthenticated` - unauthenticated
          *     * `invalid_credentials` - invalid_credentials
          *     * `forbidden` - forbidden
+         *     * `email_not_verified` - email_not_verified
+         *     * `publishing_unavailable` - publishing_unavailable
          *     * `not_found` - not_found
          *     * `method_not_allowed` - method_not_allowed
          *     * `not_acceptable` - not_acceptable
          *     * `stale_revision` - stale_revision
          *     * `conflict` - conflict
+         *     * `quota_exhausted` - quota_exhausted
          *     * `storage_cap_exceeded` - storage_cap_exceeded
          *     * `too_many_images` - too_many_images
          *     * `link_used` - link_used
@@ -1007,7 +1030,7 @@ export interface components {
          *     * `busy` - busy
          * @enum {string}
          */
-        CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
+        CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "email_not_verified" | "publishing_unavailable" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "quota_exhausted" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
         /**
          * @description * `new` - new
          *     * `excellent` - excellent
@@ -2124,12 +2147,38 @@ export interface components {
             resets_at: string;
             timezone: components["schemas"]["TimezoneEnum"];
         };
+        PublishBodyRequest: {
+            /** @description The `revision` of the Draft the client last read. */
+            base_revision: number;
+        };
+        /**
+         * @description `409`: the error envelope plus, for `stale_revision`, the Listing as it is now under
+         *     `current` and, for `quota_exhausted`, the caller's own numbers under `details`.
+         */
+        PublishConflict: {
+            error: components["schemas"]["ErrorBody"];
+            /** @description With `stale_revision` only. */
+            current?: components["schemas"]["Listing"];
+            /** @description With `quota_exhausted` only. */
+            details?: components["schemas"]["QuotaDetails"];
+        };
         /**
          * @description * `sale` - sale
          *     * `rent` - rent
          * @enum {string}
          */
         PurposeEnum: "sale" | "rent";
+        QuotaDetails: {
+            /** @description The caller's monthly limit. */
+            limit: number;
+            /** @description The caller's counted publications this month. */
+            used: number;
+            /**
+             * Format: date-time
+             * @description Start of the next Karachi month, +05:00.
+             */
+            resets_at: string;
+        };
         RegistrationAccepted: {
             status: components["schemas"]["RegistrationAcceptedStatusEnum"];
         };
@@ -2292,7 +2341,7 @@ export interface components {
          * @description Stable error code catalogue.
          * @enum {string}
          */
-        ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
+        ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "email_not_verified" | "publishing_unavailable" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "quota_exhausted" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
         ErrorEnvelope: {
             error: components["schemas"]["ErrorBody"];
         };
@@ -3676,6 +3725,108 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    publish_listing: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishBodyRequest"];
+            };
+        };
+        responses: {
+            /** @description The published Listing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Listing"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `stale_revision`, `conflict` or `quota_exhausted` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishConflict"];
+                };
+            };
+            /** @description `idempotency_key_reused` */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

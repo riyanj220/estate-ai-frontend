@@ -1291,6 +1291,110 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/listings/{listing_id}/publish:
+    post:
+      operationId: publish_listing
+      description: 'Needs `X-CSRFToken` and an `Idempotency-Key` header (1 to 128
+        characters from `A-Za-z0-9._:-`; a missing or malformed one is `400 validation_error`
+        under `fields.idempotency_key`). Body: `{base_revision}` and nothing else.
+        Publishing is immediate (no approval) and all-or-nothing: it uses one of the
+        owner''s monthly publications and makes the Listing public if its owner is
+        Active. The same key with the same body within 24 hours returns the Listing
+        as it is now with no second publication; the same key with another body is
+        `422 idempotency_key_reused`. Refusals, in order: another account''s, an administrator''s,
+        an unknown and a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision`
+        that is not the current `revision` is `409 stale_revision` with the Listing
+        under `current`; a Listing that is not a `draft` is `409 conflict`; an Email-unverified
+        account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`;
+        every missing or invalid required item is `400 validation_error`, all at once,
+        keyed by registry field id (`required` and the field''s own codes), `images`
+        (`images_required`: at least one image) and a field of class `private` or
+        of the quota identity that the Assistant filled in and the owner has not confirmed
+        (`confirm_required`); a used-up allowance is `409 quota_exhausted` with the
+        caller''s own `limit`, `used` and `resets_at` under `details`. A refused attempt
+        consumes nothing. Never cached.'
+      summary: Publish one of the signed-in account's own Drafts
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishBodyRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+          description: The published Listing
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishConflict'
+          description: '`stale_revision`, `conflict` or `quota_exhausted`'
+        '422':
+          description: '`idempotency_key_reused`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/me:
     get:
       operationId: get_me
@@ -3565,11 +3669,14 @@ components:
       - unauthenticated
       - invalid_credentials
       - forbidden
+      - email_not_verified
+      - publishing_unavailable
       - not_found
       - method_not_allowed
       - not_acceptable
       - stale_revision
       - conflict
+      - quota_exhausted
       - storage_cap_exceeded
       - too_many_images
       - link_used
@@ -3587,11 +3694,14 @@ components:
         * `unauthenticated` - unauthenticated
         * `invalid_credentials` - invalid_credentials
         * `forbidden` - forbidden
+        * `email_not_verified` - email_not_verified
+        * `publishing_unavailable` - publishing_unavailable
         * `not_found` - not_found
         * `method_not_allowed` - method_not_allowed
         * `not_acceptable` - not_acceptable
         * `stale_revision` - stale_revision
         * `conflict` - conflict
+        * `quota_exhausted` - quota_exhausted
         * `storage_cap_exceeded` - storage_cap_exceeded
         * `too_many_images` - too_many_images
         * `link_used` - link_used
@@ -6208,6 +6318,33 @@ components:
       - resets_at
       - timezone
       - used
+    PublishBodyRequest:
+      type: object
+      properties:
+        base_revision:
+          type: integer
+          minimum: 1
+          description: The `revision` of the Draft the client last read.
+      required:
+      - base_revision
+    PublishConflict:
+      type: object
+      description: |-
+        `409`: the error envelope plus, for `stale_revision`, the Listing as it is now under
+        `current` and, for `quota_exhausted`, the caller's own numbers under `details`.
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+        current:
+          allOf:
+          - $ref: '#/components/schemas/Listing'
+          description: With `stale_revision` only.
+        details:
+          allOf:
+          - $ref: '#/components/schemas/QuotaDetails'
+          description: With `quota_exhausted` only.
+      required:
+      - error
     PurposeEnum:
       enum:
       - sale
@@ -6216,6 +6353,23 @@ components:
       description: |-
         * `sale` - sale
         * `rent` - rent
+    QuotaDetails:
+      type: object
+      properties:
+        limit:
+          type: integer
+          description: The caller's monthly limit.
+        used:
+          type: integer
+          description: The caller's counted publications this month.
+        resets_at:
+          type: string
+          format: date-time
+          description: Start of the next Karachi month, +05:00.
+      required:
+      - limit
+      - resets_at
+      - used
     RegistrationAccepted:
       type: object
       properties:
@@ -6549,11 +6703,14 @@ components:
       - unauthenticated
       - invalid_credentials
       - forbidden
+      - email_not_verified
+      - publishing_unavailable
       - not_found
       - method_not_allowed
       - not_acceptable
       - stale_revision
       - conflict
+      - quota_exhausted
       - storage_cap_exceeded
       - too_many_images
       - link_used
