@@ -11,7 +11,7 @@ const APP = `http://127.0.0.1:${APP_PORT}`;
 const env = { ...process.env, BACKEND_URL: STUB, STUB_PORT: String(STUB_PORT) };
 const children = [];
 const ID = "00000000-0000-4000-9000-000000000001";
-const PATHS = ["/account/listings", "/account/listings/new", `/account/listings/${ID}`];
+const PATHS = ["/account/listings", "/account/listings/new", `/account/listings/${ID}`, `/account/listings/${ID}/preview`];
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
@@ -122,6 +122,31 @@ try {
   assert.ok(amenityItems.length > 0 && amenityItems.every((entry) => ["on_property", "community", "nearby"].includes(entry.kind)), "amenities carry a closed kind");
   assert.ok(amenityItems.every((entry) => !("distance" in entry) && !("verified" in entry)), "no distance or verification key");
   console.log("ok  amenity catalogue through the proxy");
+  // Story 2.13: the owner's preview is never cacheable and carries no private value; the delete goes through the proxy with the CSRF
+  // token, answers 204 without a body, and a repeat, a Visitor and a missing token are refused.
+  await fetch(`${STUB}/__listings-preset?value=preview_rich`);
+  const preview = await fetch(`${APP}/api/v1/listings/${ID}/preview`, { headers: { cookie } });
+  assert.equal(preview.status, 200, "the owner reads the preview through the proxy");
+  assert.match(preview.headers.get("cache-control") ?? "", /no-store/, "the preview is no-store");
+  const previewText = await preview.text();
+  for (const secret of ["Cedar Lane", "Plot 12", "24.860000", "67.010000", "\"street\"", "\"latitude\"", "\"house_number\""]) assert.ok(!previewText.includes(secret), `the preview leaks ${secret}`);
+  assert.equal(JSON.parse(previewText).estimate, null, "the estimate is null");
+  const visitorPreview = await fetch(`${APP}/api/v1/listings/${ID}/preview`);
+  assert.equal(visitorPreview.status, 401, "a Visitor gets no preview");
+  assert.ok(!(await visitorPreview.text()).includes("Corner house"), "no listing content in the Visitor's answer");
+  assert.equal((await fetch(`${APP}/api/v1/listings/00000000-0000-4000-9000-000000000077/preview`, { headers: { cookie } })).status, 404, "an unknown id is 404");
+  const remove = (token, headers = { cookie }) => fetch(`${APP}/api/v1/listings/${ID}`, { method: "DELETE", headers: { ...headers, ...(token ? { "x-csrftoken": token } : {}) } });
+  assert.equal((await remove(null)).status, 403, "a delete without the CSRF token is refused");
+  assert.equal((await remove(csrf, {})).status, 401, "a Visitor cannot delete");
+  const removed = await remove(csrf);
+  assert.equal(removed.status, 204, "the owner's delete passes the proxy");
+  assert.match(removed.headers.get("cache-control") ?? "", /no-store/, "the delete answer is no-store");
+  assert.equal((await removed.text()), "", "204 has no body");
+  assert.equal((await remove(csrf)).status, 404, "deleting again is 404");
+  assert.equal((await fetch(`${APP}/api/v1/listings/${ID}/preview`, { headers: { cookie } })).status, 404, "a deleted draft has no preview");
+  await fetch(`${STUB}/__listings-preset?value=published_one`);
+  assert.equal((await remove(csrf)).status, 409, "a published listing cannot be deleted");
+  console.log("ok  preview and delete through the proxy");
   console.log("Production listings check passed.");
 } finally {
   for (const child of children) child.kill();

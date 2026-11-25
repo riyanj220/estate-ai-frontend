@@ -838,7 +838,7 @@ const spoilMedia = (media) => {
 const publicImage = (item, image) => ({ ...image, url: `/api/v1/listings/${item.id}/images/${image.id}/file` });
 const publicListing = (item) => ({
   id: item.id,
-  status: "draft",
+  status: item.status ?? "draft",
   visibility: "private",
   revision: item.revision,
   registry_version: item.registryVersion,
@@ -887,6 +887,44 @@ const LISTING_PRESETS = {
       2,
     ),
   ],
+  // Story 2.13: a Draft with content for the preview (private address, coordinates and a phone-like canary included: none may reach the preview page),
+  // two images, and one Published Listing (which cannot be deleted).
+  preview_rich: () => [
+    withImages(
+      makeListing(
+        1,
+        "mine",
+        {
+          title: "Corner house with garden",
+          description: "Three bedrooms near the park.\nQuiet street.",
+          asking_price: "1500000.00",
+          price_basis: "total",
+          area_value: "10.0000",
+          area_unit: "marla",
+          marla_basis: "272.25",
+          area_sqft: "2722.5000",
+          bedrooms: 4,
+          bathrooms: 3,
+          condition: "good",
+          basement: true,
+          city: KARACHI,
+          locality: "aaaaaaaa-aaaa-4aaa-8aaa-000000000003",
+          society: "Palm Society",
+          phase: "Phase Two",
+          amenities: { elevator: "present", community_gym: "present", nearby_school: "present" },
+          street: "Cedar Lane",
+          house_number: "Plot 12",
+          latitude: "24.860000",
+          longitude: "67.010000",
+        },
+        2,
+      ),
+      2,
+    ),
+  ],
+  // Published with images: the image `url` is the same media route a Draft's owner reads (the backend serves it publicly once published).
+  published_with_images: () => [Object.assign(withImages(makeListing(1, "mine", { title: "Published house", asking_price: "2500000.00", price_basis: "total" }, 4), 2), { status: "published" })],
+  published_one: () => [Object.assign(makeListing(1, "mine", { title: "Published house" }, 4), { status: "published" })],
   // Story 2.7: a Draft with the location and the private address set (revision 2).
   location_filled: () => [
     makeListing(
@@ -1021,6 +1059,15 @@ let lastCreate = null;
 let lastCreateToken = null;
 let detailMode = "ok";
 let patchMode = "ok";
+// Story 2.13: the owner's preview and delete. Modes shape the answers; the lists keep what the page did.
+let previewMode = "ok";
+let previewGets = 0;
+let lastPreviewId = null;
+let previewIds = [];
+let deleteMode = "ok";
+let listingDeletes = [];
+let heldDeleteAnswers = []; // delete answers held open by deleteMode "hold" until /__listing-delete-release
+let listingDeleteTokens = [];
 let patchCount = 0;
 let patchBodies = [];
 let patchTokens = [];
@@ -1559,6 +1606,18 @@ createServer((req, res) => {
   }
   if (url.pathname === "/__registry-taxonomy") return choose("taxonomyName", Object.keys(TAXONOMIES), (v) => (taxonomyName = v));
   if (url.pathname === "/__registry-fields") return choose("fieldsName", Object.keys(REGISTRY_FIELDS), (v) => (fieldsName = v));
+  if (url.pathname === "/__listing-preview-mode") {
+    return choose("previewMode", ["ok", "flaky", "malformed", "other_id", "leaky", "nulls", "bad_request", "unprocessable", "session_gone", "forbidden", "rate_limited", "not_found", "error", "broken", "hang"], (v) => {
+      previewMode = v;
+      previewGets = 0;
+    });
+  }
+  if (url.pathname === "/__listing-delete-mode") {
+    return choose("deleteMode", ["ok", "slow", "hold", "hold_fail", "conflict", "not_found", "html_404", "forbidden", "session_gone", "rate_limited", "csrf_once", "csrf_always", "error", "broken", "hang"], (v) => {
+      deleteMode = v;
+      csrfOnceSpent = false;
+    });
+  }
   if (url.pathname === "/__listing-patch-mode") {
     return choose(
       "patchMode",
@@ -1636,6 +1695,11 @@ createServer((req, res) => {
       queries: listingQueries,
       detailGets,
       lastDetailId,
+      previewGets,
+      lastPreviewId,
+      previewIds,
+      deletes: listingDeletes,
+      deleteTokens: listingDeleteTokens,
       createCount,
       lastCreate,
       lastCreateToken,
@@ -1739,6 +1803,92 @@ createServer((req, res) => {
     const found = sessionAdmin ? undefined : listings.find((item) => item.id === lastDetailId && item.owner === "mine");
     if (!found) return json(404, envelope("not_found", "Not found."));
     return json(200, publicListing(found));
+  }
+  // Story 2.13: owner-only preview, built from the public projection (never a private-class field, never a phone, never the revision).
+  const previewMatch = /^\/api\/v1\/listings\/([^/]+)\/preview$/.exec(url.pathname);
+  if (previewMatch && req.method === "GET") {
+    previewGets += 1;
+    lastPreviewId = decodeURIComponent(previewMatch[1]);
+    previewIds.push(lastPreviewId);
+    res.setHeader("cache-control", "no-store");
+    if (previewMode === "session_gone") {
+      liveSession = false;
+      return json(401, envelope("unauthenticated", "Authentication is required."));
+    }
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    if (previewMode === "flaky" && previewGets === 1) return json(500, envelope("server_error", "Internal detail that must not show."));
+    if (previewMode === "forbidden") return json(403, envelope("forbidden", "Forbidden."));
+    if (previewMode === "bad_request") return json(400, envelope("validation_error", "Invalid id."));
+    if (previewMode === "unprocessable") return json(422, envelope("validation_error", "Invalid id."));
+    if (previewMode === "rate_limited") return throttled();
+    if (previewMode === "error" || previewMode === "broken" || previewMode === "hang") return serverFailure(previewMode);
+    const found = sessionAdmin ? undefined : listings.find((item) => item.id === lastPreviewId && item.owner === "mine");
+    if (!found || previewMode === "not_found") return json(404, envelope("not_found", "Not found."));
+    if (previewMode === "malformed") return json(200, { status: "draft" });
+    const PRIVATE = ["street", "house_number", "latitude", "longitude"];
+    const HEAD = ["purpose", "category", "subtype", "title", "description"];
+    const fields = Object.fromEntries(Object.entries(found.fields).filter(([key]) => !PRIVATE.includes(key) && !HEAD.includes(key)));
+    // `leaky`: a body that wrongly carries owner-only data and a non-null estimate; the page must render none of it. `nulls`: every public key null.
+    const leak =
+      previewMode === "leaky"
+        ? { street: "Cedar Lane", house_number: "Plot 12", latitude: "24.860000", longitude: "67.010000", phone: "+923001234567", revision: 77, provenance: { title: "manual" }, status: "draft", visibility: "private", confirmed: true }
+        : {};
+    const nullFields = previewMode === "nulls" ? Object.fromEntries(["asking_price", "price_basis", "rental_period", "area_value", "area_unit", "marla_basis", "bedrooms", "bathrooms", "condition", "basement", "city", "locality", "society", "amenities", "area_sqft"].map((key) => [key, null])) : null;
+    return json(200, {
+      ...leak,
+      id: previewMode === "other_id" ? listingId(999) : found.id,
+      purpose: found.fields.purpose,
+      category: found.fields.category,
+      subtype: found.fields.subtype,
+      title: found.fields.title ?? null,
+      description: found.fields.description ?? null,
+      fields: nullFields ?? { ...fields, ...leak },
+      media: found.images.map((image) => ({ id: image.id, position: image.position, is_cover: image.is_cover, content_type: image.content_type, width: image.width, height: image.height, url: `/api/v1/listings/${found.id}/images/${image.id}/file` })),
+      registry_version: found.registryVersion,
+      estimate: previewMode === "leaky" ? { value: 1 } : null,
+    });
+  }
+  // Story 2.13: delete one of the owner's Drafts (204). 404 for missing, someone else's, an administrator and a repeat; 409 for a
+  // Listing that is not a draft (or forced by the mode); 403 for an account that may not edit.
+  if (listingMatch && req.method === "DELETE") {
+    const sentToken = req.headers["x-csrftoken"] ?? null;
+    res.setHeader("cache-control", "no-store");
+    // Every attempt is counted, with the token it carried (before the CSRF and session rules answer).
+    listingDeleteTokens.push(sentToken);
+    listingDeletes.push(decodeURIComponent(listingMatch[1]));
+    if (deleteMode === "csrf_always" && hasSession()) {
+      csrfSeed += 1; // a refused token is replaced: the retry carries a new one and is refused again
+      return json(403, envelope("forbidden", "CSRF check failed."));
+    }
+    if (signedInUnsafe(deleteMode, sentToken)) return;
+    unsafeCount += 1;
+    // An account that may not edit (Suspended) is refused whatever the mode.
+    if (signInMode === "suspended") return json(403, envelope("forbidden", "Forbidden."));
+    const target = sessionAdmin ? undefined : listings.find((item) => item.id === decodeURIComponent(listingMatch[1]) && item.owner === "mine");
+    if (deleteMode === "html_404") {
+      res.writeHead(404, { "content-type": "text/html" });
+      return res.end("<html><body>Not found</body></html>");
+    }
+    if (deleteMode === "error" || deleteMode === "broken" || deleteMode === "hang") return serverFailure(deleteMode);
+    if (!target || deleteMode === "not_found") {
+      if (target) listings = listings.filter((item) => item !== target);
+      return json(404, envelope("not_found", "Not found."));
+    }
+    if (deleteMode === "conflict") target.status = "published"; // published meanwhile, elsewhere
+    if (target.status === "published") return json(409, envelope("conflict", "The listing is not a draft."));
+    listings = listings.filter((item) => item !== target);
+    const answer = () => {
+      res.writeHead(204);
+      res.end();
+    };
+    if (deleteMode === "slow") return void setTimeout(answer, 600);
+    if (deleteMode === "hold") return void heldDeleteAnswers.push(answer);
+    if (deleteMode === "hold_fail") {
+      // The delete did not happen: the held answer is a server error, and the Listing stays.
+      listings = [target, ...listings.filter((item) => item !== target)];
+      return void heldDeleteAnswers.push(() => json(500, envelope("server_error", "Internal detail that must not show.")));
+    }
+    return answer();
   }
   if (listingMatch && req.method === "PATCH") {
     return readBody((parsed) => {
@@ -2218,6 +2368,12 @@ createServer((req, res) => {
     profileImages[kind] = url.searchParams.get("clear") === "1" ? null : { type, data: Buffer.concat([IMAGE_PNG, Buffer.alloc(padding, 0x41)]) };
     return json(200, { kind, stored: profileImages[kind] !== null });
   }
+  if (url.pathname === "/__listing-delete-release") {
+    const answers = heldDeleteAnswers;
+    heldDeleteAnswers = [];
+    for (const answer of answers) answer();
+    return json(200, { released: answers.length });
+  }
   if (url.pathname === "/__image-release") {
     const answers = heldUploadAnswers;
     heldUploadAnswers = [];
@@ -2500,7 +2656,12 @@ createServer((req, res) => {
     // Test-only: a new unread notification arrives (newest) of the given kind.
     const seq = Math.max(0, ...notifications.map((item) => item.seq)) + 1;
     const kind = url.searchParams.get("kind") ?? "account.password_changed";
-    const payload = url.searchParams.get("payload") ? { secret_detail: UNKNOWN_SECRET, listing_title: UNKNOWN_SECRET } : {};
+    let payload = url.searchParams.get("payload") ? { secret_detail: UNKNOWN_SECRET, listing_title: UNKNOWN_SECRET } : {};
+    // Story 2.13: `listing.draft_expiring` carries only the draft's id and the days left (set here as `listing_id` and `days_left`).
+    if (kind === "listing.draft_expiring") {
+      const days = url.searchParams.get("days_left");
+      payload = { listing_id: url.searchParams.get("listing_id") ?? listingId(1), days_left: url.searchParams.get("days_text") !== null ? url.searchParams.get("days_text") : days === null ? 5 : Number(days) };
+    }
     notifications = [{ seq, id: notificationId(seq), kind, payload, created_at: new Date(Date.UTC(2026, 10, 20, 11, 0, 0)).toISOString(), read: false }, ...notifications];
     return json(200, { total: notifications.length });
   }
@@ -2970,6 +3131,14 @@ createServer((req, res) => {
     fieldsName = "default";
     patchMode = "ok";
     patchCount = 0;
+    previewMode = deleteMode = "ok";
+    previewGets = 0;
+    lastPreviewId = null;
+    previewIds = [];
+    listingDeletes = [];
+    listingDeleteTokens = [];
+    for (const answer of heldDeleteAnswers) answer();
+    heldDeleteAnswers = [];
     patchBodies = [];
     patchTokens = [];
     patchLostSpent = false;

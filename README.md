@@ -1049,6 +1049,54 @@ shared Save. Backend routes: `PUT`/`DELETE /api/v1/me/profile/image` and `GET ..
   Tests: `tests/e2e/profile-image.spec.ts` (every row of the story's matrix for both kinds; axe at desktop and mobile in empty, populated,
   asking, uploading, error and image-failed states; Playwright treats `aria-disabled` as disabled, so clicks on such a control use `force`).
 
+## Draft preview and delete (Story 2.13)
+
+- **Preview** (`/account/listings/[id]/preview`, `no-store` like every `/account/*` page, server-guarded like the Draft page): reads
+  `GET /api/v1/listings/{id}/preview` and renders the public projection as received, under the banner "This is a preview. Only you can see it."
+  (title, purpose, category and subtype line, images through the owner image routes, price, area, the public location with the city and locality
+  names from the reference lists, the registry details that apply, the amenities, the description) and an empty "Estimate" area that always reads
+  "Not available yet" (the `estimate` key is `null` until the valuation feature exists, and the page renders nothing from it). It reads only the
+  keys it renders, so a private-class field or a phone number could never be shown, and it has no input, no Save and no delete. The body is
+  refused (load error with Retry) when its `id` is not the requested one or its `media` fails the same check as the Draft page. `404`, `403`,
+  `400`, `422` and a malformed id are one "We could not find that listing." state, `401` signs in again and returns here, `429` shows the wait.
+  Links: "Preview" on the Draft page (with the hint "Preview shows your saved changes." while the form has unsaved edits; there is no dirty guard)
+  and on every My listings row (also for a published listing), and "Back to the draft" on the preview (a bad id offers "Back to My listings").
+  Nothing is stored or logged.
+- **Delete draft** (Draft page, only while `status` is `draft`): a native modal `<dialog>` (the page behind it is inert, focus starts on Cancel
+  and stays between the two buttons, Escape or Cancel closes it and returns focus to the button) with "This deletes the draft and its images.
+  This cannot be undone." Confirming sends `DELETE /api/v1/listings/{id}` with the CSRF token (`withCsrf`, one retry). `204` and `404` (already
+  gone) go to My listings with a polite confirmation ("Draft deleted." or "That draft was already deleted."). A `404` counts as "already gone"
+  only when its body is the backend's `not_found` envelope; any other 404 (a proxy, a missing route) is a failure that keeps the page. The
+  confirmation is handed over in memory by `src/lib/flash.ts` (one target path, valid for 5 seconds, cleared once shown and when the list read
+  ends the session; never in the URL or storage); the `role="status"` line on My listings is rendered empty and filled shortly after mounting so
+  a screen reader announces it. `409` closes the dialog with "A published listing cannot be deleted here.", reads the Listing again (the status
+  flips, Delete and the edit form disappear and a note says it is no longer a draft); `403` says "Your account cannot delete listings right now." for a Suspended owner (else the generic text); `401`
+  signs in again; every other failure is shown in the dialog and on the page (the platform can close the dialog, for example with a second Escape; the state
+  follows it, Delete opens it again and focus returns to the button) with the generic error and a retry. If the navigation after a success does
+  not leave the page within 4 seconds, the locks are released and a message says the draft was deleted. Unsaved edits are discarded without a
+  second prompt. **Locks**: the delete takes the module-wide image lock (`src/lib/image-lock.ts`), so it never starts while an upload or an image
+  action runs (and none starts while it runs), and it never starts while a field save is in flight; while it runs Save and the image actions
+  are paused ("Saving and image changes are paused while the draft is deleted.") and Escape does not cancel it.
+- **Notification** `listing.draft_expiring` (payload `listing_id`, `days_left`): rendered from `src/lib/notification-kinds.ts` as the fixed
+  sentence "Your draft has had no activity for a long time and will be deleted in N days unless you open it." (singular for 1 day) with an
+  "Open the draft" link (its name carries the sentence for screen readers) to `/account/listings/{listing_id}`. A `days_left` that is not an integer from 0 to 365 gives the generic line; a
+  `listing_id` that is not a UUID gives the sentence without a link. A kind entry may now carry `href` and `linkText`; unknown kinds are unchanged.
+- **Playwright stub**: `GET /api/v1/listings/{id}/preview` (owner only, `no-store`, the public projection with `estimate: null`; the private
+  address is stripped), `DELETE /api/v1/listings/{id}` (`204`; `404` for missing, someone else's, administrator and repeat; `409` for a
+  non-draft; the CSRF rules of the other writes), `/__listing-preview-mode` (`ok`, `flaky`, `malformed`, `other_id`, `leaky` (owner-only keys, a phone and a
+  non-null estimate that must never render), `nulls`, `bad_request`, `unprocessable`, `session_gone`, `forbidden`, `rate_limited`, `not_found`,
+  `error`, `broken`, `hang`), `/__listing-delete-mode` (`ok`, `slow`, `hold` and `hold_fail` (the answer, a
+  success or a 500, waits for `/__listing-delete-release`), `conflict` (the Listing becomes published), `not_found`, `html_404`, `forbidden`, `session_gone`, `rate_limited`, `csrf_once`, `csrf_always`, `error`,
+  `broken`, `hang`), a Suspended session (`/__signin-mode?value=suspended`) always gets `403`, every attempt is counted with its token, the presets `preview_rich`
+  (private address, coordinates and two images), `published_one` and `published_with_images` (the image `url` is the same media route for a Draft and a published listing), preview and delete counts in
+  `/__listings-stats` (`previewIds`, `deletes`, `deleteTokens`), and `/__notifications-add?kind=listing.draft_expiring&days_left=&listing_id=`.
+- **Production check**: `npm run check:prod-listings` now also covers the preview page (Visitor `307`, signed in `200`, both `no-store`) and, through
+  the real proxy, the preview API (`no-store`, no private value, `estimate: null`, Visitor `401`, unknown `404`) and the delete (no token `403`,
+  Visitor `401`, `204` without a body, repeat `404`, published `409`).
+- Tests: `tests/e2e/listing-preview-delete.spec.ts` (preview rows, states and privacy, delete rows, locks, the notification; axe at desktop and
+  mobile for the preview, its not-found state, the Delete section, the dialog and its error). Playwright treats `aria-disabled` as disabled, so
+  the clicks that test a blocked control use `force`.
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),
