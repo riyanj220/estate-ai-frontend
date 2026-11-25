@@ -27,7 +27,7 @@ async function open(page: Page, request: APIRequestContext, which = "publish_rea
   await request.get(`${STUB}/__force-session`);
   await page.context().addCookies([{ name: "estate_session", value: "stub-live", url: APP_URL }]);
   await page.goto(`${LIST}/${id(seq)}`);
-  await expect(page.getByRole("heading", { level: 1, name: "Draft" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: /^(Draft|Listing)$/ })).toBeVisible();
   if (which.startsWith("published")) await expect(page.getByTestId("draft-status")).toBeVisible();
   else await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
 }
@@ -58,10 +58,15 @@ test("ready: the Publish section says what publishing does and how many publicat
   await expect(page.getByTestId("published-allowance")).toHaveText("You have 0 publications remaining this month.");
   await expect(page.getByTestId("publish-live")).toHaveAttribute("role", "status");
   await expect(page.getByTestId("draft-status")).toHaveText("Published");
-  await expect(page.getByTestId("draft-not-editable")).toBeVisible();
+  // Story 2.17: a published listing is edited under the publication rules; the identity fields are read only.
+  await expect(page.getByRole("heading", { level: 1, name: "Listing" })).toBeVisible();
+  await expect(page.getByTestId("identity-note")).toBeVisible();
+  await expect(page.getByTestId("draft-not-editable")).toHaveCount(0);
   await expect(page.getByTestId("publish-section")).toHaveCount(0);
   await expect(page.getByTestId("delete-draft")).toHaveCount(0);
-  await expect(page.getByLabel("Title", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Title", { exact: true })).toBeEnabled();
+  await expect(page.getByLabel("Area value", { exact: true })).toHaveAttribute("aria-readonly", "true");
+  await expect(page.getByTestId("status-section").getByRole("button")).toHaveText(["Archive", "Mark as sold"]);
   const { attempts, used } = await stats(request);
   expect(attempts).toHaveLength(1);
   expect(attempts[0].id).toBe(id(1));

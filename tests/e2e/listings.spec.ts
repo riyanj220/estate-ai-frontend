@@ -262,7 +262,7 @@ test("create: sends exactly the three fields through the CSRF token and opens th
   // The editor (Story 2.2) takes the place of the old read-only note; its own suite is listing-edit.spec.ts.
   await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
   await main(page).getByRole("link", { name: "Back to My listings" }).click();
-  await expect(page).toHaveURL(/\/account\/listings$/);
+  await expect(page).toHaveURL(/\/account\/listings\?status=draft$/);
   await expect(items(page)).toHaveCount(1);
   await expect(items(page).first().locator("a.listing-link")).toHaveText("Rent · Apartment · Apartment");
   await expect(items(page).first().locator("a.listing-link")).toHaveAttribute("href", `${LIST}/${id(1)}`);
@@ -593,7 +593,8 @@ test("load more: appends the next page, never duplicates, and disappears at the 
   const hrefs = await items(page).locator("a.listing-link").evaluateAll((links) => links.map((link) => link.getAttribute("href")));
   expect(new Set(hrefs).size).toBe(25);
   const queries = (await stats(request)).queries as string[];
-  expect(queries).toEqual(["", "?cursor=pos-6"]);
+  // Story 2.17: the first tab (Draft here: the first one that is not empty) and its status ride on every list request.
+  expect(queries).toEqual(["?status=draft", "?status=draft&cursor=pos-6"]);
 });
 
 test("load more: a repeated item from the server is shown once", async ({ page, request }) => {
@@ -676,6 +677,8 @@ test("load failure: a hung request times out into the retry state", async ({ pag
   await page.clock.install();
   await page.goto(LIST);
   await expect(page.getByTestId("profile-loading")).toBeVisible();
+  // The counts are read first (they name the tab to open): the list request starts, and its 20 s timer is set, only after they answered.
+  await expect.poll(async () => (await stats(request)).listGets).toBe(1);
   await page.clock.runFor(21_000);
   await expect(main(page).getByRole("button", { name: "Retry" })).toBeVisible();
 });
@@ -725,7 +728,8 @@ test("Draft page: status, revision, registry version, the three fields and a way
   await expect(page.getByTestId("draft-purpose")).toHaveText("Sale");
   await expect(page.getByTestId("draft-category")).toHaveText("Plot");
   await expect(page.getByTestId("draft-subtype")).toHaveText("Plot file");
-  await expect(main(page).getByRole("link", { name: "Back to My listings" })).toHaveAttribute("href", LIST);
+  // The way back leads to the tab of the listing's status (Story 2.17).
+  await expect(main(page).getByRole("link", { name: "Back to My listings" })).toHaveAttribute("href", `${LIST}?status=draft`);
   expect((await stats(request)).lastDetailId).toBe(id(2));
   await expect(page).toHaveTitle("Draft | EstateAI");
 });
@@ -742,7 +746,7 @@ for (const [name, route] of [
     await expect(page.getByTestId("draft-not-found")).toHaveText(NOT_FOUND);
     await expect(main(page).getByRole("link", { name: "Back to My listings" })).toHaveAttribute("href", LIST);
     await expect(page.getByTestId("draft-status")).toHaveCount(0);
-    await expect(page.getByRole("heading", { level: 1, name: "Draft" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Listing" })).toBeVisible(); // neutral until a status is known
   });
 }
 

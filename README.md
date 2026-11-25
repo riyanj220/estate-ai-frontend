@@ -1161,6 +1161,70 @@ Story 2.15 (frontend half). The contract is the backend's `POST /api/v1/listings
 - **Tests**: `tests/e2e/listing-publish.spec.ts` (every state above, key reuse and replay, the lock while publishing, axe at desktop and
   mobile in the ready, unsaved, error, quota exhausted and published states).
 
+## Managing the Listing lifecycle (Story 2.17)
+
+Story 2.17 (frontend half). The contract is the backend's `GET /api/v1/me/listings?status=`, `GET /api/v1/me/listings/counts`,
+`POST /api/v1/listings/{id}/status` (body `{base_revision, status: archived | sold | rented}`, CSRF) and the widened owner rules of
+`PATCH` and the image routes (client synced with `npm run api:sync`). No quota is used by any of this.
+
+- **My listings by status** (`listings-client.tsx`, `src/lib/listing-status.ts`): an accessible tablist (Draft, Published, Archived, Sold,
+  Rented, Removed) with the live count of each status from the counts route, arrow keys, Home and End move the focus and Enter or Space
+  opens the focused tab. The chosen tab is in the address (`?status=`, pushed with `history.pushState`, so Back, Forward and a reload keep
+  it; an unknown value is ignored). Without a usable `status` the first tab that is not empty opens, in the order Published, Draft,
+  Archived, Sold, Rented, Removed (Published when the counts cannot be read, in which case the tabs show no numbers); it is worked out
+  again at every read, so a Retry or a restore from the cache opens what is first non-empty now. A tab that fails to load keeps the tabs
+  on screen with the error and Retry in the panel, and a load more still running when another tab is chosen is dropped. Each tab has its own
+  cursor "Load more" (the status stays in the cursor request), its own empty line ("You have no sold listings.") and announces
+  "Showing sold listings." in the page's one live region. An account with no listings at all still sees the one empty state and no tabs. The
+  counts are read with every first page, so they are current whenever the page is opened again after an action. Rows keep the open link, the
+  Preview link and the status text.
+- **The Listing page per status** (`draft-editor.tsx`; the heading and the tab title are "Draft" / "Draft | EstateAI" for a draft and
+  "Listing" / "Listing | EstateAI" for every other status and while the status is not known yet, so a published listing never shows
+  "Draft"; the tab title is set by a client effect in `draft-client.tsx`, the server metadata is the neutral one; "Back to My listings"
+  links to the tab of the listing's status): *Published*: the editor works under the publication rules; the identity fields (the
+  registry's own `quota_identity` flag, read into `FieldDef.identity`, never a list in this code) are shown read only (`readOnly` and
+  `aria-readonly`, never disabled, so they stay reachable and are announced), described by the note "These details cannot be changed while
+  the listing is published.", never sent and never counted as unsaved changes; a refused edit (`required`, `images_required` and the rest, all at once) shows next to
+  the fields and in the summary like Publish does, `not_editable` on an identity field of a form built before the listing was published
+  reads the listing again and locks the field; the last image cannot be deleted (Delete says why and sends nothing; the backend's
+  `images_required` answer is shown too). *Archived*: everything is editable, with the note "Republishing will be available in a later
+  update."; no Publish yet (republication is Story 2.18). *Sold, Rented, Removed and restricted* (`restricted` in the owner
+  resource, a restricted Draft included): view only, with the reason (`restriction_reason`) for a restricted or removed one; no Save,
+  images, Delete or Publish. The Story 2.13 note `draft-not-editable` keeps its test id and now says why, per status.
+  *A page that went stale*: a stale save, a refused edit (403) or a refused image action that shows the listing is now sold, rented,
+  removed or restricted adopts it view only and says "This listing is now sold and can no longer be edited. Your unsaved changes could not
+  be kept." (`status-live`); a publish or delete answered 409 only takes the new status, revision, images and restriction and keeps what was
+  typed (unless the listing can no longer be edited).
+- **Actions** (`status-actions.tsx`, shown for Published, Sold and Rented): Archive for all three (also a restricted listing), "Mark as
+  sold" for a Published sale listing and "Mark as rented" for a Published rent listing; a Suspended owner or a restricted listing only
+  Archive. Each asks first in the native `<dialog>` of Story 2.13 (focus on Cancel, Tab stays inside, Escape cancels, focus returns to the
+  button) with the plain consequence (Archive says it cannot be undone yet; for a Sold or Rented listing it does not claim to hide what is
+  already hidden; sold and rented say they cannot be undone), then sends `POST .../status` with the CSRF token and the revision last loaded. It holds the image
+  lock: while it runs Save, the images and the form pause (`status-paused`), and it never starts while a save or an image change runs or
+  while the form has unsaved changes (the button is `aria-disabled` with the reason). Outcomes: `200` switches the page to the new status
+  and announces it in `status-live` (polite, takes the focus once); `409 stale_revision` runs the editor's conflict flow, or shows the
+  listing as it is now when its status moved; `409 conflict` reads the listing again. In both, a listing that is already in the requested
+  status is a success (a lost answer or a double submit), otherwise the note says what it is now and whether the move is still possible
+  (`targetsFor` on the fresh listing); `403`, a network
+  failure, a server error and `429` show in the dialog and on the page with Retry (`status-retry`); `404` is the not-found state; `401`
+  signs in again. A `200` that cannot be read is not believed.
+- **Stub** (`tests/e2e/stub-backend.mjs`): statuses on every Listing (`status`, `restricted`, `restrictionReason`), the transition table with
+  the purpose rule, the Suspended and restricted limits, stale before conflict, `GET /api/v1/me/listings/counts` and the `status` filter
+  (invalid value `400`), the Published edit rules (identity lock with the unchanged re-send accepted, required items and live images
+  judged), view-only statuses refused `403` for edits and images, the last-image rule, the registry's `quota_identity` flags on all eight
+  identity fields (purpose, category and subtype are registry fields in the stub too, as in the backend). The status route answers in the
+  backend's order: body shape, owner, stale revision, account and listing limits, the transition table. Presets `published_sale`,
+  `published_rent`, `published_one_image`, `published_many`, `published_many_and_draft`, `archived_one`, `sold_one`, `rented_one`,
+  `removed_one`, `restricted_one`, `restricted_draft`, `restricted_sold`, `lifecycle`, `lifecycle_no_published`, `lifecycle_only_removed`;
+  `/__listing-status-mode` (`ok`, `hold`, `stale`, `stale_archived`, `stale_sold`, `stale_no_current`, `conflict`, `conflict_gone`,
+  `forbidden`, `not_found`, `unreadable`, `lost_once`, `session_gone`, `rate_limited`, `csrf_once`, `error`, `broken`, `hang`),
+  `/__listing-status-release`, `/__listing-status-stats`, `/__listing-counts-mode` (`ok`, `error`, `hang`, `forbidden`, `malformed`),
+  `/__listing-lifecycle` (another session or moderation moves a Listing; the revision always moves, as in the backend). The error sentence tables did not
+  change (the drift test stays green).
+- **Tests**: `tests/e2e/listing-lifecycle.spec.ts` (tabs, counts, address state, default tab, empty and load-more per tab, keyboard, the
+  Published, Archived and view-only pages, every action and refusal, the locks, axe at desktop and mobile in the key states). The specs of
+  Stories 2.13 and 2.15 that asserted the old "no longer a draft" page were updated (the published page now has the editor).
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),

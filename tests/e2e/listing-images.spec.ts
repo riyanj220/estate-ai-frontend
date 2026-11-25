@@ -171,7 +171,7 @@ for (const wire of ["not_list", "bad_url", "other_listing_url", "two_covers", "d
     await preset(request, "images_three");
     await startSession(page, request);
     await page.goto(`${LIST}/${id(1)}`);
-    await expect(page.getByRole("heading", { level: 1, name: "Draft" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Listing" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Try again" }).or(page.getByRole("button", { name: "Retry" }))).toBeVisible();
     await expect(section(page)).toHaveCount(0);
   });
@@ -309,7 +309,7 @@ test("upload: leaving to another page mid-batch stops the loop quietly (nothing 
   await expect(rows(page).nth(0).getByTestId("upload-status")).toHaveText("Uploading…");
   await expect.poll(async () => (await imageStats(request)).attempts).toBe(1);
   await page.getByRole("link", { name: "Back to My listings" }).click();
-  await expect(page).toHaveURL(new RegExp(`${LIST}$`));
+  await expect(page).toHaveURL(new RegExp(`${LIST}\\?status=draft$`));
   // Its answer arrives now that nobody waits for it; after that, nothing more is sent.
   await request.get(`${STUB_URL}/__image-release`);
   await new Promise((resolve) => setTimeout(resolve, 2000));

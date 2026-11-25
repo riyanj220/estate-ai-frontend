@@ -364,7 +364,7 @@ test("amenities: a saved map that cannot be trusted is no Draft to build on (fai
     await preset(request, which);
     await startSession(page, request);
     await page.goto(`${LIST}/${id(1)}`);
-    await expect(page.getByRole("heading", { level: 1, name: "Draft" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Listing" })).toBeVisible();
     await expect(page.getByText("We could not load your draft"), which).toBeVisible();
     await expect(page.getByRole("button", { name: "Retry" }), which).toBeVisible();
     await expect(page.getByRole("heading", { name: "Edit details" }), which).toHaveCount(0);

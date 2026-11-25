@@ -305,6 +305,10 @@ const fieldDef = (id, type, requirement, extra = {}) => ({
 });
 const REGISTRY_FIELDS = {
   default: [
+    // The identity set of the real registry (`quota_identity`): purpose, category and subtype are fields there too (the editor builds them by hand and never shows a control).
+    fieldDef("purpose", "enum", "required_for_publication", { allowed_values: ["sale", "rent"], quota_identity: true }),
+    fieldDef("category", "enum", "required_for_publication", { allowed_values: ["house", "apartment", "plot", "commercial"], quota_identity: true }),
+    fieldDef("subtype", "enum", "required_for_publication", { allowed_values: ["house", "apartment", "residential_plot", "commercial_plot", "plot_file", "shop", "office"], quota_identity: true }),
     fieldDef("title", "text", "required_for_publication", { min_length: 10, max_length: 100, ai_extractable: true }),
     fieldDef("description", "text", "recommended", { min_length: 0, max_length: 5000, ai_extractable: true }),
     fieldDef("asking_price", "money", "required_for_publication", { min: "0.01", max: "999999999999.99", currency: "PKR", ai_extractable: true }),
@@ -317,18 +321,20 @@ const REGISTRY_FIELDS = {
       allowed_values: ["day", "week", "month", "year"],
       applicability: { purposes: ["rent"], categories: [], subtypes: [] },
     }),
-    fieldDef("area_value", "decimal", "required_for_publication", { min: "0.0001", max: "9999999999.9999", scale: 4, searchable: true, sortable: true, ai_extractable: true, valuation_input: true }),
+    fieldDef("area_value", "decimal", "required_for_publication", { min: "0.0001", max: "9999999999.9999", scale: 4, searchable: true, sortable: true, ai_extractable: true, valuation_input: true, quota_identity: true }),
     fieldDef("area_unit", "enum", "required_for_publication", {
       allowed_values: ["sqft", "sqyd", "marla", "kanal", "acre"],
       searchable: true,
       ai_extractable: true,
       valuation_input: true,
+      quota_identity: true,
     }),
     fieldDef("marla_basis", "enum", "optional", {
       allowed_values: ["225", "250", "272.25"],
       description: "Square feet in one marla.",
       ai_extractable: true,
       valuation_input: true,
+      quota_identity: true,
     }),
     fieldDef("area_sqft", "decimal", "optional", { min: "0.0001", max: "9999999999.9999", scale: 4, derived: true, searchable: true, sortable: true, description: "Area in square feet, computed from the area, its unit and the marla size." }),
   ],
@@ -628,8 +634,8 @@ Object.defineProperty(REGISTRY_FIELDS, "extra", {
 // public location text is class public, the private address (street, house number, coordinates) is class private. All in `section: location`.
 const locDef = (id, type, requirement, extra = {}) => fieldDef(id, type, requirement, { section: "location", ...extra });
 const LOCATION_DEFS = [
-  locDef("city", "reference", "required_for_publication", { reference: "city", searchable: true }),
-  locDef("locality", "reference", "required_for_publication", { reference: "locality", searchable: true }),
+  locDef("city", "reference", "required_for_publication", { reference: "city", searchable: true, quota_identity: true }),
+  locDef("locality", "reference", "required_for_publication", { reference: "locality", searchable: true, quota_identity: true }),
   ...["society", "phase", "sector", "block"].map((id) => locDef(id, "text", "optional", { min_length: 0, max_length: 60, ai_extractable: true })),
   locDef("street", "text", "optional", { min_length: 0, max_length: 120, class: "private" }),
   locDef("house_number", "text", "optional", { min_length: 0, max_length: 30, class: "private" }),
@@ -860,7 +866,13 @@ const publicListing = (item) => ({
   fields: item.fields,
   provenance: item.provenance,
   media: spoilMedia(item.images.map((image) => publicImage(item, image))),
+  restricted: item.restricted === true,
+  restriction_reason: item.restrictionReason ?? null,
 });
+const statusOf = (item) => item.status ?? "draft";
+/** Story 2.17: only a Draft, Published or Archived Listing that is not restricted can be edited; the rest is view only. */
+const editableListing = (item) => item.restricted !== true && ["draft", "published", "archived"].includes(statusOf(item));
+const STATUS_NAMES = ["draft", "published", "archived", "sold", "rented", "removed"];
 const publishReady = (seq) =>
   withImages(
     makeListing(
@@ -1087,6 +1099,37 @@ const LISTING_PRESETS = {
   publish_rent_no_period: () => [Object.assign(publishReady(1), { fields: { ...publishReady(1).fields, purpose: "rent", category: "apartment", subtype: "apartment", price_basis: "rental_period", rental_period: null, bathrooms: 2, bedrooms: 1, lift: true } })],
   publish_ai_street: () => [Object.assign(publishReady(1), { provenance: { street: { origin: "ai", confirmed: false } } }, { fields: { ...publishReady(1).fields, street: "Cedar Lane" } })],
   publish_cleared_city: () => [Object.assign(publishReady(1), { fields: { ...publishReady(1).fields, city: null, locality: null } })],
+  // Story 2.17: Listings in every status. A Published one is complete (it can be edited without becoming invalid), has two images and
+  // revision 4; the rent one is an apartment for rent.
+  published_sale: () => [Object.assign(publishReady(1), { status: "published" })],
+  published_rent: () => [Object.assign(publishReady(1), { status: "published", fields: { ...publishReady(1).fields, purpose: "rent", category: "apartment", subtype: "apartment", price_basis: "rental_period", rental_period: "month" } })],
+  published_one_image: () => [Object.assign(withImages(publishReady(1), 1), { status: "published" })],
+  archived_one: () => [Object.assign(publishReady(1), { status: "archived" })],
+  sold_one: () => [Object.assign(publishReady(1), { status: "sold" })],
+  rented_one: () => [Object.assign(publishReady(1), { status: "rented", fields: { ...publishReady(1).fields, purpose: "rent", category: "apartment", subtype: "apartment", price_basis: "rental_period", rental_period: "month" } })],
+  removed_one: () => [Object.assign(publishReady(1), { status: "removed", restrictionReason: "Removed after a report about the photos." })],
+  restricted_one: () => [Object.assign(publishReady(1), { status: "published", restricted: true, restrictionReason: "Under review: the price looks wrong." })],
+  restricted_draft: () => [Object.assign(publishReady(1), { restricted: true, restrictionReason: "Under review." })],
+  restricted_sold: () => [Object.assign(publishReady(1), { status: "sold", restricted: true, restrictionReason: "Under review." })],
+  // Two drafts, three published (newest first), one archived, one sold, one rented, one removed.
+  lifecycle: () => [
+    Object.assign(publishReady(9), { status: "removed", restrictionReason: "Removed after a report about the photos." }),
+    Object.assign(publishReady(8), { status: "rented", fields: { ...publishReady(8).fields, purpose: "rent", category: "apartment", subtype: "apartment" } }),
+    Object.assign(publishReady(7), { status: "sold" }),
+    Object.assign(publishReady(6), { status: "archived" }),
+    Object.assign(publishReady(5), { status: "published", fields: { ...publishReady(5).fields, purpose: "rent", category: "apartment", subtype: "apartment", price_basis: "rental_period", rental_period: "month" } }),
+    Object.assign(publishReady(4), { status: "published" }),
+    Object.assign(publishReady(3), { status: "published" }),
+    makeListing(2, "mine", { purpose: "rent", category: "apartment", subtype: "apartment" }),
+    makeListing(1, "mine", {}),
+  ],
+  // Only drafts and archived: the default tab is the first one that is not empty (Draft).
+  lifecycle_no_published: () => [Object.assign(publishReady(3), { status: "archived" }), makeListing(2, "mine", {}), makeListing(1, "mine", {})],
+  lifecycle_only_removed: () => [Object.assign(publishReady(1), { status: "removed", restrictionReason: "Removed after a report about the photos." })],
+  // 25 Published listings: the Published tab needs load more.
+  published_many: () => Array.from({ length: 25 }, (_, index) => Object.assign(publishReady(25 - index), { status: "published" })),
+  // 25 Published listings and one Draft: the Published tab has a load more and the Draft tab one row.
+  published_many_and_draft: () => [...Array.from({ length: 25 }, (_, index) => Object.assign(publishReady(26 - index), { status: "published" })), makeListing(1, "mine", {})],
   rent_filled: () => [
     makeListing(
       1,
@@ -1105,6 +1148,12 @@ let createCount = 0;
 let lastCreate = null;
 let lastCreateToken = null;
 let detailMode = "ok";
+let countsMode = "ok";
+let countsGets = 0;
+let statusMode = "ok";
+let statusAttempts = [];
+let statusLostSpent = false;
+let heldStatusAnswers = [];
 let patchMode = "ok";
 // Story 2.13: the owner's preview and delete. Modes shape the answers; the lists keep what the page did.
 let previewMode = "ok";
@@ -1721,6 +1770,36 @@ createServer((req, res) => {
       csrfOnceSpent = false;
     });
   }
+  if (url.pathname === "/__listing-counts-mode") {
+    return choose("countsMode", ["ok", "error", "hang", "forbidden", "malformed"], (v) => {
+      countsMode = v;
+      countsGets = 0;
+    });
+  }
+  if (url.pathname === "/__listing-status-mode") {
+    return choose("statusMode", ["ok", "hold", "stale", "stale_archived", "stale_sold", "stale_no_current", "conflict", "conflict_gone", "forbidden", "not_found", "unreadable", "lost_once", "session_gone", "rate_limited", "csrf_once", "error", "broken", "hang"], (v) => {
+      statusMode = v;
+      statusLostSpent = false;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__listing-status-release") {
+    const answers = heldStatusAnswers;
+    heldStatusAnswers = [];
+    for (const answer of answers) answer();
+    return json(200, { released: answers.length });
+  }
+  if (url.pathname === "/__listing-status-stats") return json(200, { attempts: statusAttempts, countsGets });
+  // Simulates another session (or moderation) moving a Listing: the status, the restriction and its reason; the revision moves.
+  if (url.pathname === "/__listing-lifecycle") {
+    const target = listings.find((item) => item.id === url.searchParams.get("id"));
+    if (!target) return json(404, { error: "unknown listing" });
+    if (url.searchParams.has("status")) target.status = url.searchParams.get("status");
+    if (url.searchParams.has("restricted")) target.restricted = url.searchParams.get("restricted") === "1";
+    if (url.searchParams.has("reason")) target.restrictionReason = url.searchParams.get("reason") || null;
+    target.revision += 1; // the real service always bumps it
+    return json(200, { revision: target.revision, status: statusOf(target) });
+  }
   if (url.pathname === "/__listing-detail-mode") {
     return choose("detailMode", ["ok", "flaky", "malformed", "forbidden", "bad_request", "unprocessable", "rate_limited", "session_gone", "error", "broken", "hang"], (v) => {
       detailMode = v;
@@ -1765,7 +1844,7 @@ createServer((req, res) => {
       lastCreate,
       lastCreateToken,
       mine: listings.filter((item) => item.owner === "mine").length,
-      listings: listings.map((item) => ({ id: item.id, owner: item.owner, fields: item.fields })),
+      listings: listings.map((item) => ({ id: item.id, owner: item.owner, status: statusOf(item), revision: item.revision, fields: item.fields })),
     });
   }
   if (url.pathname === "/api/v1/registry" && req.method === "GET") {
@@ -1835,7 +1914,7 @@ createServer((req, res) => {
       if (!body.subtype) problems.subtype = ["required"];
       else if (category && !category.subtypes.includes(body.subtype)) problems.subtype = ["subtype_not_in_category"];
       if (Object.keys(problems).length > 0) return fail(problems);
-      if (listings.filter((item) => item.owner === "mine").length >= 20) return throttledNoRetry();
+      if (listings.filter((item) => item.owner === "mine" && statusOf(item) === "draft").length >= 20) return throttledNoRetry();
       const seq = Math.max(0, ...listings.map((item) => item.seq)) + 1;
       const created = makeListing(seq, "mine", { purpose: body.purpose, category: body.category, subtype: body.subtype });
       listings = [created, ...listings];
@@ -1936,7 +2015,7 @@ createServer((req, res) => {
       return json(404, envelope("not_found", "Not found."));
     }
     if (deleteMode === "conflict") target.status = "published"; // published meanwhile, elsewhere
-    if (target.status === "published") return json(409, envelope("conflict", "The listing is not a draft."));
+    if (statusOf(target) !== "draft") return json(409, envelope("conflict", "The listing is not a draft."));
     listings = listings.filter((item) => item !== target);
     const answer = () => {
       res.writeHead(204);
@@ -1950,6 +2029,79 @@ createServer((req, res) => {
       return void heldDeleteAnswers.push(() => json(500, envelope("server_error", "Internal detail that must not show.")));
     }
     return answer();
+  }
+  // Story 2.17: change the status of one of the owner's Listings (archive, mark sold, mark rented). The real order: key shape and body (400),
+  // owner (404), stale revision (409 + current), account and Listing limits (403: a Suspended owner may only archive, a removed Listing is
+  // fixed, a restricted one may only be archived), the transition table (409 conflict: published to archived, sold or rented; sold and
+  // rented to archived; sold only for sale, rented only for rent), then the write. A refusal changes nothing.
+  const statusMatch = /^\/api\/v1\/listings\/([^/]+)\/status$/.exec(url.pathname);
+  if (statusMatch && req.method === "POST") {
+    return readBody((parsed) => {
+      unsafeCount += 1;
+      const sentToken = req.headers["x-csrftoken"] ?? null;
+      statusAttempts.push({ id: decodeURIComponent(statusMatch[1]), token: sentToken, body: parsed });
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(statusMode, sentToken)) return;
+      const fail = (fields) => json(400, envelope("validation_error", "The request contains invalid values.", fields));
+      if (statusMode === "error" || statusMode === "broken" || statusMode === "hang") return serverFailure(statusMode);
+      const body = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+      const shape = {};
+      if (Object.keys(body).some((key) => key !== "base_revision" && key !== "status")) shape.non_field_errors = ["unknown_field"];
+      if (!Number.isInteger(body.base_revision) || body.base_revision < 1) shape.base_revision = [body.base_revision === undefined ? "required" : "invalid"];
+      if (body.status === undefined) shape.status = ["required"];
+      else if (!["archived", "sold", "rented"].includes(body.status)) shape.status = ["invalid_choice"];
+      if (Object.keys(shape).length > 0) return fail(shape);
+      const target = sessionAdmin ? undefined : listings.find((item) => item.id === decodeURIComponent(statusMatch[1]) && item.owner === "mine");
+      if (!target || statusMode === "not_found") return json(404, envelope("not_found", "Not found."));
+      const from = statusOf(target);
+      const stale = () => json(409, { ...envelope("stale_revision", "This listing was changed since you loaded it."), current: publicListing(target) });
+      if (statusMode === "stale") {
+        target.fields.title = "Changed in another session"; // another session saved meanwhile
+        target.revision += 1;
+        return stale();
+      }
+      if (statusMode === "stale_archived") {
+        target.status = "archived"; // archived meanwhile, elsewhere
+        target.revision += 1;
+        return stale();
+      }
+      if (statusMode === "stale_sold") {
+        target.status = "sold"; // sold meanwhile, elsewhere: archiving it is still allowed
+        target.revision += 1;
+        return stale();
+      }
+      if (statusMode === "stale_no_current") return json(409, envelope("stale_revision", "This listing was changed since you loaded it."));
+      if (body.base_revision !== target.revision) return stale();
+      // Then the account and Listing limits (403): a removed Listing is fixed, a Suspended owner may only archive, a restricted Listing may only be archived.
+      if (from === "removed" || (signInMode === "suspended" && body.status !== "archived") || (target.restricted === true && body.status !== "archived")) {
+        return json(403, envelope("forbidden", "Forbidden."));
+      }
+      if (statusMode === "conflict") {
+        target.status = "archived"; // moved meanwhile: the table no longer allows this move
+        target.revision += 1;
+        return json(409, envelope("conflict", "The listing cannot be moved to that status."));
+      }
+      if (statusMode === "conflict_gone") return json(409, envelope("conflict", "The listing cannot be moved to that status."));
+      const allowed =
+        (from === "published" && ["archived", "sold", "rented"].includes(body.status)) || ((from === "sold" || from === "rented") && body.status === "archived");
+      const purposeOk = body.status === "sold" ? target.fields.purpose === "sale" : body.status === "rented" ? target.fields.purpose === "rent" : true;
+      if (!allowed || !purposeOk) return json(409, envelope("conflict", "The listing cannot be moved to that status."));
+      const commit = () => {
+        target.status = body.status;
+        target.revision += 1;
+      };
+      const answer = () => {
+        commit();
+        return json(200, statusMode === "unreadable" ? { status: body.status } : publicListing(target));
+      };
+      if (statusMode === "lost_once" && !statusLostSpent) {
+        statusLostSpent = true;
+        commit();
+        return req.socket.destroy(); // it happened, the answer never arrives
+      }
+      if (statusMode === "hold") return void heldStatusAnswers.push(answer);
+      return answer();
+    });
   }
   // Story 2.15: publish one of the owner's Drafts. The order and every rule are the real service's: key shape, body, claim (a replay of the
   // same key and content answers the original success, another content is 422), owner (404), stale revision (409 + current), Draft (409
@@ -2004,7 +2156,7 @@ createServer((req, res) => {
       }
       // A refusal that claims "not a draft" while the Listing still is one (a claim without a result): nothing is published.
       if (publishMode === "conflict_draft") return json(409, envelope("conflict", "The listing is not a draft."));
-      if (target.status === "published") return json(409, envelope("conflict", "The listing is not a draft."));
+      if (statusOf(target) !== "draft") return json(409, envelope("conflict", "The listing is not a draft."));
       if (signInMode === "unverified") return json(403, envelope("email_not_verified", "Verify your email address to publish."));
       if (signInMode === "suspended") return json(403, envelope("publishing_unavailable", "Your account cannot publish right now."));
       // Required items, from the stub's own registry and this Draft's data (applicability included).
@@ -2067,6 +2219,8 @@ createServer((req, res) => {
       const target = sessionAdmin ? undefined : listings.find((item) => item.id === decodeURIComponent(listingMatch[1]) && item.owner === "mine");
       if (!target || patchMode === "not_found") return json(404, envelope("not_found", "Not found."));
       if (patchMode === "error" || patchMode === "broken" || patchMode === "hang") return serverFailure(patchMode);
+      // Story 2.17: a Sold, Rented or Removed Listing and a restricted one are view only.
+      if (!editableListing(target)) return json(403, envelope("forbidden", "Forbidden."));
       // Shape first (it needs no stored data), then the stale check, then every value rule: the order of the real service.
       const body = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
       const shape = {};
@@ -2234,6 +2388,20 @@ createServer((req, res) => {
           else if (!Object.hasOwn(next, "marla_basis") && target.fields.marla_basis !== null) next.marla_basis = null;
         }
       }
+      // Story 2.17, while Published: an identity field (the registry's flag) cannot change (re-sending it unchanged is accepted), and the
+      // edit must leave the Listing complete: the fields it changed, the required items still missing and the live images are judged.
+      if (statusOf(target) === "published") {
+        for (const key of Object.keys(sent)) {
+          if (problems[key] || !currentDef(key)?.quota_identity) continue;
+          if (differs(target.fields[key], Object.hasOwn(next, key) ? next[key] : target.fields[key])) problems[key] = ["not_editable"];
+        }
+        const after = { ...target.fields, ...next };
+        for (const rule of defs) {
+          if (rule.requirement !== "required_for_publication" || rule.derived || !applies(rule, after) || problems[rule.id]) continue;
+          if (after[rule.id] === null || after[rule.id] === undefined || after[rule.id] === "") problems[rule.id] = ["required"];
+        }
+        if (target.images.length === 0) problems.images = ["images_required"];
+      }
       if (Object.keys(problems).length > 0) return fail(problems);
       const merged = { ...target.fields, ...next };
       const sqft = normalisedSqft(merged.area_value, merged.area_unit, merged.marla_basis);
@@ -2376,6 +2544,7 @@ createServer((req, res) => {
       const target = ownDraft(imagesRoute[1]);
       if (!target || imageMode === "not_found") return notFound();
       if (imageMode === "error" || imageMode === "broken" || imageMode === "hang") return serverFailure(imageMode);
+      if (!editableListing(target)) return json(403, envelope("forbidden", "Forbidden.")); // Sold, Rented, Removed or restricted: view only
       if (imageMode === "not_editable") return json(403, envelope("forbidden", "Forbidden.")); // a valid token, a Draft that cannot be edited
       if (imageMode === "payload_too_large") return json(413, envelope("payload_too_large", "Too large."));
       // The body cap comes first (the real middleware refuses before any parsing).
@@ -2429,6 +2598,7 @@ createServer((req, res) => {
       imageOrderBodies.push(parsed);
       const target = ownDraft(imagesRoute[1]);
       if (!target || imageOrderMode === "not_found") return notFound();
+      if (!editableListing(target)) return json(403, envelope("forbidden", "Forbidden."));
       if (imageOrderMode === "error" || imageOrderMode === "broken" || imageOrderMode === "hang") return serverFailure(imageOrderMode);
       if (imageOrderMode === "not_editable") return json(403, envelope("forbidden", "Forbidden."));
       if (imageOrderMode === "revision_invalid") return failFields({ base_revision: ["invalid"] });
@@ -2503,7 +2673,9 @@ createServer((req, res) => {
     const at = target ? target.images.findIndex((entry) => entry.id === decodeURIComponent(imageRoute[2])) : -1;
     if (!target || imageDeleteMode === "not_found" || at < 0) return notFound();
     if (imageDeleteMode === "error" || imageDeleteMode === "broken" || imageDeleteMode === "hang") return serverFailure(imageDeleteMode);
-    if (imageDeleteMode === "not_editable") return json(403, envelope("forbidden", "Forbidden."));
+    if (imageDeleteMode === "not_editable" || !editableListing(target)) return json(403, envelope("forbidden", "Forbidden."));
+    // A Published Listing can never lose its last image.
+    if (statusOf(target) === "published" && target.images.length === 1) return failFields({ images: ["images_required"] });
     const [gone] = target.images.splice(at, 1);
     target.images.forEach((image, index) => (image.position = index));
     // The cover goes: the lowest remaining position takes over (none left: no cover).
@@ -2751,7 +2923,10 @@ createServer((req, res) => {
     if (listingsMode === "bad_next") return json(200, { results: [], next: `http://${req.headers.host}/api/v1/me/listings?x=1`, previous: null });
     if (listingsMode === "error" || listingsMode === "broken" || listingsMode === "hang") return serverFailure(listingsMode);
     const size = listingsMode === "small_pages" ? 1 : 20;
-    let pool = listings.filter((item) => item.owner === "mine");
+    // Story 2.17: `status` filters by one of the six statuses; anything else is a validation error.
+    const statusFilter = url.searchParams.get("status");
+    if (statusFilter !== null && !STATUS_NAMES.includes(statusFilter)) return json(400, envelope("validation_error", "The request contains invalid values.", { status: ["invalid_choice"] }));
+    let pool = listings.filter((item) => item.owner === "mine" && (statusFilter === null || statusOf(item) === statusFilter));
     if (cursor) {
       const at = Number(cursor.replace("pos-", ""));
       if (!cursor.startsWith("pos-") || !Number.isFinite(at)) return json(400, envelope("validation_error", "Invalid cursor.", { cursor: ["invalid"] }));
@@ -2788,6 +2963,18 @@ createServer((req, res) => {
     const answer = () => json(200, { next, previous: null, results: shown });
     if (listingsMode === "flaky_slow") return void setTimeout(answer, 1500);
     return answer();
+  }
+  // Story 2.17: how many of the caller's Listings are in each status (every status present, 0 when none).
+  if (url.pathname === "/api/v1/me/listings/counts" && req.method === "GET") {
+    countsGets += 1;
+    res.setHeader("cache-control", "no-store");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    if (sessionAdmin || countsMode === "forbidden" || listingsMode === "forbidden") return json(403, envelope("forbidden", "Forbidden."));
+    if (countsMode === "error" || countsMode === "hang") return serverFailure(countsMode);
+    if (countsMode === "malformed") return json(200, { draft: "many" });
+    const counts = Object.fromEntries(STATUS_NAMES.map((name) => [name, 0]));
+    for (const item of listings) if (item.owner === "mine") counts[statusOf(item)] += 1;
+    return json(200, counts);
   }
   // ---- Notifications (Story 1.24)
   if (url.pathname === "/__notifications-mode") {
@@ -3390,6 +3577,12 @@ createServer((req, res) => {
     heldImageAnswers = [];
     for (const read of heldProfileReads) read.res.end(read.body);
     heldProfileReads = [];
+    countsMode = statusMode = "ok";
+    countsGets = 0;
+    statusAttempts = [];
+    statusLostSpent = false;
+    for (const answer of heldStatusAnswers) answer();
+    heldStatusAnswers = [];
     registryMode = listingsMode = createMode = detailMode = "ok";
     registryGets = registryNotModified = listingsGets = createCount = detailGets = 0;
     lastRegistryConditional = lastCreate = lastCreateToken = lastDetailId = null;

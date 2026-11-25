@@ -38,8 +38,8 @@ async function openDraft(page: Page, request: APIRequestContext, which = "previe
   await preset(request, which);
   await startSession(page, request);
   await page.goto(`${LIST}/${id(1)}`);
-  await expect(page.getByRole("heading", { level: 1, name: "Draft" })).toBeVisible();
-  // A published listing has no edit form.
+  await expect(page.getByRole("heading", { level: 1, name: /^(Draft|Listing)$/ })).toBeVisible();
+  // A published listing has the Published editor (Story 2.17): no Delete, no Publish.
   if (which.startsWith("published")) await expect(page.getByTestId("draft-status")).toBeVisible();
   else await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
 }
@@ -262,7 +262,7 @@ test("delete: the confirmation is announced from an empty status region, shows o
   await page.getByRole("link", { name: /^Sale · Plot · Plot file/ }).first().click();
   await expect(page).toHaveURL(new RegExp(`${LIST}/${id(2)}$`));
   await page.getByRole("link", { name: "Back to My listings" }).click();
-  await expect(page).toHaveURL(new RegExp(`${LIST}$`));
+  await expect(page).toHaveURL(new RegExp(`${LIST}\\?status=draft$`));
   await expect(page.getByTestId("listing").first()).toBeVisible();
   await page.waitForTimeout(500);
   await expect(page.getByTestId("listings-flash")).toHaveText("");
@@ -302,11 +302,12 @@ test("delete: a listing that is not a draft any more (409) says so and keeps the
   await expect(page.getByTestId("delete-note")).toHaveText("A published listing cannot be deleted here.");
   await expect(page.getByTestId("delete-note")).toBeFocused();
   await expect(page).toHaveURL(new RegExp(`${LIST}/${id(1)}$`));
-  // The page was stale: the Listing is read again, its status flips and Delete and Save are gone.
+  // The page was stale: the Listing is read again, its status flips and Delete is gone; the Published editor (Save, the identity note) takes over.
   await expect(page.getByTestId("draft-status")).toHaveText("Published");
   await expect(deleteButton(page)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /^Save changes/ })).toHaveCount(0);
-  await expect(page.getByTestId("draft-not-editable")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Save changes/ })).toBeVisible();
+  await expect(page.getByTestId("identity-note")).toBeVisible();
+  await expect(page.getByTestId("draft-not-editable")).toHaveCount(0);
   await expect(page.getByTestId("delete-note")).toHaveText("A published listing cannot be deleted here.");
 });
 
