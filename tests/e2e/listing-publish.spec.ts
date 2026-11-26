@@ -112,7 +112,7 @@ test("publishing: Save, images and Delete wait, Publish says it is working; the 
   await expect.poll(async () => (await stats(request)).attempts.length).toBe(1);
   await request.get(`${STUB}/__listing-publish-release`);
   await expect(page.getByTestId("publish-live")).toContainText("Your listing is published.");
-  expect((await stats(request)).attempts).toHaveLength(1);
+  await expect.poll(async () => (await stats(request)).attempts.length).toBe(1);
 });
 
 test("missing items: a summary lists every one with a link, each shows next to its field, the images next to Images @smoke", async ({ page, request }) => {
@@ -420,7 +420,7 @@ test("Retry is aria-disabled with the reason while the form has unsaved changes"
   await expect(page.getByTestId("publish-retry")).toHaveAttribute("aria-disabled", "true");
   await expect(page.getByTestId("publish-retry")).toHaveAccessibleDescription("Save your changes before publishing");
   await page.getByTestId("publish-retry").click({ force: true });
-  expect((await stats(request)).attempts).toHaveLength(1);
+  await expect.poll(async () => (await stats(request)).attempts.length).toBe(1);
 });
 
 test("a partly typed date counts as unsaved input", async ({ page, request }) => {
@@ -449,10 +449,10 @@ test("while publishing the fields are read-only, the images and Delete wait, and
   await expect(page.getByRole("button", { name: "Set as cover image 2 of 2" })).toHaveAttribute("aria-disabled", "true");
   await page.getByRole("button", { name: "Delete image 1 of 2" }).click({ force: true });
   await expect(page.getByTestId("image-confirm")).toHaveCount(0);
-  expect((await stats(request)).attempts).toHaveLength(1);
+  await expect.poll(async () => (await stats(request)).attempts.length).toBe(1);
   await request.get(`${STUB}/__listing-publish-release`);
   await expect(page.getByTestId("publish-live")).toContainText("Your listing is published.");
-  expect((await stats(request)).attempts).toHaveLength(1);
+  await expect.poll(async () => (await stats(request)).attempts.length).toBe(1);
 });
 
 test("an edit that is reverted still starts a new attempt with a new key", async ({ page, request }) => {
@@ -483,14 +483,14 @@ test("a real 403 is sent once: email-unverified and suspended answers are not re
   await open(page, request);
   await publishButton(page).click();
   await expect(note(page)).toContainText("Verify your email to publish.");
-  expect((await stats(request)).attempts).toHaveLength(1);
+  await expect.poll(async () => (await stats(request)).attempts.length).toBe(1);
 
   await request.get(`${STUB}/__reset`);
   await setMode(request, "signin", "suspended");
   await open(page, request);
   await publishButton(page).click();
   await expect(note(page)).toHaveText("Your account cannot publish right now.");
-  expect((await stats(request)).attempts).toHaveLength(1);
+  await expect.poll(async () => (await stats(request)).attempts.length).toBe(1);
 
   await request.get(`${STUB}/__reset`);
   await publishMode(request, "csrf_once");

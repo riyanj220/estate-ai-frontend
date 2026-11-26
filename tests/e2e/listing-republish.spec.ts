@@ -196,7 +196,7 @@ test("while republishing the form and the button wait and a same-tick double cli
   await expect(button(page)).toHaveAttribute("aria-disabled", "true");
   await expect(page.getByTestId("republish-working")).toHaveText("Republishing the listing…");
   await expect(page.getByLabel("Title", { exact: true })).toHaveAttribute("readonly", "");
-  expect((await stats(request)).attempts).toHaveLength(1);
+  await expect.poll(async () => (await stats(request)).attempts.length).toBe(1);
   await request.get(`${STUB}/__listing-publish-release`);
   await expect(live(page)).toContainText(COUNTED);
 });
@@ -238,14 +238,14 @@ test("email-unverified and suspended answers are shown and sent once", async ({ 
   await button(page).click();
   await expect(note(page)).toContainText("Verify your email to republish.");
   await expect(page.getByTestId("republish-note-link")).toHaveAttribute("href", /verify-email/);
-  expect((await stats(request)).attempts).toHaveLength(1);
+  await expect.poll(async () => (await stats(request)).attempts.length).toBe(1);
 
   await request.get(`${STUB}/__reset`);
   await setMode(request, "signin", "suspended");
   await open(page, request);
   await button(page).click();
   await expect(note(page)).toHaveText("Your account cannot publish right now.");
-  expect((await stats(request)).attempts).toHaveLength(1);
+  await expect.poll(async () => (await stats(request)).attempts.length).toBe(1);
 });
 
 test("a stale revision opens the conflict flow; republished elsewhere is the published-elsewhere outcome", async ({ page, request }) => {
