@@ -715,12 +715,13 @@ paths:
         `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`,
         `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`,
         `contains_contact_details`, `not_editable` (also an identity field of a `published`
-        Listing: `city`, `locality`, `area_value`, `area_unit` and `marla_basis` are
-        locked while it is published, editable as a Draft or Archived); unknown ids
-        are `unknown_field` under `non_field_errors`) and never echoes a value. Another
-        account''s, an unknown or a malformed id is `404 not_found`; an account that
-        may not edit (Suspended, Deactivated) is `403 forbidden`, and so is a `sold`,
-        `rented` or `removed` Listing or a restricted one (view only). A `draft`,
+        Listing: `city`, `locality`, `area_value` and `area_unit` are locked while
+        it is published, editable as a Draft or Archived; `locality` and the area
+        may be corrected once, see `/correction`; `marla_basis` stays editable); unknown
+        ids are `unknown_field` under `non_field_errors`) and never echoes a value.
+        Another account''s, an unknown or a malformed id is `404 not_found`; an account
+        that may not edit (Suspended, Deactivated) is `403 forbidden`, and so is a
+        `sold`, `rented` or `removed` Listing or a restricted one (view only). A `draft`,
         `published` and `archived` Listing may be edited. An edit of a `published`
         Listing must leave it complete (the same rules as publication): otherwise
         `400 validation_error` names every missing or invalid item at once (clearing
@@ -852,6 +853,166 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/listings/{listing_id}/correction:
+    get:
+      operationId: get_listing_correction
+      description: Owner only. `available` is true only for a `published`, not restricted
+        Listing of an account that may edit it, whose last counted publication is
+        less than 24 hours old and not yet used for a correction; `expires_at` then
+        says when the window closes (+05:00). In every other case `available` is false
+        and `expires_at` null. Another account's, an administrator's, an unknown and
+        a malformed id are `404 not_found`; a Visitor gets `401`. Reads only. Never
+        cached.
+      summary: Whether one of the signed-in account's own Listings may still be corrected
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CorrectionWindow'
+          description: The window
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      operationId: correct_listing
+      description: 'Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing
+        else; `fields` holds only what changes among `locality`, `area_value`, `area_unit`
+        and `marla_basis` (any other id, `city`, `category`, `subtype` and `purpose`
+        included, is `400 validation_error` and nothing is written). It can be done
+        ONCE per counted publication, within 24 hours of it (exactly 24 hours is closed);
+        it uses no publication, and a later republication in the same Karachi month
+        with the corrected details unchanged is free. Order of refusals: another account''s,
+        an administrator''s, an unknown and a malformed id are `404 not_found`; a
+        Visitor is `401`; a `base_revision` that is not the current `revision` is
+        `409 stale_revision` with the Listing under `current`; a Listing that is not
+        `published` is `409 conflict`; a restricted Listing, a Suspended or a Deactivated
+        account is `403 forbidden`; a closed or used window is `409 correction_unavailable`.
+        Then the values are judged as for any edit of a published Listing, all at
+        once (`400`, codes keyed by field id, for example `locality_not_in_city`,
+        `invalid_area`, `required`, `not_applicable`). A `marla_basis` that differs
+        while neither `area_value` nor `area_unit` does is `not_editable` (change
+        it with an ordinary edit). A request that changes nothing is `400` with `non_field_errors`
+        (`no_change`). A refused request does not use up the correction. Never cached.'
+      summary: Correct the locality and area of a recently published Listing, once
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListingCorrectionRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+          description: The corrected Listing
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: restricted, Suspended, or a missing CSRF token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CorrectionConflict'
+          description: '`stale_revision` (with `current`), `conflict` or `correction_unavailable`'
         '429':
           description: Too many requests
           content:
@@ -1419,21 +1580,21 @@ paths:
         at once). `publication_kind` says how it was recorded: `republish_free` (no
         publication used) only when the Listing''s last counted publication is from
         the same Karachi calendar month as now and none of the purpose, category,
-        subtype, city, locality, area value, area unit or marla basis has changed;
-        otherwise `republish_counted`, which uses one monthly publication. The same
-        key with the same body within 24 hours returns the Listing as it is now with
-        the original `publication_kind` and no second publication; the same key with
-        another body is `422 idempotency_key_reused`. Refusals, in order: another
-        account''s, an administrator''s, an unknown and a malformed id are `404 not_found`;
-        a Visitor is `401`; a `base_revision` that is not the current `revision` is
-        `409 stale_revision` with the Listing under `current`; a Listing that is not
-        `archived` (a Sold or Rented one must be archived first; a Removed one never
-        returns) is `409 conflict`; a restricted Listing is `403 forbidden`; an Email-unverified
-        account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`;
-        every missing or invalid item is `400 validation_error`, all at once, as for
-        publishing; a counted republication with no allowance left is `409 quota_exhausted`
-        with the caller''s own `limit`, `used` and `resets_at` under `details`. A
-        refused attempt consumes nothing. Never cached.'
+        subtype, city, locality, area value or area unit has changed; otherwise `republish_counted`,
+        which uses one monthly publication. The same key with the same body within
+        24 hours returns the Listing as it is now with the original `publication_kind`
+        and no second publication; the same key with another body is `422 idempotency_key_reused`.
+        Refusals, in order: another account''s, an administrator''s, an unknown and
+        a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision`
+        that is not the current `revision` is `409 stale_revision` with the Listing
+        under `current`; a Listing that is not `archived` (a Sold or Rented one must
+        be archived first; a Removed one never returns) is `409 conflict`; a restricted
+        Listing is `403 forbidden`; an Email-unverified account is `403 email_not_verified`
+        and a Suspended one `403 publishing_unavailable`; every missing or invalid
+        item is `400 validation_error`, all at once, as for publishing; a counted
+        republication with no allowance left is `409 quota_exhausted` with the caller''s
+        own `limit`, `used` and `resets_at` under `details`. A refused attempt consumes
+        nothing. Never cached.'
       summary: Republish one of the signed-in account's own Archived Listings
       parameters:
       - in: header
@@ -3953,6 +4114,7 @@ components:
       - stale_revision
       - conflict
       - quota_exhausted
+      - correction_unavailable
       - storage_cap_exceeded
       - too_many_images
       - link_used
@@ -3978,6 +4140,7 @@ components:
         * `stale_revision` - stale_revision
         * `conflict` - conflict
         * `quota_exhausted` - quota_exhausted
+        * `correction_unavailable` - correction_unavailable
         * `storage_cap_exceeded` - storage_cap_exceeded
         * `too_many_images` - too_many_images
         * `link_used` - link_used
@@ -4028,6 +4191,34 @@ components:
         * `image/jpeg` - image/jpeg
         * `image/png` - image/png
         * `image/webp` - image/webp
+    CorrectionConflict:
+      type: object
+      description: '`409`: the error envelope plus, for `stale_revision`, the Listing
+        as it is now.'
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+        current:
+          allOf:
+          - $ref: '#/components/schemas/Listing'
+          description: With `stale_revision` only.
+      required:
+      - error
+    CorrectionWindow:
+      type: object
+      properties:
+        available:
+          type: boolean
+          description: Whether the owner may correct the locality and area now.
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the open window closes, +05:00; null when `available`
+            is false.
+      required:
+      - available
+      - expires_at
     CsrfToken:
       type: object
       properties:
@@ -4359,6 +4550,45 @@ components:
       required:
       - current
       - error
+    ListingCorrectionFieldsRequest:
+      type: object
+      description: 'What a correction accepts: send only what changes. `marla_basis`
+        only changes together with `area_value` or `area_unit`.'
+      properties:
+        locality:
+          type: string
+          format: uuid
+          nullable: true
+          description: The uuid of an active locality from the reference lists (`/api/v1/reference/cities`),
+            as text; never a name. Null clears it.
+        area_value:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`),
+            digits and a point only, never a JSON number. Returned with 4 decimals.
+        area_unit:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/AreaUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        marla_basis:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/MarlaBasisEnum'
+          - $ref: '#/components/schemas/NullEnum'
+    ListingCorrectionRequest:
+      type: object
+      properties:
+        base_revision:
+          type: integer
+          minimum: 1
+          description: The `revision` of the Listing the client last read.
+        fields:
+          $ref: '#/components/schemas/ListingCorrectionFieldsRequest'
+      required:
+      - base_revision
+      - fields
     ListingCounts:
       type: object
       properties:
@@ -7135,6 +7365,7 @@ components:
       - stale_revision
       - conflict
       - quota_exhausted
+      - correction_unavailable
       - storage_cap_exceeded
       - too_many_images
       - link_used

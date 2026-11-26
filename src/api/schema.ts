@@ -207,9 +207,33 @@ export interface paths {
         head?: never;
         /**
          * Edit one of the signed-in account's own Listings
-         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`) and the sale and rent terms (`price_negotiable` for both; sale only `possession_availability`; rent only `security_deposit` and `advance_rent` as decimal strings in PKR with at most two decimals, `availability_date` as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`, `notice_period_days`, the four `utility_*_included` answers, `pets_allowed` and `occupant_restrictions`; the rent terms are `not_applicable` on a sale Draft and the other way round; a rental period is never assumed) and the location: `city` and `locality` as uuid text of an active city and one of its localities (`/api/v1/reference/cities` and `/api/v1/reference/cities/{city_id}/localities`; a locality of another city is `locality_not_in_city`, a locality without a city `invalid`; changing or clearing `city` clears the stored `locality` in the same write), the public location text `society`, `phase`, `sector` and `block` (up to 60 characters, no phone numbers or email addresses) and the PRIVATE address `street` (up to 120 characters), `house_number` (up to 30) and `latitude` and `longitude` (decimal strings with at most six decimals, -90 to 90 and -180 to 180, both or neither; `out_of_range` otherwise): the private fields are returned only to the owner and never appear in any public response. `amenities` is the map `{code: "present" | "none"}` of catalogue codes (`/api/v1/reference/amenities`): the sent map replaces the whole stored one, `null` or `{}` clears it, a code that is left out is unanswered (never `none`), an unknown or inactive code, another state, a non-object or more than 40 entries is `invalid`; nearby facilities are seller-declared (no distance, no verification). Installment, payment type, down payment and title or approval document terms are not supported yet (`unknown_field`). Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define (for example installment, down payment, title document or mortgage attributes) are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`, `contains_contact_details`, `not_editable` (also an identity field of a `published` Listing: `city`, `locality`, `area_value`, `area_unit` and `marla_basis` are locked while it is published, editable as a Draft or Archived); unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`, and so is a `sold`, `rented` or `removed` Listing or a restricted one (view only). A `draft`, `published` and `archived` Listing may be edited. An edit of a `published` Listing must leave it complete (the same rules as publication): otherwise `400 validation_error` names every missing or invalid item at once (clearing the title or a price, a locality outside the city) and nothing is written; an edit of an `archived` one is judged like a Draft edit. These edits use no publication and write no event. Never cached.
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`) and the sale and rent terms (`price_negotiable` for both; sale only `possession_availability`; rent only `security_deposit` and `advance_rent` as decimal strings in PKR with at most two decimals, `availability_date` as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`, `notice_period_days`, the four `utility_*_included` answers, `pets_allowed` and `occupant_restrictions`; the rent terms are `not_applicable` on a sale Draft and the other way round; a rental period is never assumed) and the location: `city` and `locality` as uuid text of an active city and one of its localities (`/api/v1/reference/cities` and `/api/v1/reference/cities/{city_id}/localities`; a locality of another city is `locality_not_in_city`, a locality without a city `invalid`; changing or clearing `city` clears the stored `locality` in the same write), the public location text `society`, `phase`, `sector` and `block` (up to 60 characters, no phone numbers or email addresses) and the PRIVATE address `street` (up to 120 characters), `house_number` (up to 30) and `latitude` and `longitude` (decimal strings with at most six decimals, -90 to 90 and -180 to 180, both or neither; `out_of_range` otherwise): the private fields are returned only to the owner and never appear in any public response. `amenities` is the map `{code: "present" | "none"}` of catalogue codes (`/api/v1/reference/amenities`): the sent map replaces the whole stored one, `null` or `{}` clears it, a code that is left out is unanswered (never `none`), an unknown or inactive code, another state, a non-object or more than 40 entries is `invalid`; nearby facilities are seller-declared (no distance, no verification). Installment, payment type, down payment and title or approval document terms are not supported yet (`unknown_field`). Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define (for example installment, down payment, title document or mortgage attributes) are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`, `contains_contact_details`, `not_editable` (also an identity field of a `published` Listing: `city`, `locality`, `area_value` and `area_unit` are locked while it is published, editable as a Draft or Archived; `locality` and the area may be corrected once, see `/correction`; `marla_basis` stays editable); unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`, and so is a `sold`, `rented` or `removed` Listing or a restricted one (view only). A `draft`, `published` and `archived` Listing may be edited. An edit of a `published` Listing must leave it complete (the same rules as publication): otherwise `400 validation_error` names every missing or invalid item at once (clearing the title or a price, a locality outside the city) and nothing is written; an edit of an `archived` one is judged like a Draft edit. These edits use no publication and write no event. Never cached.
          */
         patch: operations["update_listing"];
+        trace?: never;
+    };
+    "/api/v1/listings/{listing_id}/correction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether one of the signed-in account's own Listings may still be corrected
+         * @description Owner only. `available` is true only for a `published`, not restricted Listing of an account that may edit it, whose last counted publication is less than 24 hours old and not yet used for a correction; `expires_at` then says when the window closes (+05:00). In every other case `available` is false and `expires_at` null. Another account's, an administrator's, an unknown and a malformed id are `404 not_found`; a Visitor gets `401`. Reads only. Never cached.
+         */
+        get: operations["get_listing_correction"];
+        put?: never;
+        /**
+         * Correct the locality and area of a recently published Listing, once
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else; `fields` holds only what changes among `locality`, `area_value`, `area_unit` and `marla_basis` (any other id, `city`, `category`, `subtype` and `purpose` included, is `400 validation_error` and nothing is written). It can be done ONCE per counted publication, within 24 hours of it (exactly 24 hours is closed); it uses no publication, and a later republication in the same Karachi month with the corrected details unchanged is free. Order of refusals: another account's, an administrator's, an unknown and a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision` that is not the current `revision` is `409 stale_revision` with the Listing under `current`; a Listing that is not `published` is `409 conflict`; a restricted Listing, a Suspended or a Deactivated account is `403 forbidden`; a closed or used window is `409 correction_unavailable`. Then the values are judged as for any edit of a published Listing, all at once (`400`, codes keyed by field id, for example `locality_not_in_city`, `invalid_area`, `required`, `not_applicable`). A `marla_basis` that differs while neither `area_value` nor `area_unit` does is `not_editable` (change it with an ordinary edit). A request that changes nothing is `400` with `non_field_errors` (`no_change`). A refused request does not use up the correction. Never cached.
+         */
+        post: operations["correct_listing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/listings/{listing_id}/images": {
@@ -327,7 +351,7 @@ export interface paths {
         put?: never;
         /**
          * Republish one of the signed-in account's own Archived Listings
-         * @description Needs `X-CSRFToken` and an `Idempotency-Key` header (same rules as publishing). Body: `{base_revision}` and nothing else. The Listing becomes `published` and public again if its owner is Active, after the same complete validation as publishing (every stored value is judged again, all problems at once). `publication_kind` says how it was recorded: `republish_free` (no publication used) only when the Listing's last counted publication is from the same Karachi calendar month as now and none of the purpose, category, subtype, city, locality, area value, area unit or marla basis has changed; otherwise `republish_counted`, which uses one monthly publication. The same key with the same body within 24 hours returns the Listing as it is now with the original `publication_kind` and no second publication; the same key with another body is `422 idempotency_key_reused`. Refusals, in order: another account's, an administrator's, an unknown and a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision` that is not the current `revision` is `409 stale_revision` with the Listing under `current`; a Listing that is not `archived` (a Sold or Rented one must be archived first; a Removed one never returns) is `409 conflict`; a restricted Listing is `403 forbidden`; an Email-unverified account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`; every missing or invalid item is `400 validation_error`, all at once, as for publishing; a counted republication with no allowance left is `409 quota_exhausted` with the caller's own `limit`, `used` and `resets_at` under `details`. A refused attempt consumes nothing. Never cached.
+         * @description Needs `X-CSRFToken` and an `Idempotency-Key` header (same rules as publishing). Body: `{base_revision}` and nothing else. The Listing becomes `published` and public again if its owner is Active, after the same complete validation as publishing (every stored value is judged again, all problems at once). `publication_kind` says how it was recorded: `republish_free` (no publication used) only when the Listing's last counted publication is from the same Karachi calendar month as now and none of the purpose, category, subtype, city, locality, area value or area unit has changed; otherwise `republish_counted`, which uses one monthly publication. The same key with the same body within 24 hours returns the Listing as it is now with the original `publication_kind` and no second publication; the same key with another body is `422 idempotency_key_reused`. Refusals, in order: another account's, an administrator's, an unknown and a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision` that is not the current `revision` is `409 stale_revision` with the Listing under `current`; a Listing that is not `archived` (a Sold or Rented one must be archived first; a Removed one never returns) is `409 conflict`; a restricted Listing is `403 forbidden`; an Email-unverified account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`; every missing or invalid item is `400 validation_error`, all at once, as for publishing; a counted republication with no allowance left is `409 quota_exhausted` with the caller's own `limit`, `used` and `resets_at` under `details`. A refused attempt consumes nothing. Never cached.
          */
         post: operations["republish_listing"];
         delete?: never;
@@ -1079,6 +1103,7 @@ export interface components {
          *     * `stale_revision` - stale_revision
          *     * `conflict` - conflict
          *     * `quota_exhausted` - quota_exhausted
+         *     * `correction_unavailable` - correction_unavailable
          *     * `storage_cap_exceeded` - storage_cap_exceeded
          *     * `too_many_images` - too_many_images
          *     * `link_used` - link_used
@@ -1090,7 +1115,7 @@ export interface components {
          *     * `busy` - busy
          * @enum {string}
          */
-        CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "email_not_verified" | "publishing_unavailable" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "quota_exhausted" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
+        CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "email_not_verified" | "publishing_unavailable" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "quota_exhausted" | "correction_unavailable" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
         /**
          * @description * `new` - new
          *     * `excellent` - excellent
@@ -1117,6 +1142,21 @@ export interface components {
          * @enum {string}
          */
         ContentTypeEnum: "image/jpeg" | "image/png" | "image/webp";
+        /** @description `409`: the error envelope plus, for `stale_revision`, the Listing as it is now. */
+        CorrectionConflict: {
+            error: components["schemas"]["ErrorBody"];
+            /** @description With `stale_revision` only. */
+            current?: components["schemas"]["Listing"];
+        };
+        CorrectionWindow: {
+            /** @description Whether the owner may correct the locality and area now. */
+            available: boolean;
+            /**
+             * Format: date-time
+             * @description When the open window closes, +05:00; null when `available` is false.
+             */
+            expires_at: string | null;
+        };
         CsrfToken: {
             csrf_token: string;
         };
@@ -1300,6 +1340,23 @@ export interface components {
             error: components["schemas"]["ErrorBody"];
             /** @description The current Listing, to reload and reapply the edit. */
             current: components["schemas"]["Listing"];
+        };
+        /** @description What a correction accepts: send only what changes. `marla_basis` only changes together with `area_value` or `area_unit`. */
+        ListingCorrectionFieldsRequest: {
+            /**
+             * Format: uuid
+             * @description The uuid of an active locality from the reference lists (`/api/v1/reference/cities`), as text; never a name. Null clears it.
+             */
+            locality?: string | null;
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. */
+            area_value?: string | null;
+            area_unit?: (components["schemas"]["AreaUnitEnum"] | components["schemas"]["NullEnum"]) | null;
+            marla_basis?: (components["schemas"]["MarlaBasisEnum"] | components["schemas"]["NullEnum"]) | null;
+        };
+        ListingCorrectionRequest: {
+            /** @description The `revision` of the Listing the client last read. */
+            base_revision: number;
+            fields: components["schemas"]["ListingCorrectionFieldsRequest"];
         };
         ListingCounts: {
             draft: number;
@@ -2469,7 +2526,7 @@ export interface components {
          * @description Stable error code catalogue.
          * @enum {string}
          */
-        ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "email_not_verified" | "publishing_unavailable" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "quota_exhausted" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
+        ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "email_not_verified" | "publishing_unavailable" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "quota_exhausted" | "correction_unavailable" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
         ErrorEnvelope: {
             error: components["schemas"]["ErrorBody"];
         };
@@ -3429,6 +3486,175 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListingConflict"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_listing_correction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The window */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionWindow"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    correct_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ListingCorrectionRequest"];
+            };
+        };
+        responses: {
+            /** @description The corrected Listing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Listing"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: restricted, Suspended, or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `stale_revision` (with `current`), `conflict` or `correction_unavailable` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionConflict"];
                 };
             };
             /** @description Too many requests */
