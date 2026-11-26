@@ -33,7 +33,7 @@ test("browse: the header link, cards, the next page and the forwarded cookie @sm
   await expect(cards).toHaveCount(1);
   await expect(cards.first()).toContainText("Older house near the market");
   await expect(page.getByTestId("browse-next")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Back to the newest" })).toHaveAttribute("href", "/listings");
+  await expect(page.getByRole("link", { name: "Back to the first page" })).toHaveAttribute("href", "/listings");
   const { requests } = await (await request.get(`${STUB_URL}/__public-requests`)).json();
   expect(requests.length).toBeGreaterThan(0);
   expect(requests.every((entry: { cookie: string }) => entry.cookie.includes("sessionid=abc123"))).toBe(true);

@@ -1279,11 +1279,28 @@ Public pages, no sign-in, linked by "Browse" in the header. Both are rendered on
 `GET /api/v1/public/listings` and `/api/v1/public/listings/{id}`, forwarding the incoming cookie, and work without JavaScript.
 
 - `/listings` shows cards (cover, title, price, type, area, rooms, place, publication date), newest first. "Next page" is a plain link
-  carrying only the `cursor` of the backend's absolute `next` URL (`sort` and `limit` pass through as typed). It has empty, error
-  ("Try again") and invalid-page-link (`400`) states.
+  keeping the filters and sort and adding the `cursor` of the backend's absolute `next` URL. It has empty, error ("Try again"),
+  invalid-page-link and refused-filter (`400`) states.
 - `/listings/[id]` shows the images, the facts, amenities (nearby marked "Seller-declared"), public location and description. The facts
   are the same component as the owner's preview (`src/components/listing-facts.tsx`), with labels from the registry. A hidden, unknown or
   malformed id is one not-found page (`404`). Only values read by name are shown.
+
+## Filtering and sorting (`/listings`, Story 3.5)
+
+The URL query is the whole state, so a filtered page can be shared and everything works without JavaScript.
+
+- The panel (`src/components/filter-panel.tsx`) is a plain GET form generated from `GET /api/v1/public/filters`: checkboxes for choices,
+  minimum and maximum for ranges, a select for booleans, amenities grouped by kind (nearby marked "Seller-declared"). A new registry
+  filter appears without a frontend change. Areas and societies are listed for the chosen cities (after applying), or at once when there
+  is only one city. The panel is a `details` element, closed unless a value in it was refused.
+- A form without JavaScript sends empty values and one pair per ticked box; the page redirects to the clean address (empty values dropped,
+  repeats joined with commas, the default sort left out).
+- Sort: newest or price. "Best match" appears only when the address carries `prefer_` parameters, which have no controls and are carried
+  along. "Clear all" removes them too.
+- Each active filter is a link that removes it (removing a city also removes its areas). Every change starts at the first page.
+- A `400` names each refused parameter with the server's sentence and a Remove link. If the filter schema cannot be read, the listings
+  are still shown with a note instead of the panel.
+- Logic: `src/lib/listing-filters.ts`. **Tests**: `tests/e2e/listing-filters.spec.ts`.
 
 ## Layout
 

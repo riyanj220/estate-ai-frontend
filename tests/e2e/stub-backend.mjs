@@ -1330,6 +1330,86 @@ const PUBLIC_DETAIL = {
   revision: 7,
 };
 
+// Public filtering (Story 3.5): the filter schema as the backend generates it, and the same parameter rules over the three public cards.
+const publicFilter = (id, type, match, extra = {}) => ({
+  id, type, match, params: match === "range" ? [`${id}_min`, `${id}_max`] : [id], allowed_values: null, options: null, reference: null,
+  min: null, max: null, seller_declared: false, purposes: [], categories: [], subtypes: [], ...extra,
+});
+const choice = (id, allowed_values, extra = {}) => publicFilter(id, "enum", "choice", { allowed_values, ...extra });
+const rooms = (id) => publicFilter(id, "integer", "range", { min: "0", max: "50", subtypes: ["house", "apartment"] });
+const PUBLIC_FILTERS = [
+  choice("purpose", ["sale", "rent"]),
+  choice("category", ["house", "apartment", "plot", "commercial"]),
+  choice("subtype", ["house", "apartment", "residential_plot", "commercial_plot", "plot_file", "shop", "office"]),
+  publicFilter("asking_price", "money", "range", { min: "0.01", max: "999999999999.99" }),
+  choice("price_basis", ["total", "per_unit", "rental_period"]),
+  choice("rental_period", ["day", "week", "month", "year"], { purposes: ["rent"] }),
+  publicFilter("area_sqft", "decimal", "range", { min: "0.0001", max: "9999999999999999.9999" }),
+  rooms("bedrooms"),
+  rooms("bathrooms"),
+  choice("furnishing", ["unfurnished", "semi_furnished", "furnished"]),
+  rooms("parking_spaces"),
+  publicFilter("city", "reference", "choice", { reference: "city" }),
+  publicFilter("locality", "reference", "choice", { reference: "locality" }),
+  publicFilter("amenities", "amenities", "amenities", { options: AMENITIES }),
+];
+// What each card answers beyond what it shows; a value a card has not answered never matches a filter on it.
+const PUBLIC_EXTRA = [
+  { parking_spaces: 2, furnishing: "furnished", amenities: ["elevator", "nearby_park"] },
+  { purpose: "rent", price_basis: "rental_period", rental_period: "month", asking_price: "50000.00", bedrooms: 2, amenities: ["elevator"] },
+  { asking_price: "900000.00", bedrooms: 3, amenities: [] },
+];
+const publicValues = (card, index) => ({
+  ...card.fields,
+  purpose: card.purpose,
+  category: card.category,
+  subtype: card.subtype,
+  city: card.city?.id,
+  locality: card.locality?.id,
+  ...PUBLIC_EXTRA[index],
+});
+/** { errors } or { rows, tag, ranked }: the rows are the cards that satisfy every filter, in the asked order. */
+const searchPublic = (params) => {
+  const errors = {};
+  const names = new Set(PUBLIC_FILTERS.flatMap((filter) => filter.params));
+  let rows = PUBLIC_CARDS.map((card, index) => ({ card, values: publicValues(card, index) }));
+  let preferred = false;
+  for (const name of new Set(params.keys())) {
+    if (["sort", "limit", "cursor"].includes(name)) continue;
+    const prefer = name.startsWith("prefer_");
+    const param = prefer ? name.slice(7) : name;
+    if (!names.has(param)) errors[name] = ["unknown_parameter"];
+    else if (params.getAll(name).length > 1) errors[name] = ["repeated_parameter"];
+    else if (prefer) preferred = true;
+    else {
+      const filter = PUBLIC_FILTERS.find((entry) => entry.params.includes(param));
+      const text = params.get(name);
+      if (filter.match === "range") {
+        if (!/^\d{1,16}(\.\d{1,8})?$/.test(text)) errors[name] = ["invalid"];
+        else {
+          const low = param.endsWith("_min");
+          const other = params.get(`${filter.id}_min`);
+          if (!low && other !== null && Number(other) > Number(text)) errors[name] = ["inverted_range"];
+          rows = rows.filter(({ values }) => values[filter.id] != null && (low ? Number(values[filter.id]) >= Number(text) : Number(values[filter.id]) <= Number(text)));
+        }
+      } else {
+        const wanted = text.split(",");
+        const allowed = filter.match === "amenities" ? ACTIVE_AMENITY_CODES : filter.allowed_values;
+        if (allowed && !wanted.every((value) => allowed.includes(value))) errors[name] = ["invalid_choice"];
+        else if (filter.match === "amenities") rows = rows.filter(({ values }) => wanted.every((code) => values.amenities.includes(code)));
+        else rows = rows.filter(({ values }) => wanted.includes(values[filter.id]));
+      }
+    }
+  }
+  const sort = params.get("sort") ?? (preferred ? "relevance" : "newest");
+  if (!["newest", "price_asc", "price_desc", ...(preferred ? ["relevance"] : [])].includes(sort)) errors.sort = ["invalid_choice"];
+  if (Object.keys(errors).length > 0) return { errors };
+  if (sort.startsWith("price_")) rows.sort((a, b) => (sort === "price_asc" ? 1 : -1) * (Number(a.values.asking_price) - Number(b.values.asking_price)));
+  // The cursor is bound to the filters and the sort: "page2" alone for the plain list.
+  const bound = [...params].filter(([name]) => name !== "cursor" && name !== "limit").map((pair) => pair.join("=")).sort().join("&");
+  return { rows: rows.map((row) => row.card), tag: bound ? `page2.${createHash("sha256").update(bound).digest("hex").slice(0, 8)}` : "page2" };
+};
+
 createServer((req, res) => {
   const url = new URL(req.url, "http://stub");
   const json = (status, body) => {
@@ -1354,10 +1434,19 @@ createServer((req, res) => {
     if (url.pathname !== "/api/v1/public/listings") {
       return one === publicId(1) ? json(200, PUBLIC_DETAIL) : json(404, envelope("not_found", "Not found."));
     }
+    const found = searchPublic(url.searchParams);
+    if (found.errors) return json(400, envelope("validation_error", "Check the request.", found.errors));
     const cursor = url.searchParams.get("cursor");
-    if (cursor !== null && cursor !== "page2") return json(400, envelope("validation_error", "Check the request.", { cursor: ["invalid"] }));
+    if (cursor !== null && cursor !== found.tag) return json(400, envelope("validation_error", "Check the request.", { cursor: ["invalid"] }));
     if (publicMode === "empty") return json(200, { results: [], next: null });
-    return json(200, cursor ? { results: PUBLIC_CARDS.slice(2), next: null } : { results: PUBLIC_CARDS.slice(0, 2), next: "http://backend.invalid/api/v1/public/listings?cursor=page2" });
+    const following = new URL("http://backend.invalid/api/v1/public/listings");
+    following.search = url.search;
+    following.searchParams.set("cursor", found.tag);
+    return json(200, cursor ? { results: found.rows.slice(2), next: null } : { results: found.rows.slice(0, 2), next: found.rows.length > 2 ? following.href : null });
+  }
+  if (url.pathname === "/api/v1/public/filters") {
+    if (publicMode === "filters_error") return json(500, envelope("server_error", "Internal detail that must not show."));
+    return json(200, { registry_version: 10, sorts: ["newest", "price_asc", "price_desc", "relevance"], preference_prefix: "prefer_", filters: PUBLIC_FILTERS });
   }
   if (url.pathname === "/__wire-mode") {
     const value = url.searchParams.get("value") ?? "sentences";
