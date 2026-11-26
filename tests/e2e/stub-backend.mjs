@@ -1290,6 +1290,9 @@ let accountsPosts = [];
 // Public browse and detail (Story 3.1): no session. Three Listings in pages of two; `next` is an absolute backend URL like the real one.
 let publicMode = "ok";
 let publicRequests = [];
+// Favourites (Story 3.7): the saved listing ids, latest first. An id without a public card reads as no longer available.
+let favourites = [];
+let favouritesMode = "ok";
 const publicId = (seq) => `00000000-0000-4000-b000-${String(seq).padStart(12, "0")}`;
 const publicImageId = (seq) => `00000000-0000-4000-c000-${String(seq).padStart(12, "0")}`;
 const publicImageUrl = (listing, image) => `/api/v1/listings/${publicId(listing)}/images/${publicImageId(image)}/file`;
@@ -1587,6 +1590,36 @@ createServer((req, res) => {
     }
     res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "set-cookie": "csrftoken=stub; HttpOnly; Path=/; SameSite=Lax" });
     return res.end(JSON.stringify({ csrf_token: `csrf-${csrfSeed}` }));
+  }
+  if (url.pathname === "/__favourites-preset") {
+    // "some": the first public card and one listing that is no longer public.
+    favourites = url.searchParams.get("value") === "some" ? [publicId(1), publicId(9)] : [];
+    return json(200, { favourites });
+  }
+  if (url.pathname === "/__favourites-mode") return choose("favouritesMode", ["ok", "full"], (v) => (favouritesMode = v));
+  if (url.pathname === "/api/v1/me/favourites" || url.pathname.startsWith("/api/v1/me/favourites/")) {
+    res.setHeader("cache-control", "no-store");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    if (sessionAdmin) return json(403, envelope("forbidden", "Not allowed."));
+    const key = url.pathname.slice("/api/v1/me/favourites/".length);
+    if (req.method === "GET" && url.pathname.endsWith("/ids")) return json(200, { listing_ids: favourites });
+    if (req.method === "GET") {
+      const results = favourites.map((id) => ({ listing_id: id, saved_at: "2026-11-21T10:00:00Z", listing: PUBLIC_CARDS.find((card) => card.id === id) ?? null }));
+      return json(200, { results, next: null });
+    }
+    if (req.headers["x-csrftoken"] !== `csrf-${csrfSeed}`) return json(403, envelope("forbidden", "CSRF check failed."));
+    if (req.method === "PUT") {
+      if (!favourites.includes(key)) {
+        if (favouritesMode === "full") return json(429, envelope("throttled", "Too many requests."));
+        if (!PUBLIC_CARDS.some((card) => card.id === key)) return json(404, envelope("not_found", "Not found."));
+        favourites = [key, ...favourites];
+      }
+    } else {
+      if (!favourites.includes(key)) return json(404, envelope("not_found", "Not found."));
+      favourites = favourites.filter((id) => id !== key);
+    }
+    res.writeHead(204);
+    return res.end();
   }
   if (url.pathname === "/api/v1/me" && req.method === "GET") {
     meCount += 1;
@@ -3908,6 +3941,8 @@ createServer((req, res) => {
     accountsPosts = [];
     publicMode = "ok";
     publicRequests = [];
+    favourites = [];
+    favouritesMode = "ok";
     suspensionReason = SUSPENSION_REASON;
     lastCookie = "";
     registrationMode = "accepted";

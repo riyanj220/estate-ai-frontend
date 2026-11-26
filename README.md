@@ -1310,6 +1310,16 @@ The URL query is the whole state, so a filtered page can be shared and everythin
 - Legal, approval and possession statements (registry `seller_declared`) carry the "Seller-declared" text and never a platform mark.
 - **Tests**: `tests/e2e/public-listings.spec.ts`.
 
+## Favourites (`/account/favourites`, Story 3.7)
+
+- Public cards and the detail have a Save / Saved button (`src/components/save-button.tsx`). A Visitor is asked to sign in or create
+  an account and nothing is stored; administrators have no button; a Suspended account can only remove. The saved ids are read once
+  per page (`GET /api/v1/me/favourites/ids`, `src/lib/favourites.tsx`).
+- The page (header and dashboard link, Individual and Agency accounts) lists them with Remove and Load more. A Listing that is no
+  longer public reads "No longer available" with the saved date only. At 500 the cap message is shown (`429` without `Retry-After`).
+- **Stub**: the four `/api/v1/me/favourites` routes, `/__favourites-preset?value=empty|some`, `/__favourites-mode?value=ok|full`.
+- **Tests**: `tests/e2e/favourites.spec.ts`.
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),
