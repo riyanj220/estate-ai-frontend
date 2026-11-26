@@ -1287,6 +1287,48 @@ let suspensionReason = SUSPENSION_REASON;
 let adminAccount = adminAccountRow();
 let accountsMode = "ok";
 let accountsPosts = [];
+// Public browse and detail (Story 3.1): no session. Three Listings in pages of two; `next` is an absolute backend URL like the real one.
+let publicMode = "ok";
+let publicRequests = [];
+const publicId = (seq) => `00000000-0000-4000-b000-${String(seq).padStart(12, "0")}`;
+const publicImageId = (seq) => `00000000-0000-4000-c000-${String(seq).padStart(12, "0")}`;
+const publicImageUrl = (listing, image) => `/api/v1/listings/${publicId(listing)}/images/${publicImageId(image)}/file`;
+const publicCard = (seq, title, extra = {}) => ({
+  id: publicId(seq),
+  purpose: "sale",
+  category: "house",
+  subtype: "house",
+  title,
+  fields: { asking_price: "1500000.00", price_basis: "total", rental_period: null, area_value: "10.0000", area_unit: "marla", marla_basis: "272.25", area_sqft: "2722.5000", bedrooms: 4, bathrooms: 3 },
+  city: { id: KARACHI, name: "Karachi" },
+  locality: { id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001", name: "Clifton" },
+  cover_url: publicImageUrl(seq, 1),
+  published_on: "2026-11-20",
+  ...extra,
+});
+const PUBLIC_CARDS = [
+  publicCard(1, "Corner house with garden"),
+  publicCard(2, "Quiet family house", { cover_url: null, city: null, locality: null }),
+  publicCard(3, "Older house near the market"),
+];
+// The detail carries a few keys the real API never sends (private values), to prove the page shows only what it reads by name.
+const PUBLIC_DETAIL = {
+  ...publicCard(1, "Corner house with garden"),
+  description: "Three bedrooms near the park.\nQuiet street.",
+  fields: {
+    ...publicCard(1, "").fields,
+    basement: true,
+    society: "Palm Society",
+    amenities: { elevator: "present", nearby_park: "present" },
+    street: "Cedar Lane",
+    house_number: "Plot 12",
+    latitude: "24.860000",
+  },
+  media: [1, 2].map((n) => ({ id: publicImageId(n), position: n - 1, is_cover: n === 1, content_type: "image/png", width: 1, height: 1, url: publicImageUrl(1, n) })),
+  registry_version: 10,
+  phone: "+923009998877",
+  revision: 7,
+};
 
 createServer((req, res) => {
   const url = new URL(req.url, "http://stub");
@@ -1295,6 +1337,28 @@ createServer((req, res) => {
     res.end(JSON.stringify(body));
   };
   const envelope = (code, message, fields = {}) => ({ error: { code, message, fields: wireFields(fields), request_id: "stub" } });
+  if (url.pathname === "/__public-mode") {
+    publicMode = url.searchParams.get("value") ?? "ok";
+    return json(200, { publicMode });
+  }
+  if (url.pathname === "/__public-requests") return json(200, { requests: publicRequests });
+  const publicFileRequest = /^\/api\/v1\/listings\/00000000-0000-4000-b000-\d{12}\/images\/[^/]+\/file$/.test(url.pathname);
+  if (publicFileRequest) {
+    res.writeHead(200, { "content-type": "image/png", "content-length": String(IMAGE_PNG.length) });
+    return res.end(IMAGE_PNG);
+  }
+  if (url.pathname === "/api/v1/public/listings" || url.pathname.startsWith("/api/v1/public/listings/")) {
+    publicRequests.push({ path: url.pathname + url.search, cookie: req.headers.cookie ?? "" });
+    if (publicMode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+    const one = url.pathname.slice("/api/v1/public/listings/".length);
+    if (url.pathname !== "/api/v1/public/listings") {
+      return one === publicId(1) ? json(200, PUBLIC_DETAIL) : json(404, envelope("not_found", "Not found."));
+    }
+    const cursor = url.searchParams.get("cursor");
+    if (cursor !== null && cursor !== "page2") return json(400, envelope("validation_error", "Check the request.", { cursor: ["invalid"] }));
+    if (publicMode === "empty") return json(200, { results: [], next: null });
+    return json(200, cursor ? { results: PUBLIC_CARDS.slice(2), next: null } : { results: PUBLIC_CARDS.slice(0, 2), next: "http://backend.invalid/api/v1/public/listings?cursor=page2" });
+  }
   if (url.pathname === "/__wire-mode") {
     const value = url.searchParams.get("value") ?? "sentences";
     if (!["sentences", "codes"].includes(value)) return json(400, { error: "unknown mode" });
@@ -3747,6 +3811,8 @@ createServer((req, res) => {
     adminAccount = adminAccountRow();
     accountsMode = "ok";
     accountsPosts = [];
+    publicMode = "ok";
+    publicRequests = [];
     suspensionReason = SUSPENSION_REASON;
     lastCookie = "";
     registrationMode = "accepted";

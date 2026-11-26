@@ -1273,6 +1273,18 @@ decides, the page only reports.
   allowance, errors, locks, replay, key reuse, account states, stale and conflict, restricted, sold and rented notes, axe at desktop and mobile).
   `listing-lifecycle.spec.ts` was updated for the new Archived and Archive dialog copy.
 
+## Browse and listing detail (`/listings`, Story 3.1)
+
+Public pages, no sign-in, linked by "Browse" in the header. Both are rendered on the server (`src/lib/public-listings.ts`) from
+`GET /api/v1/public/listings` and `/api/v1/public/listings/{id}`, forwarding the incoming cookie, and work without JavaScript.
+
+- `/listings` shows cards (cover, title, price, type, area, rooms, place, publication date), newest first. "Next page" is a plain link
+  carrying only the `cursor` of the backend's absolute `next` URL (`sort` and `limit` pass through as typed). It has empty, error
+  ("Try again") and invalid-page-link (`400`) states.
+- `/listings/[id]` shows the images, the facts, amenities (nearby marked "Seller-declared"), public location and description. The facts
+  are the same component as the owner's preview (`src/components/listing-facts.tsx`), with labels from the registry. A hidden, unknown or
+  malformed id is one not-found page (`404`). Only values read by name are shown.
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),
