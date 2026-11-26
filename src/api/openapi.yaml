@@ -128,6 +128,209 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/quota-policy:
+    get:
+      operationId: get_admin_quota_policy
+      description: Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: The monthly publication limits in force now
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaPolicyList'
+          description: The limits
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/quota-policy/{account_type}:
+    put:
+      operationId: set_admin_quota_limit
+      description: Needs `X-CSRFToken`. Applies to later publication attempts only.
+        `monthly_limit` is a whole number from 0 to 1000, else `400 validation_error`;
+        the current limit again changes nothing (`200`, the unchanged row). An account
+        type other than `individual` or `agency` is `404 not_found`. Visitors get
+        `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never
+        cached.
+      summary: Change one account type's monthly publication limit
+      parameters:
+      - in: path
+        name: account_type
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuotaLimitBodyRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaPolicy'
+          description: The current limit
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/quota-usage:
+    get:
+      operationId: list_admin_quota_usage
+      description: Accounts with at least one counted publication in the Asia/Karachi
+        calendar month, newest usage first, with cursor pagination (`next` link, `previous`
+        is always null; 20 per page, `page_size` up to 50, an invalid `page_size`
+        falls back to the default). A bad cursor, or one from an earlier month, is
+        `validation_error` (`fields.cursor`). Visitors get `401 unauthenticated`;
+        signed-in non-administrators get `404 not_found`. Never cached.
+      summary: This month's publication usage by account
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaUsagePage'
+          description: One page
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/agencies/{agency_id}/logo:
     get:
       operationId: get_agency_logo
@@ -6039,6 +6242,14 @@ components:
       description: |-
         * `manual` - manual
         * `ai` - ai
+    OwnerAccountTypeEnum:
+      enum:
+      - individual
+      - agency
+      type: string
+      description: |-
+        * `individual` - individual
+        * `agency` - agency
     PasswordChanged:
       type: object
       properties:
@@ -6933,6 +7144,89 @@ components:
       - limit
       - resets_at
       - used
+    QuotaLimitBodyRequest:
+      type: object
+      properties:
+        monthly_limit:
+          type: integer
+          maximum: 1000
+          minimum: 0
+      required:
+      - monthly_limit
+    QuotaPolicy:
+      type: object
+      properties:
+        account_type:
+          $ref: '#/components/schemas/OwnerAccountTypeEnum'
+        monthly_limit:
+          type: integer
+        effective_from:
+          type: string
+          format: date-time
+          description: When this limit started, +05:00.
+      required:
+      - account_type
+      - effective_from
+      - monthly_limit
+    QuotaPolicyList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuotaPolicy'
+      required:
+      - items
+    QuotaUsage:
+      type: object
+      properties:
+        account_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          description: Masked, such as `j***@example.com`.
+        account_type:
+          $ref: '#/components/schemas/OwnerAccountTypeEnum'
+        used:
+          type: integer
+          description: Counted publications this Karachi month.
+        limit:
+          type: integer
+          description: The limit in force now for the account type.
+      required:
+      - account_id
+      - account_type
+      - email
+      - limit
+      - used
+    QuotaUsagePage:
+      type: object
+      properties:
+        period_start:
+          type: string
+          format: date-time
+          description: Start of the month, +05:00.
+        resets_at:
+          type: string
+          format: date-time
+          description: Start of the next month, +05:00.
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuotaUsage'
+      required:
+      - next
+      - period_start
+      - previous
+      - resets_at
+      - results
     RegistrationAccepted:
       type: object
       properties:

@@ -44,6 +44,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/quota-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The monthly publication limits in force now
+         * @description Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["get_admin_quota_policy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/quota-policy/{account_type}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change one account type's monthly publication limit
+         * @description Needs `X-CSRFToken`. Applies to later publication attempts only. `monthly_limit` is a whole number from 0 to 1000, else `400 validation_error`; the current limit again changes nothing (`200`, the unchanged row). An account type other than `individual` or `agency` is `404 not_found`. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        put: operations["set_admin_quota_limit"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/quota-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * This month's publication usage by account
+         * @description Accounts with at least one counted publication in the Asia/Karachi calendar month, newest usage first, with cursor pagination (`next` link, `previous` is always null; 20 per page, `page_size` up to 50, an invalid `page_size` falls back to the default). A bad cursor, or one from an earlier month, is `validation_error` (`fields.cursor`). Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["list_admin_quota_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agencies/{agency_id}/logo": {
         parameters: {
             query?: never;
@@ -1937,6 +1997,12 @@ export interface components {
          * @enum {string}
          */
         OriginEnum: "manual" | "ai";
+        /**
+         * @description * `individual` - individual
+         *     * `agency` - agency
+         * @enum {string}
+         */
+        OwnerAccountTypeEnum: "individual" | "agency";
         PasswordChanged: {
             status: components["schemas"]["PasswordChangedStatusEnum"];
         };
@@ -2318,6 +2384,47 @@ export interface components {
              */
             resets_at: string;
         };
+        QuotaLimitBodyRequest: {
+            monthly_limit: number;
+        };
+        QuotaPolicy: {
+            account_type: components["schemas"]["OwnerAccountTypeEnum"];
+            monthly_limit: number;
+            /**
+             * Format: date-time
+             * @description When this limit started, +05:00.
+             */
+            effective_from: string;
+        };
+        QuotaPolicyList: {
+            items: components["schemas"]["QuotaPolicy"][];
+        };
+        QuotaUsage: {
+            /** Format: uuid */
+            account_id: string;
+            /** @description Masked, such as `j***@example.com`. */
+            email: string;
+            account_type: components["schemas"]["OwnerAccountTypeEnum"];
+            /** @description Counted publications this Karachi month. */
+            used: number;
+            /** @description The limit in force now for the account type. */
+            limit: number;
+        };
+        QuotaUsagePage: {
+            /**
+             * Format: date-time
+             * @description Start of the month, +05:00.
+             */
+            period_start: string;
+            /**
+             * Format: date-time
+             * @description Start of the next month, +05:00.
+             */
+            resets_at: string;
+            next: string | null;
+            previous: string | null;
+            results: components["schemas"]["QuotaUsage"][];
+        };
         RegistrationAccepted: {
             status: components["schemas"]["RegistrationAcceptedStatusEnum"];
         };
@@ -2635,6 +2742,243 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminMe"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_admin_quota_policy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The limits */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuotaPolicyList"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    set_admin_quota_limit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_type: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuotaLimitBodyRequest"];
+            };
+        };
+        responses: {
+            /** @description The current limit */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuotaPolicy"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_admin_quota_usage: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuotaUsagePage"];
                 };
             };
             /** @description Bad request or validation error */
