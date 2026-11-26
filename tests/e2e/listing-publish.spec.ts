@@ -434,6 +434,9 @@ test("a partly typed date counts as unsaved input", async ({ page, request }) =>
 test("while publishing the fields are read-only, the images and Delete wait, and a same-tick double click sends one request", async ({ page, request }) => {
   await publishMode(request, "hold");
   await open(page, request);
+  // The section is ready (allowance loaded, button enabled) before the double click, or the click is ignored.
+  await expect(page.getByTestId("publish-allowance")).toContainText(/\d/);
+  await expect(publishButton(page)).not.toHaveAttribute("aria-disabled", "true");
   await publishButton(page).evaluate((element: HTMLElement) => {
     element.click();
     element.click();

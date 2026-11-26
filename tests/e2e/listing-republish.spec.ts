@@ -188,6 +188,9 @@ test("the button is aria-disabled with the reason while there are unsaved change
 test("while republishing the form and the button wait and a same-tick double click sends one request", async ({ page, request }) => {
   await publishMode(request, "hold");
   await open(page, request);
+  // The section is ready (allowance loaded, button enabled) before the double click, or the click is ignored.
+  await expect(page.getByTestId("republish-allowance")).toContainText(/\d/);
+  await expect(button(page)).not.toHaveAttribute("aria-disabled", "true");
   await button(page).evaluate((element: HTMLElement) => {
     element.click();
     element.click();
