@@ -3669,6 +3669,148 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/public/listings:
+    get:
+      operationId: list_public_listings
+      description: 'Public; the answer is the same for every caller. Only publicly
+        visible Listings (published, not restricted, owner Active), newest first publication
+        first. `limit` is 1 to 50 (default 20); `next` is the link to the following
+        page and carries an opaque `cursor`. A bad `limit`, `cursor` or `sort` is
+        `400 validation_error` under that name in `fields`. `200` has `Cache-Control:
+        public, max-age=60` and no cookie (so a Listing may stay in a cache for up
+        to a minute after it stops being public); errors are `no-store`.'
+      summary: Browse the published Listings, newest first
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: limit
+        schema:
+          type: integer
+      - in: query
+        name: sort
+        schema:
+          type: string
+          enum:
+          - newest
+      tags:
+      - public
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicListingPage'
+          description: One page
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/public/listings/{listing_id}:
+    get:
+      operationId: get_public_listing
+      description: 'Public; the answer is the same for every caller, the owner included.
+        The public projection only: never a private address, coordinates, a phone
+        number, the owner, the status, the revision or the provenance. `nearby` amenities
+        are the seller''s own declaration. A Listing that is not publicly visible,
+        an unknown and a malformed id are the same `404 not_found`. `200` has `Cache-Control:
+        public, max-age=60` and no cookie; errors are `no-store`.'
+      summary: One published Listing
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - public
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicListingDetail'
+          description: The Listing
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/reference/amenities:
     get:
       operationId: list_amenities
@@ -6639,6 +6781,17 @@ components:
           minLength: 1
           description: 'Pakistani mobile or international number. Mandatory: blank
             or null is refused.'
+    Place:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+      - id
+      - name
     PlotFileStatusEnum:
       enum:
       - open_file
@@ -6742,6 +6895,70 @@ components:
       required:
       - confirmed
       - origin
+    PublicCardFields:
+      type: object
+      description: Price, area and room facts by registry id. Null means unknown or
+        not applicable.
+      properties:
+        asking_price:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        price_basis:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PriceBasisEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        rental_period:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RentalPeriodEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        area_value:
+          type: string
+          nullable: true
+          description: Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`),
+            digits and a point only, never a JSON number. Returned with 4 decimals.
+        area_unit:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/AreaUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        marla_basis:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/MarlaBasisEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        area_sqft:
+          type: string
+          nullable: true
+          description: Decimal string with up to 4 decimals (`0.0001` to `9999999999999999.9999`),
+            digits and a point only, never a JSON number. Returned with 4 decimals.
+            Computed by the server; read-only.
+        bedrooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        bathrooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+      required:
+      - area_sqft
+      - area_unit
+      - area_value
+      - asking_price
+      - bathrooms
+      - bedrooms
+      - marla_basis
+      - price_basis
+      - rental_period
     PublicFields:
       type: object
       description: The registry fields of class `public`, flat by registry id. Null
@@ -7358,6 +7575,120 @@ components:
       - position
       - url
       - width
+    PublicListingCard:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        purpose:
+          $ref: '#/components/schemas/PurposeEnum'
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        subtype:
+          $ref: '#/components/schemas/SubtypeEnum'
+        title:
+          type: string
+          nullable: true
+        fields:
+          $ref: '#/components/schemas/PublicCardFields'
+        city:
+          allOf:
+          - $ref: '#/components/schemas/Place'
+          nullable: true
+        locality:
+          allOf:
+          - $ref: '#/components/schemas/Place'
+          nullable: true
+        cover_url:
+          type: string
+          nullable: true
+          description: Relative path of the cover image on the media endpoint.
+        published_on:
+          type: string
+          format: date
+          description: The Asia/Karachi date of the first publication.
+      required:
+      - category
+      - city
+      - cover_url
+      - fields
+      - id
+      - locality
+      - published_on
+      - purpose
+      - subtype
+      - title
+    PublicListingDetail:
+      type: object
+      description: The public projection plus the publication date and the names of
+        the city and locality.
+      properties:
+        id:
+          type: string
+          format: uuid
+        purpose:
+          $ref: '#/components/schemas/PurposeEnum'
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        subtype:
+          $ref: '#/components/schemas/SubtypeEnum'
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        fields:
+          $ref: '#/components/schemas/PublicFields'
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicImage'
+          description: The images in `position` order.
+        registry_version:
+          type: integer
+          minimum: 1
+        city:
+          allOf:
+          - $ref: '#/components/schemas/Place'
+          nullable: true
+        locality:
+          allOf:
+          - $ref: '#/components/schemas/Place'
+          nullable: true
+        published_on:
+          type: string
+          format: date
+          description: The Asia/Karachi date of the first publication.
+      required:
+      - category
+      - city
+      - description
+      - fields
+      - id
+      - locality
+      - media
+      - published_on
+      - purpose
+      - registry_version
+      - subtype
+      - title
+    PublicListingPage:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicListingCard'
+        next:
+          type: string
+          format: uri
+          nullable: true
+          description: The next page; null on the last.
+      required:
+      - next
+      - results
     PublicationAllowance:
       type: object
       properties:

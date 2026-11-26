@@ -873,6 +873,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Browse the published Listings, newest first
+         * @description Public; the answer is the same for every caller. Only publicly visible Listings (published, not restricted, owner Active), newest first publication first. `limit` is 1 to 50 (default 20); `next` is the link to the following page and carries an opaque `cursor`. A bad `limit`, `cursor` or `sort` is `400 validation_error` under that name in `fields`. `200` has `Cache-Control: public, max-age=60` and no cookie (so a Listing may stay in a cache for up to a minute after it stops being public); errors are `no-store`.
+         */
+        get: operations["list_public_listings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/listings/{listing_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One published Listing
+         * @description Public; the answer is the same for every caller, the owner included. The public projection only: never a private address, coordinates, a phone number, the owner, the status, the revision or the provenance. `nearby` amenities are the seller's own declaration. A Listing that is not publicly visible, an unknown and a malformed id are the same `404 not_found`. `200` has `Cache-Control: public, max-age=60` and no cookie; errors are `no-store`.
+         */
+        get: operations["get_public_listing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reference/amenities": {
         parameters: {
             query?: never;
@@ -2146,6 +2186,11 @@ export interface components {
             /** @description Pakistani mobile or international number. Mandatory: blank or null is refused. */
             phone?: string;
         };
+        Place: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
         /**
          * @description * `open_file` - open_file
          *     * `allocation_letter` - allocation_letter
@@ -2198,6 +2243,23 @@ export interface components {
         ProvenanceEntry: {
             origin: components["schemas"]["OriginEnum"];
             confirmed: boolean;
+        };
+        /** @description Price, area and room facts by registry id. Null means unknown or not applicable. */
+        PublicCardFields: {
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            asking_price: string | null;
+            price_basis: (components["schemas"]["PriceBasisEnum"] | components["schemas"]["NullEnum"]) | null;
+            rental_period: (components["schemas"]["RentalPeriodEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. */
+            area_value: string | null;
+            area_unit: (components["schemas"]["AreaUnitEnum"] | components["schemas"]["NullEnum"]) | null;
+            marla_basis: (components["schemas"]["MarlaBasisEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. Computed by the server; read-only. */
+            area_sqft: string | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            bedrooms: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            bathrooms: number | null;
         };
         /** @description The registry fields of class `public`, flat by registry id. Null means unknown. */
         PublicFields: {
@@ -2422,6 +2484,53 @@ export interface components {
             height: number;
             /** @description Relative path of the media endpoint, `/api/v1/listings/{id}/images/{image_id}/file`. */
             url: string;
+        };
+        PublicListingCard: {
+            /** Format: uuid */
+            id: string;
+            purpose: components["schemas"]["PurposeEnum"];
+            category: components["schemas"]["CategoryEnum"];
+            subtype: components["schemas"]["SubtypeEnum"];
+            title: string | null;
+            fields: components["schemas"]["PublicCardFields"];
+            city: components["schemas"]["Place"] | null;
+            locality: components["schemas"]["Place"] | null;
+            /** @description Relative path of the cover image on the media endpoint. */
+            cover_url: string | null;
+            /**
+             * Format: date
+             * @description The Asia/Karachi date of the first publication.
+             */
+            published_on: string;
+        };
+        /** @description The public projection plus the publication date and the names of the city and locality. */
+        PublicListingDetail: {
+            /** Format: uuid */
+            id: string;
+            purpose: components["schemas"]["PurposeEnum"];
+            category: components["schemas"]["CategoryEnum"];
+            subtype: components["schemas"]["SubtypeEnum"];
+            title: string | null;
+            description: string | null;
+            fields: components["schemas"]["PublicFields"];
+            /** @description The images in `position` order. */
+            media: components["schemas"]["PublicImage"][];
+            registry_version: number;
+            city: components["schemas"]["Place"] | null;
+            locality: components["schemas"]["Place"] | null;
+            /**
+             * Format: date
+             * @description The Asia/Karachi date of the first publication.
+             */
+            published_on: string;
+        };
+        PublicListingPage: {
+            results: components["schemas"]["PublicListingCard"][];
+            /**
+             * Format: uri
+             * @description The next page; null on the last.
+             */
+            next: string | null;
         };
         PublicationAllowance: {
             /** @description The monthly limit in force now. */
@@ -6817,6 +6926,164 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_public_listings: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                sort?: "newest";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicListingPage"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_public_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Listing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicListingDetail"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Too many requests */
