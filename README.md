@@ -1302,6 +1302,14 @@ The URL query is the whole state, so a filtered page can be shared and everythin
   are still shown with a note instead of the panel.
 - Logic: `src/lib/listing-filters.ts`. **Tests**: `tests/e2e/listing-filters.spec.ts`.
 
+## Listing provenance (Story 3.6)
+
+- Cards and the detail say who advertises (`src/components/advertiser-line.tsx`): "Listed by an individual", or "Listed by agency:
+  <name>" with the public logo (`/api/v1/agencies/{agency_id}/logo`, decorative: the name is the text) and "Verified agency" only
+  when `advertiser.verified` is true (never before Epic 8). Nothing else about the owner is shown.
+- Legal, approval and possession statements (registry `seller_declared`) carry the "Seller-declared" text and never a platform mark.
+- **Tests**: `tests/e2e/public-listings.spec.ts`.
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),

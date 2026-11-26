@@ -28,10 +28,19 @@ test("browse: the header link, cards, the next page and the forwarded cookie @sm
   }
   await expect(cards.first().getByRole("img")).toHaveAttribute("src", `/api/v1/listings/${id(1)}/images/00000000-0000-4000-c000-000000000001/file`);
   await expect(cards.nth(1)).toContainText("No image");
+  // Story 3.6: who advertises, in text; the logo is decorative beside the name, and an unverified Agency carries no mark.
+  const advertisers = page.getByTestId("browse-advertiser");
+  await expect(advertisers.first()).toHaveText("Listed by agency: Sunrise Estates");
+  await expect(advertisers.first().locator("img")).toHaveAttribute("src", /^\/api\/v1\/agencies\/[0-9a-f-]{36}\/logo$/);
+  await expect(advertisers.nth(1)).toHaveText("Listed by an individual");
+  await expect(advertisers.nth(1).locator("img")).toHaveCount(0);
+  await expect(cards.first()).toMatchAriaSnapshot(`- paragraph: "Listed by agency: Sunrise Estates"`);
   await expect(page.getByTestId("browse-next")).toHaveAttribute("href", "/listings?cursor=page2");
   await page.getByTestId("browse-next").click();
   await expect(cards).toHaveCount(1);
   await expect(cards.first()).toContainText("Older house near the market");
+  await expect(advertisers).toContainText("Listed by agency: Harbour Homes");
+  await expect(advertisers).toContainText("Verified agency");
   await expect(page.getByTestId("browse-next")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Back to the first page" })).toHaveAttribute("href", "/listings");
   const { requests } = await (await request.get(`${STUB_URL}/__public-requests`)).json();
@@ -39,12 +48,19 @@ test("browse: the header link, cards, the next page and the forwarded cookie @sm
   expect(requests.every((entry: { cookie: string }) => entry.cookie.includes("sessionid=abc123"))).toBe(true);
 });
 
-test("detail: images, facts, seller-declared nearby, description and no private value", async ({ page }) => {
+test("detail: advertiser, images, facts, seller-declared statements, description and no private value", async ({ page }) => {
   await page.goto("/listings");
   await page.getByRole("link", { name: "Corner house with garden" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Corner house with garden" })).toBeVisible();
   await expect(page).toHaveTitle("Corner house with garden | EstateAI");
+  await expect(page.getByTestId("listing-advertiser")).toHaveText("Listed by agency: Sunrise Estates");
+  await expect(page.getByTestId("listing-advertiser").locator("img")).toHaveCount(1);
   await expect(page.getByTestId("listing-images").getByRole("img")).toHaveCount(2);
+  // Possession is the seller's statement: labelled in the text a screen reader gets, with no platform mark.
+  const possession = page.getByTestId("listing-detail-possession_availability");
+  await expect(possession).toContainText("Seller-declared");
+  await expect(possession).toMatchAriaSnapshot(`- definition: /Seller-declared/`);
+  await expect(page.getByTestId("listing-facts")).not.toContainText(/verified|EstateAI/i);
   await expect(page.getByTestId("listing-price")).toHaveText("PKR 1,500,000.00 (Total)");
   await expect(page.getByTestId("listing-location-city")).toHaveText("Karachi");
   await expect(page.getByTestId("listing-location-locality")).toHaveText("Clifton");

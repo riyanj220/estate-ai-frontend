@@ -1293,6 +1293,10 @@ let publicRequests = [];
 const publicId = (seq) => `00000000-0000-4000-b000-${String(seq).padStart(12, "0")}`;
 const publicImageId = (seq) => `00000000-0000-4000-c000-${String(seq).padStart(12, "0")}`;
 const publicImageUrl = (listing, image) => `/api/v1/listings/${publicId(listing)}/images/${publicImageId(image)}/file`;
+// Story 3.6: card 1 is an Agency with a logo, card 2 an Individual, card 3 a verified Agency without one (the real API sends no
+// `verified: true` before Epic 8; the stub does, to prove the indicator).
+const PUBLIC_LOGO_URL = "/api/v1/agencies/66666666-6666-4666-8666-666666666666/logo";
+const advertiser = (type, extra = {}) => ({ type, agency_name: null, logo_url: null, verified: false, ...extra });
 const publicCard = (seq, title, extra = {}) => ({
   id: publicId(seq),
   purpose: "sale",
@@ -1304,12 +1308,13 @@ const publicCard = (seq, title, extra = {}) => ({
   locality: { id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001", name: "Clifton" },
   cover_url: publicImageUrl(seq, 1),
   published_on: "2026-11-20",
+  advertiser: advertiser("agency", { agency_name: "Sunrise Estates", logo_url: PUBLIC_LOGO_URL }),
   ...extra,
 });
 const PUBLIC_CARDS = [
   publicCard(1, "Corner house with garden"),
-  publicCard(2, "Quiet family house", { cover_url: null, city: null, locality: null }),
-  publicCard(3, "Older house near the market"),
+  publicCard(2, "Quiet family house", { cover_url: null, city: null, locality: null, advertiser: advertiser("individual") }),
+  publicCard(3, "Older house near the market", { advertiser: advertiser("agency", { agency_name: "Harbour Homes", verified: true }) }),
 ];
 // The detail carries a few keys the real API never sends (private values), to prove the page shows only what it reads by name.
 const PUBLIC_DETAIL = {
@@ -1320,6 +1325,7 @@ const PUBLIC_DETAIL = {
     basement: true,
     society: "Palm Society",
     amenities: { elevator: "present", nearby_park: "present" },
+    possession_availability: "within_one_month",
     street: "Cedar Lane",
     house_number: "Plot 12",
     latitude: "24.860000",
@@ -1423,7 +1429,7 @@ createServer((req, res) => {
   }
   if (url.pathname === "/__public-requests") return json(200, { requests: publicRequests });
   const publicFileRequest = /^\/api\/v1\/listings\/00000000-0000-4000-b000-\d{12}\/images\/[^/]+\/file$/.test(url.pathname);
-  if (publicFileRequest) {
+  if (publicFileRequest || url.pathname === PUBLIC_LOGO_URL) {
     res.writeHead(200, { "content-type": "image/png", "content-length": String(IMAGE_PNG.length) });
     return res.end(IMAGE_PNG);
   }
