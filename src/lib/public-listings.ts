@@ -2,8 +2,12 @@ import { cache } from "react";
 import type { components } from "@/api/schema";
 import { readAmenityCatalogue, type AmenityCatalogueList } from "./amenities";
 import { getApi } from "./api";
+import { SENTENCE_CODES } from "./error-sentences";
+import { readErrorBody } from "./forms";
+import { readFilterSchema, type FilterSchema, type Places } from "./listing-filters";
 import { isIsoDate, isListingId, readListing, type ListingView } from "./listing-labels";
 import { readPreview } from "./listing-preview";
+import { readReferenceItems } from "./reference-items";
 import { readRegistry, type Registry } from "./registry";
 
 /** Server-side reads of the public (Story 3.1) endpoints. Only the names read here are ever rendered. */
@@ -16,7 +20,11 @@ export type PublicCard = {
   coverUrl: string | null;
   publishedOn: string | null;
 };
-export type BrowseResult = { kind: "ok"; cards: PublicCard[]; nextCursor: string | null } | { kind: "bad_request" } | { kind: "error" };
+/** `problems`: the parameter names the server refused, each with its sentence. */
+export type BrowseResult =
+  | { kind: "ok"; cards: PublicCard[]; nextCursor: string | null }
+  | { kind: "bad_request"; problems: Record<string, string> }
+  | { kind: "error" };
 export type DetailResult = ({ kind: "ok" } & Omit<PublicCard, "coverUrl">) | { kind: "not_found" } | { kind: "error" };
 
 const placeName = (place: unknown): string | null => {
@@ -56,18 +64,63 @@ function cursorOf(next: unknown): string | null {
   }
 }
 
-export async function fetchBrowse(query: { sort?: string; limit?: string; cursor?: string }): Promise<BrowseResult> {
+/** Only a sentence of the backend's own table is shown; anything else reads as the default one. */
+function problemsOf(body: unknown): Record<string, string> {
+  const fields = readErrorBody(body, true)?.fields ?? {};
+  return Object.fromEntries(
+    Object.entries(fields).map(([name, [sentence]]) => [name, sentence && Object.hasOwn(SENTENCE_CODES, sentence) ? sentence : "Enter a valid value."]),
+  );
+}
+
+export async function fetchBrowse(query: URLSearchParams): Promise<BrowseResult> {
   try {
     const api = await getApi();
-    // The values go through as typed: the server judges them and answers 400.
-    const { data, response } = await api.GET("/api/v1/public/listings", { params: { query: query as { cursor?: string; limit?: number; sort?: "newest" } } });
-    if (response.status === 400) return { kind: "bad_request" };
+    // The values go through as typed: the server judges them and answers 400. The filter names come from the registry, not from the types.
+    const { data, error, response } = await api.GET("/api/v1/public/listings", { params: { query: Object.fromEntries(query) as Record<string, string> as { cursor?: string } } });
+    if (response.status === 400) return { kind: "bad_request", problems: problemsOf(error) };
     if (!response.ok || !data || !Array.isArray(data.results)) return { kind: "error" };
     const cards = data.results.map(readCard).filter((card): card is PublicCard => card !== null);
     return { kind: "ok", cards, nextCursor: cursorOf(data.next) };
   } catch {
     return { kind: "error" };
   }
+}
+
+export async function fetchFilterSchema(): Promise<FilterSchema | null> {
+  try {
+    const api = await getApi();
+    const { data, response } = await api.GET("/api/v1/public/filters");
+    return response.ok ? readFilterSchema(data) : null;
+  } catch {
+    return null;
+  }
+}
+
+const MAX_CITIES_WITH_LOCALITIES = 5;
+
+/**
+ * The names the panel needs: the cities, and the localities of the chosen ones (of the only city when there is just one). A list that
+ * fails is simply empty: a chosen value stays ticked under a neutral name, so it can still be cleared.
+ */
+export async function fetchPlaces(chosen: string[]): Promise<Places> {
+  const api = await getApi();
+  const items = async (read: () => Promise<{ data?: unknown; response: Response }>, withKind: boolean) => {
+    try {
+      const { data, response } = await read();
+      return response.ok ? readReferenceItems(data, withKind).items : [];
+    } catch {
+      return [];
+    }
+  };
+  const cities = await items(() => api.GET("/api/v1/reference/cities"), false);
+  const wanted = cities.length === 1 ? cities : cities.filter((city) => chosen.includes(city.id)).slice(0, MAX_CITIES_WITH_LOCALITIES);
+  const localities = await Promise.all(
+    wanted.map(async (city) => ({
+      city,
+      items: await items(() => api.GET("/api/v1/reference/cities/{city_id}/localities", { params: { path: { city_id: city.id } } }), true),
+    })),
+  );
+  return { cities, localities: localities.filter((group) => group.items.length > 0) };
 }
 
 /** Memoised for one render pass: the page and its title share one read. */

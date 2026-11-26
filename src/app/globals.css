@@ -771,3 +771,86 @@ progress {
   flex-wrap: wrap;
   gap: 0.5rem 1.5rem;
 }
+
+/* Public filters (Story 3.5): the sort row, the collapsible panel and the removable active filters */
+.filter-form {
+  margin-bottom: var(--space);
+}
+.filter-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+.filter-sort .field {
+  flex: 1 1 12rem;
+  margin-bottom: 0.5rem;
+}
+.filter-sort button {
+  margin-bottom: 0.5rem;
+}
+.filter-toggle {
+  min-height: 2.75rem;
+  padding: 0.5rem 0;
+  font-weight: 600;
+  cursor: pointer;
+}
+.filter-group {
+  border: 0;
+  margin: 0 0 var(--space);
+  padding: 0;
+  min-width: 0;
+}
+.filter-group legend {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  padding: 0;
+}
+.filter-group legend.filter-subtitle {
+  font-size: 0.9375rem;
+}
+.filter-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
+  gap: 0 var(--space);
+}
+.filter-options span,
+.filter-chip {
+  overflow-wrap: anywhere;
+}
+.filter-range {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0 var(--space);
+}
+.filter-range .field {
+  margin-bottom: 0;
+}
+.filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+}
+.filter-active,
+.filter-active ul {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.filter-active {
+  margin-bottom: var(--space);
+}
+.filter-active ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.filter-chip {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}

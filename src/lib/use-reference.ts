@@ -5,38 +5,15 @@ import { getApi } from "@/lib/api";
 import { readErrorBody, withTimeout } from "@/lib/forms";
 import { readAmenityCatalogue, type AmenityCatalogueList } from "@/lib/amenities";
 import { isListingId } from "@/lib/listing-labels";
+import { readReferenceItems, type RefList } from "@/lib/reference-items";
 
 /**
  * The reference lists the Location section chooses from (Story 2.7): the active cities and the localities of one city. They are public
  * data, read at runtime (never an enum, never stored). A list that cannot be trusted is a failed load, never a half-working select.
  */
-export type RefItem = { id: string; name: string; kind: "area" | "society" | null };
-/** `idle`: nothing to load yet (no city chosen). */
-export type RefStatus = "idle" | "loading" | "ready" | "empty" | "error";
-export type RefList = { status: RefStatus; items: RefItem[] };
+export type { RefItem, RefList, RefStatus } from "@/lib/reference-items";
 export type RefState = RefList & { retry: () => void; retrying: boolean };
 export type LocationLists = { city: RefState; locality: RefState; nameOf: (reference: "city" | "locality", id: string) => string | null };
-
-/**
- * Fail-closed parsing: the body must hold an `items` list; an item needs a canonical uuid, a non-empty name of at most 80 characters and
- * (localities) a kind of `area` or `society`; a repeated id is dropped. A list with items where none is usable is an error.
- */
-export function readReferenceItems(data: unknown, withKind: boolean): RefList {
-  const raw = typeof data === "object" && data !== null ? (data as { items?: unknown }).items : undefined;
-  if (!Array.isArray(raw)) return { status: "error", items: [] };
-  if (raw.length === 0) return { status: "empty", items: [] };
-  const seen = new Set<string>();
-  const items: RefItem[] = [];
-  for (const entry of raw) {
-    const { id, name, kind } = (typeof entry === "object" && entry !== null ? entry : {}) as Record<string, unknown>;
-    if (typeof id !== "string" || !isListingId(id) || seen.has(id)) continue;
-    if (typeof name !== "string" || name.trim() === "" || Array.from(name.trim()).length > 80) continue; // the limit counts code points of the trimmed name
-    if (withKind && kind !== "area" && kind !== "society") continue;
-    seen.add(id);
-    items.push({ id, name: name.trim(), kind: withKind ? (kind as "area" | "society") : null });
-  }
-  return items.length > 0 ? { status: "ready", items } : { status: "error", items: [] };
-}
 
 async function fetchList(kind: "city" | "locality", parent: string | null): Promise<RefList> {
   try {
