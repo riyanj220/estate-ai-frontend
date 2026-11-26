@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AdvertiserLine } from "@/components/advertiser-line";
 import { FilterPanel } from "@/components/filter-panel";
-import { priceText } from "@/components/listing-facts";
-import { RetryImage } from "@/components/retry-image";
-import { NOT_SET, areaSummary, summaryOf } from "@/lib/listing-labels";
+import { ListingCard } from "@/components/listing-card";
+import { SaveButton } from "@/components/save-button";
+import { FavouritesProvider } from "@/lib/favourites";
 import { browseHref, canonicalQuery, parameterTitle, valuesOf, without } from "@/lib/listing-filters";
-import { BROWSE_PATH, fetchBrowse, fetchFilterSchema, fetchPlaces, publishedText, type PublicCard } from "@/lib/public-listings";
+import { BROWSE_PATH, fetchBrowse, fetchFilterSchema, fetchPlaces } from "@/lib/public-listings";
 
 export const metadata: Metadata = { title: "Browse listings | EstateAI" };
 
@@ -104,11 +103,15 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
               )}
             </p>
           ) : (
-            <ul className="browse-grid" aria-label="Listings">
-              {result.cards.map((card) => (
-                <Card key={card.listing.id} card={card} />
-              ))}
-            </ul>
+            <FavouritesProvider>
+              <ul className="browse-grid" aria-label="Listings">
+                {result.cards.map((card) => (
+                  <ListingCard key={card.listing.id} card={card}>
+                    <SaveButton listingId={card.listing.id} title={card.listing.fields.title ?? "Untitled listing"} />
+                  </ListingCard>
+                ))}
+              </ul>
+            </FavouritesProvider>
           )}
           <p className="browse-pages">
             {query.has("cursor") && (
@@ -125,39 +128,5 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
         </>
       )}
     </>
-  );
-}
-
-function Card({ card }: { card: PublicCard }) {
-  const { listing, coverUrl, publishedOn } = card;
-  const { fields, details } = listing;
-  const title = fields.title ?? "Untitled listing";
-  const place = [card.localityName, card.cityName].filter(Boolean).join(", ");
-  const rooms = [details.bedrooms && `Bedrooms: ${details.bedrooms}`, details.bathrooms && `Bathrooms: ${details.bathrooms}`].filter(Boolean).join(" · ");
-  const area = areaSummary(fields);
-  return (
-    <li className="card" data-testid="browse-card">
-      {coverUrl ? (
-        <RetryImage url={coverUrl} alt={`Cover image of ${title}`} label={`the cover of ${title}`} className="image-thumb" failedClassName="image-thumb image-failed" />
-      ) : (
-        <div className="image-thumb browse-no-image">No image</div>
-      )}
-      <h2 className="browse-title">
-        <Link href={`${BROWSE_PATH}/${listing.id}`} className="text-link">
-          {title}
-        </Link>
-      </h2>
-      <p className="browse-price">{priceText(fields)}</p>
-      <p>{summaryOf(fields)}</p>
-      {area !== NOT_SET && <p>{area}</p>}
-      {rooms && <p>{rooms}</p>}
-      {place && <p>{place}</p>}
-      {card.advertiser && <AdvertiserLine advertiser={card.advertiser} testId="browse-advertiser" />}
-      {publishedOn && (
-        <p className="hint">
-          Published <time dateTime={publishedOn}>{publishedText(publishedOn)}</time>
-        </p>
-      )}
-    </li>
   );
 }

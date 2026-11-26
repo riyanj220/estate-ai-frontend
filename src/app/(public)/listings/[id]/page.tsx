@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { AdvertiserLine } from "@/components/advertiser-line";
 import { ListingFacts } from "@/components/listing-facts";
 import { RetryImage } from "@/components/retry-image";
+import { SaveButton } from "@/components/save-button";
 import type { AmenityCatalogueList } from "@/lib/amenities";
+import { FavouritesProvider } from "@/lib/favourites";
 import { summaryOf } from "@/lib/listing-labels";
 import { PREVIEW_DETAILS_FAILED, PREVIEW_NO_IMAGES } from "@/lib/listing-messages";
 import { BROWSE_PATH, fetchDetail, fetchPublicAmenities, fetchPublicRegistry, publishedText } from "@/lib/public-listings";
@@ -66,6 +68,9 @@ export default async function ListingPage({ params }: Props) {
           )}
         </p>
         {result.advertiser && <AdvertiserLine advertiser={result.advertiser} testId="listing-advertiser" />}
+        <FavouritesProvider>
+          <SaveButton listingId={listing.id} title={fields.title ?? "Untitled listing"} />
+        </FavouritesProvider>
         {media.length === 0 ? (
           <p className="muted">{PREVIEW_NO_IMAGES}</p>
         ) : (

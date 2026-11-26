@@ -2666,6 +2666,251 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/favourites:
+    get:
+      operationId: list_favourites
+      description: 'Own favourites only (Individual and Agency accounts; `forbidden`
+        for others). A saved Listing that is no longer publicly visible has `listing:
+        null` and nothing else about it. 20 per page, `page_size` up to 50; a bad
+        `cursor` is `validation_error`. Never cached.'
+      summary: The signed-in account's favourites, latest saved first
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavouritePage'
+          description: One page
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: not allowed for this account, or a missing CSRF
+            token'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/favourites/{listing_id}:
+    put:
+      operationId: save_favourite
+      description: 'Needs `X-CSRFToken`. No body. Idempotent: saving a saved Listing
+        is `204` again. Only a publicly visible Listing can be newly saved; anything
+        else is `not_found`.'
+      summary: Save a Listing to favourites
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Saved
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: not allowed for this account, or a missing CSRF
+            token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`throttled`: 500 favourites are saved; no `Retry-After`'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      operationId: remove_favourite
+      description: Needs `X-CSRFToken`. The Listing itself is not touched. A Listing
+        the account has not saved is `not_found`.
+      summary: Remove a Listing from favourites
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Removed
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: not allowed for this account, or a missing CSRF
+            token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/favourites/ids:
+    get:
+      operationId: list_favourite_ids
+      description: All of them (at most 500), for the Save buttons. Never cached.
+      summary: The ids of the Listings the account has saved
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavouriteIds'
+          description: The ids
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: not allowed for this account, or a missing CSRF
+            token'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/me/listings:
     get:
       operationId: list_my_listings
@@ -5261,6 +5506,49 @@ components:
       - message
       - fields
       - request_id
+    Favourite:
+      type: object
+      properties:
+        listing_id:
+          type: string
+          format: uuid
+        saved_at:
+          type: string
+          format: date-time
+        listing:
+          allOf:
+          - $ref: '#/components/schemas/PublicListingCard'
+          nullable: true
+          description: The public card; null when the Listing is no longer available.
+      required:
+      - listing
+      - listing_id
+      - saved_at
+    FavouriteIds:
+      type: object
+      properties:
+        listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+      - listing_ids
+    FavouritePage:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Favourite'
+        next:
+          type: string
+          format: uri
+          nullable: true
+          description: The next page; null on the last.
+      required:
+      - next
+      - results
     FieldClassEnum:
       enum:
       - public

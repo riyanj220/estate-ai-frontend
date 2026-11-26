@@ -37,6 +37,13 @@ export default async function DashboardPage() {
           </Link>
         </p>
       )}
+      {canOwnListings(account.account_type) && (
+        <p>
+          <Link href="/account/favourites" className="text-link">
+            Favourites
+          </Link>
+        </p>
+      )}
       {canOwnListings(account.account_type) && <AllowanceCard />}
       <p>
         <Link href="/account/password" className="text-link">

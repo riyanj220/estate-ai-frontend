@@ -58,7 +58,7 @@ function advertiserOf(value: unknown): Advertiser | null {
 const coverOf = (url: unknown, id: string): string | null =>
   typeof url === "string" && url.startsWith(`/api/v1/listings/${id}/images/`) && /^[0-9a-f-]{36}\/file$/.test(url.slice(`/api/v1/listings/${id}/images/`.length)) ? url : null;
 
-function readCard(card: components["schemas"]["PublicListingCard"]): PublicCard | null {
+export function readCard(card: components["schemas"]["PublicListingCard"]): PublicCard | null {
   if (!isListingId(card.id)) return null;
   const listing = readListing({
     id: card.id,

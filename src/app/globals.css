@@ -877,3 +877,11 @@ progress {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
 }
+
+/* Favourites (Story 3.7): the Save control under a card or the detail summary */
+.save-control {
+  margin: 0.5rem 0;
+}
+.save-note {
+  margin-top: 0.5rem;
+}

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { STATE_NOTES, canOwnListings, displayName, profileLinkLabel } from "@/lib/account";
 import { NotificationsLink } from "@/components/notifications-link";
+import { FAVOURITES_PATH, keepsFavourites } from "@/lib/favourites";
 import { LISTINGS_PATH } from "@/lib/listing-messages";
 import { useSession } from "@/lib/session";
 
@@ -77,6 +78,11 @@ export function SiteHeader() {
               {canOwnListings(account.account_type) && (
                 <Link href={LISTINGS_PATH} className="text-link">
                   My listings
+                </Link>
+              )}
+              {keepsFavourites(account) && (
+                <Link href={FAVOURITES_PATH} className="text-link">
+                  Favourites
                 </Link>
               )}
               <NotificationsLink />
