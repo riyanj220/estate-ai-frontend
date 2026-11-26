@@ -1320,6 +1320,17 @@ The URL query is the whole state, so a filtered page can be shared and everythin
 - **Stub**: the four `/api/v1/me/favourites` routes, `/__favourites-preset?value=empty|some`, `/__favourites-mode?value=ok|full`.
 - **Tests**: `tests/e2e/favourites.spec.ts`.
 
+## Agency page (`/agencies/[id]`, Story 3.8)
+
+Public and server-rendered, from `GET /api/v1/public/agencies/{agency_id}` and `.../listings`.
+
+- Shows the name, logo, description and "Verified agency" or "Not verified" only, then the agency's published listings with the
+  filter panel, sort, paging and states of `/listings` (both use `src/components/listing-results.tsx`).
+- A hidden, unknown or malformed id is one not-found page (`404`).
+- The agency name on listing cards and the detail links here.
+- **Stub**: two agencies (`6666...` with two listings, one per page; `7777...` verified with none); `__public-mode?value=error` applies.
+- **Tests**: `tests/e2e/agency-page.spec.ts`.
+
 ## Layout
 
 - `src/app/(public)` public pages (includes `/health`, `/register`, `/register/agency`, `/verify-email`, `/forgot-password`, `/reset-password` and `/confirm-email-change`), `src/app/(app)` signed-in pages (dashboard, profile, password, notifications, listings),

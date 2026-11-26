@@ -34,7 +34,11 @@ test("browse: the header link, cards, the next page and the forwarded cookie @sm
   await expect(advertisers.first().locator("img")).toHaveAttribute("src", /^\/api\/v1\/agencies\/[0-9a-f-]{36}\/logo$/);
   await expect(advertisers.nth(1)).toHaveText("Listed by an individual");
   await expect(advertisers.nth(1).locator("img")).toHaveCount(0);
-  await expect(cards.first()).toMatchAriaSnapshot(`- paragraph: "Listed by agency: Sunrise Estates"`);
+  await expect(cards.first()).toMatchAriaSnapshot(`
+    - paragraph:
+      - text: "Listed by agency:"
+      - link "Sunrise Estates"
+  `);
   await expect(page.getByTestId("browse-next")).toHaveAttribute("href", "/listings?cursor=page2");
   await page.getByTestId("browse-next").click();
   await expect(cards).toHaveCount(1);

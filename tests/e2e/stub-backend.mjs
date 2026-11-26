@@ -1299,7 +1299,9 @@ const publicImageUrl = (listing, image) => `/api/v1/listings/${publicId(listing)
 // Story 3.6: card 1 is an Agency with a logo, card 2 an Individual, card 3 a verified Agency without one (the real API sends no
 // `verified: true` before Epic 8; the stub does, to prove the indicator).
 const PUBLIC_LOGO_URL = "/api/v1/agencies/66666666-6666-4666-8666-666666666666/logo";
-const advertiser = (type, extra = {}) => ({ type, agency_name: null, logo_url: null, verified: false, ...extra });
+const SUNRISE_ID = "66666666-6666-4666-8666-666666666666";
+const HARBOUR_ID = "77777777-7777-4777-8777-777777777777";
+const advertiser = (type, extra = {}) => ({ type, agency_id: null, agency_name: null, logo_url: null, verified: false, ...extra });
 const publicCard = (seq, title, extra = {}) => ({
   id: publicId(seq),
   purpose: "sale",
@@ -1311,13 +1313,13 @@ const publicCard = (seq, title, extra = {}) => ({
   locality: { id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001", name: "Clifton" },
   cover_url: publicImageUrl(seq, 1),
   published_on: "2026-11-20",
-  advertiser: advertiser("agency", { agency_name: "Sunrise Estates", logo_url: PUBLIC_LOGO_URL }),
+  advertiser: advertiser("agency", { agency_id: SUNRISE_ID, agency_name: "Sunrise Estates", logo_url: PUBLIC_LOGO_URL }),
   ...extra,
 });
 const PUBLIC_CARDS = [
   publicCard(1, "Corner house with garden"),
   publicCard(2, "Quiet family house", { cover_url: null, city: null, locality: null, advertiser: advertiser("individual") }),
-  publicCard(3, "Older house near the market", { advertiser: advertiser("agency", { agency_name: "Harbour Homes", verified: true }) }),
+  publicCard(3, "Older house near the market", { advertiser: advertiser("agency", { agency_id: HARBOUR_ID, agency_name: "Harbour Homes", verified: true }) }),
 ];
 // The detail carries a few keys the real API never sends (private values), to prove the page shows only what it reads by name.
 const PUBLIC_DETAIL = {
@@ -1368,20 +1370,29 @@ const PUBLIC_EXTRA = [
   { purpose: "rent", price_basis: "rental_period", rental_period: "month", asking_price: "50000.00", bedrooms: 2, amenities: ["elevator"] },
   { asking_price: "900000.00", bedrooms: 3, amenities: [] },
 ];
-const publicValues = (card, index) => ({
+const publicValues = (card, index, extra) => ({
   ...card.fields,
   purpose: card.purpose,
   category: card.category,
   subtype: card.subtype,
   city: card.city?.id,
   locality: card.locality?.id,
-  ...PUBLIC_EXTRA[index],
+  ...extra[index],
 });
+// Story 3.8: the public Agencies. Sunrise has two Listings (shown one per page); Harbour has none and no description. The extra
+// private keys are never sent by the real API: they prove the page shows only what it reads by name.
+const PUBLIC_AGENCIES = {
+  [SUNRISE_ID]: { name: "Sunrise Estates", logo_url: PUBLIC_LOGO_URL, description: "Homes across Karachi.\nFamily run.", verified: false, business_phone: "+923009998877", office_address: "Cedar Lane" },
+  [HARBOUR_ID]: { name: "Harbour Homes", logo_url: null, description: "", verified: true },
+};
+const SUNRISE_CARDS = [PUBLIC_CARDS[0], publicCard(4, "Agency town house", { fields: { ...publicCard(4, "").fields, asking_price: "700000.00" } })];
+const SUNRISE_EXTRA = [PUBLIC_EXTRA[0], { asking_price: "700000.00", amenities: [] }];
+
 /** { errors } or { rows, tag, ranked }: the rows are the cards that satisfy every filter, in the asked order. */
-const searchPublic = (params) => {
+const searchPublic = (params, cards = PUBLIC_CARDS, extra = PUBLIC_EXTRA) => {
   const errors = {};
   const names = new Set(PUBLIC_FILTERS.flatMap((filter) => filter.params));
-  let rows = PUBLIC_CARDS.map((card, index) => ({ card, values: publicValues(card, index) }));
+  let rows = cards.map((card, index) => ({ card, values: publicValues(card, index, extra) }));
   let preferred = false;
   for (const name of new Set(params.keys())) {
     if (["sort", "limit", "cursor"].includes(name)) continue;
@@ -1452,6 +1463,22 @@ createServer((req, res) => {
     following.search = url.search;
     following.searchParams.set("cursor", found.tag);
     return json(200, cursor ? { results: found.rows.slice(2), next: null } : { results: found.rows.slice(0, 2), next: found.rows.length > 2 ? following.href : null });
+  }
+  const agencyRoute = /^\/api\/v1\/public\/agencies\/([^/]+)(\/listings)?$/.exec(url.pathname);
+  if (agencyRoute) {
+    publicRequests.push({ path: url.pathname + url.search, cookie: req.headers.cookie ?? "" });
+    if (publicMode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+    const [, agencyId, listings] = agencyRoute;
+    if (!Object.hasOwn(PUBLIC_AGENCIES, agencyId)) return json(404, envelope("not_found", "Not found."));
+    if (!listings) return json(200, PUBLIC_AGENCIES[agencyId]);
+    const own = agencyId === SUNRISE_ID;
+    const found = searchPublic(url.searchParams, own ? SUNRISE_CARDS : [], own ? SUNRISE_EXTRA : []);
+    if (found.errors) return json(400, envelope("validation_error", "Check the request.", found.errors));
+    const cursor = url.searchParams.get("cursor");
+    if (cursor !== null && cursor !== found.tag) return json(400, envelope("validation_error", "Check the request.", { cursor: ["invalid"] }));
+    const following = new URL(`http://backend.invalid${url.pathname}${url.search}`);
+    following.searchParams.set("cursor", found.tag);
+    return json(200, cursor ? { results: found.rows.slice(1), next: null } : { results: found.rows.slice(0, 1), next: found.rows.length > 1 ? following.href : null });
   }
   if (url.pathname === "/api/v1/public/filters") {
     if (publicMode === "filters_error") return json(500, envelope("server_error", "Internal detail that must not show."));
