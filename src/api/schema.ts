@@ -873,6 +873,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The filters of the public list
+         * @description Public. Generated from the Field registry and the amenity catalogue: what `GET /api/v1/public/listings` accepts. `Cache-Control: public, max-age=60`.
+         */
+        get: operations["get_public_filters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/listings": {
         parameters: {
             query?: never;
@@ -881,8 +901,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Browse the published Listings, newest first
-         * @description Public; the answer is the same for every caller. Only publicly visible Listings (published, not restricted, owner Active), newest first publication first. `limit` is 1 to 50 (default 20); `next` is the link to the following page and carries an opaque `cursor`. A bad `limit`, `cursor` or `sort` is `400 validation_error` under that name in `fields`. `200` has `Cache-Control: public, max-age=60` and no cookie (so a Listing may stay in a cache for up to a minute after it stops being public); errors are `no-store`.
+         * Browse and filter the published Listings
+         * @description Public; the answer is the same for every caller. Only publicly visible Listings (published, not restricted, owner Active). Every filter given must hold; a Listing that has not answered an attribute never matches a filter on it. A `prefer_` parameter excludes nothing: it only ranks under `sort=relevance` (the default when one is given; otherwise `newest`). Prices are compared as stored, so give `purpose` to keep sale and rent apart. Area is in square feet. `GET /api/v1/public/filters` describes the parameters. `limit` is 1 to 50 (default 20); `next` is the link to the following page and carries an opaque `cursor`, valid only with the same filters and sort. An unknown, repeated or bad parameter is `400 validation_error` under its name in `fields`. `200` has `Cache-Control: public, max-age=60` and no cookie (so a Listing may stay in a cache for up to a minute after it stops being public); errors are `no-store`.
          */
         get: operations["list_public_listings"];
         put?: never;
@@ -2081,6 +2101,14 @@ export interface components {
          * @enum {string}
          */
         MarlaBasisEnum: "225" | "250" | "272.25";
+        /**
+         * @description * `choice` - choice
+         *     * `range` - range
+         *     * `boolean` - boolean
+         *     * `amenities` - amenities
+         * @enum {string}
+         */
+        MatchEnum: "choice" | "range" | "boolean" | "amenities";
         Notification: {
             /** Format: uuid */
             id: string;
@@ -2472,6 +2500,45 @@ export interface components {
             } | null;
             /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. Computed by the server; read-only. */
             area_sqft: string | null;
+        };
+        PublicFilter: {
+            /** @description The registry field id. */
+            id: string;
+            type: components["schemas"]["TypeEnum"];
+            /**
+             * @description `choice`: comma-separated, any of them. `range`: inclusive `_min` and `_max`. `boolean`: `true` or `false`. `amenities`: comma-separated codes, all of them.
+             *
+             *     * `choice` - choice
+             *     * `range` - range
+             *     * `boolean` - boolean
+             *     * `amenities` - amenities
+             */
+            match: components["schemas"]["MatchEnum"];
+            /** @description The query parameter names. */
+            params: string[];
+            /** @description Enums only. */
+            allowed_values: string[] | null;
+            /** @description Amenities only: the active catalogue. A `nearby` entry is the seller's own declaration. */
+            options: components["schemas"]["Amenity"][] | null;
+            /** @description `city` or `locality`: values are ids from the reference lists. */
+            reference: string | null;
+            /** @description Ranges: the registry's smallest. */
+            min: string | null;
+            /** @description Ranges: the largest bound accepted. */
+            max: string | null;
+            seller_declared: boolean;
+            /** @description Applicability; empty means all. */
+            purposes: string[];
+            categories: string[];
+            subtypes: string[];
+        };
+        PublicFilters: {
+            registry_version: number;
+            /** @description `relevance` only with a preference. */
+            sorts: string[];
+            /** @description Put before any filter parameter to make it a preference. */
+            preference_prefix: string;
+            filters: components["schemas"]["PublicFilter"][];
         };
         /** @description An image as the public sees it: no asset id, storage key, owner or stored size. */
         PublicImage: {
@@ -6950,12 +7017,164 @@ export interface operations {
             };
         };
     };
+    get_public_filters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The filters */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicFilters"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     list_public_listings: {
         parameters: {
             query?: {
+                /** @description Filter (amenities). */
+                amenities?: string;
+                /** @description Filter (range). */
+                area_sqft_max?: string;
+                /** @description Filter (range). */
+                area_sqft_min?: string;
+                /** @description Filter (range). */
+                asking_price_max?: string;
+                /** @description Filter (range). */
+                asking_price_min?: string;
+                /** @description Filter (range). */
+                bathrooms_max?: number;
+                /** @description Filter (range). */
+                bathrooms_min?: number;
+                /** @description Filter (range). */
+                bedrooms_max?: number;
+                /** @description Filter (range). */
+                bedrooms_min?: number;
+                /** @description Filter (choice). */
+                category?: string;
+                /** @description Filter (choice). */
+                city?: string;
                 cursor?: string;
+                /** @description Filter (choice). */
+                furnishing?: string;
                 limit?: number;
-                sort?: "newest";
+                /** @description Filter (choice). */
+                locality?: string;
+                /** @description Filter (range). */
+                parking_spaces_max?: number;
+                /** @description Filter (range). */
+                parking_spaces_min?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_amenities?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_area_sqft_max?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_area_sqft_min?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_asking_price_max?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_asking_price_min?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_bathrooms_max?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_bathrooms_min?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_bedrooms_max?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_bedrooms_min?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_category?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_city?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_furnishing?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_locality?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_parking_spaces_max?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_parking_spaces_min?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_price_basis?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_purpose?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_rental_period?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_subtype?: string;
+                /** @description Filter (choice). */
+                price_basis?: string;
+                /** @description Filter (choice). */
+                purpose?: string;
+                /** @description Filter (choice). */
+                rental_period?: string;
+                sort?: "newest" | "price_asc" | "price_desc" | "relevance";
+                /** @description Filter (choice). */
+                subtype?: string;
             };
             header?: never;
             path?: never;

@@ -3669,32 +3669,286 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/public/filters:
+    get:
+      operationId: get_public_filters
+      description: 'Public. Generated from the Field registry and the amenity catalogue:
+        what `GET /api/v1/public/listings` accepts. `Cache-Control: public, max-age=60`.'
+      summary: The filters of the public list
+      tags:
+      - public
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicFilters'
+          description: The filters
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/public/listings:
     get:
       operationId: list_public_listings
       description: 'Public; the answer is the same for every caller. Only publicly
-        visible Listings (published, not restricted, owner Active), newest first publication
-        first. `limit` is 1 to 50 (default 20); `next` is the link to the following
-        page and carries an opaque `cursor`. A bad `limit`, `cursor` or `sort` is
-        `400 validation_error` under that name in `fields`. `200` has `Cache-Control:
-        public, max-age=60` and no cookie (so a Listing may stay in a cache for up
-        to a minute after it stops being public); errors are `no-store`.'
-      summary: Browse the published Listings, newest first
+        visible Listings (published, not restricted, owner Active). Every filter given
+        must hold; a Listing that has not answered an attribute never matches a filter
+        on it. A `prefer_` parameter excludes nothing: it only ranks under `sort=relevance`
+        (the default when one is given; otherwise `newest`). Prices are compared as
+        stored, so give `purpose` to keep sale and rent apart. Area is in square feet.
+        `GET /api/v1/public/filters` describes the parameters. `limit` is 1 to 50
+        (default 20); `next` is the link to the following page and carries an opaque
+        `cursor`, valid only with the same filters and sort. An unknown, repeated
+        or bad parameter is `400 validation_error` under its name in `fields`. `200`
+        has `Cache-Control: public, max-age=60` and no cookie (so a Listing may stay
+        in a cache for up to a minute after it stops being public); errors are `no-store`.'
+      summary: Browse and filter the published Listings
       parameters:
+      - in: query
+        name: amenities
+        schema:
+          type: string
+        description: Filter (amenities).
+      - in: query
+        name: area_sqft_max
+        schema:
+          type: string
+        description: Filter (range).
+      - in: query
+        name: area_sqft_min
+        schema:
+          type: string
+        description: Filter (range).
+      - in: query
+        name: asking_price_max
+        schema:
+          type: string
+        description: Filter (range).
+      - in: query
+        name: asking_price_min
+        schema:
+          type: string
+        description: Filter (range).
+      - in: query
+        name: bathrooms_max
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: bathrooms_min
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: bedrooms_max
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: bedrooms_min
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: category
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: city
+        schema:
+          type: string
+        description: Filter (choice).
       - in: query
         name: cursor
         schema:
           type: string
       - in: query
+        name: furnishing
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
         name: limit
         schema:
           type: integer
+      - in: query
+        name: locality
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: parking_spaces_max
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: parking_spaces_min
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: prefer_amenities
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_area_sqft_max
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_area_sqft_min
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_asking_price_max
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_asking_price_min
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_bathrooms_max
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_bathrooms_min
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_bedrooms_max
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_bedrooms_min
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_category
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_city
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_furnishing
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_locality
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_parking_spaces_max
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_parking_spaces_min
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_price_basis
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_purpose
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_rental_period
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_subtype
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: price_basis
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: purpose
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: rental_period
+        schema:
+          type: string
+        description: Filter (choice).
       - in: query
         name: sort
         schema:
           type: string
           enum:
           - newest
+          - price_asc
+          - price_desc
+          - relevance
+      - in: query
+        name: subtype
+        schema:
+          type: string
+        description: Filter (choice).
       tags:
       - public
       responses:
@@ -6595,6 +6849,18 @@ components:
         * `225` - 225
         * `250` - 250
         * `272.25` - 272.25
+    MatchEnum:
+      enum:
+      - choice
+      - range
+      - boolean
+      - amenities
+      type: string
+      description: |-
+        * `choice` - choice
+        * `range` - range
+        * `boolean` - boolean
+        * `amenities` - amenities
     Notification:
       type: object
       properties:
@@ -7545,6 +7811,105 @@ components:
       - utility_internet_included
       - utility_water_included
       - water
+    PublicFilter:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The registry field id.
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        match:
+          allOf:
+          - $ref: '#/components/schemas/MatchEnum'
+          description: |-
+            `choice`: comma-separated, any of them. `range`: inclusive `_min` and `_max`. `boolean`: `true` or `false`. `amenities`: comma-separated codes, all of them.
+
+            * `choice` - choice
+            * `range` - range
+            * `boolean` - boolean
+            * `amenities` - amenities
+        params:
+          type: array
+          items:
+            type: string
+          description: The query parameter names.
+        allowed_values:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Enums only.
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/Amenity'
+          nullable: true
+          description: 'Amenities only: the active catalogue. A `nearby` entry is
+            the seller''s own declaration.'
+        reference:
+          type: string
+          nullable: true
+          description: '`city` or `locality`: values are ids from the reference lists.'
+        min:
+          type: string
+          nullable: true
+          description: 'Ranges: the registry''s smallest.'
+        max:
+          type: string
+          nullable: true
+          description: 'Ranges: the largest bound accepted.'
+        seller_declared:
+          type: boolean
+        purposes:
+          type: array
+          items:
+            type: string
+          description: Applicability; empty means all.
+        categories:
+          type: array
+          items:
+            type: string
+        subtypes:
+          type: array
+          items:
+            type: string
+      required:
+      - allowed_values
+      - categories
+      - id
+      - match
+      - max
+      - min
+      - options
+      - params
+      - purposes
+      - reference
+      - seller_declared
+      - subtypes
+      - type
+    PublicFilters:
+      type: object
+      properties:
+        registry_version:
+          type: integer
+        sorts:
+          type: array
+          items:
+            type: string
+          description: '`relevance` only with a preference.'
+        preference_prefix:
+          type: string
+          description: Put before any filter parameter to make it a preference.
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicFilter'
+      required:
+      - filters
+      - preference_prefix
+      - registry_version
+      - sorts
     PublicImage:
       type: object
       description: 'An image as the public sees it: no asset id, storage key, owner
