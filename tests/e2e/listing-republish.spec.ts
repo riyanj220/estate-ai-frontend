@@ -9,7 +9,7 @@ const STUB = STUB_URL;
 const LIST = "/account/listings";
 const id = (seq: number) => `00000000-0000-4000-9000-${String(seq).padStart(12, "0")}`;
 const COPY =
-  "Republishing makes this listing visible to everyone again. It uses 1 of your monthly publications unless you republish in the same month as your last counted publication without changing the category, subtype, purpose, city, locality, area value, area unit or marla basis.";
+  "Republishing makes this listing visible to everyone again. It uses 1 of your monthly publications unless you republish in the same month as your last counted publication without changing the category, subtype, purpose, city, locality, area value or area unit.";
 const COUNTED = "Republished. This used 1 of your publications.";
 const FREE = "Republished. This did not use any of your publications.";
 const KEY = /^[A-Za-z0-9._:-]{1,128}$/;

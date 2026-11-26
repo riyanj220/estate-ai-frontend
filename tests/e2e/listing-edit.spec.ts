@@ -198,7 +198,7 @@ test("save: only the changed field is sent with the base revision; the revision 
   await saveButton(page).click();
   await expect(live(page)).toHaveText("Saved");
   await expect(revision(page)).toHaveText("4");
-  await expect(page.getByTestId("draft-registry-version")).toHaveText("8");
+  await expect(page.getByTestId("draft-registry-version")).toHaveText("10");
   const sent = await patches(request);
   expect(sent.count).toBe(1);
   expect(sent.bodies[0]).toEqual({ base_revision: 3, fields: { title: "Corner house with a big garden" } });
@@ -2854,11 +2854,11 @@ test("no platform badge: none appears on a Shop, an Office, with errors, in a co
 
 test("the registry's ETag carries the version, a hash of what it serves and the shape, and a registry change changes it", async ({ request }) => {
   const first = (await request.get(`${STUB}/api/v1/registry`)).headers().etag;
-  expect(first).toMatch(/^"8-[0-9a-f]{8}-7"$/);
+  expect(first).toMatch(/^"10-[0-9a-f]{8}-7"$/);
   expect((await request.get(`${STUB}/api/v1/registry`)).headers().etag).toBe(first);
   await registryFields(request, "plotmap");
   const changed = (await request.get(`${STUB}/api/v1/registry`)).headers().etag;
-  expect(changed).toMatch(/^"8-[0-9a-f]{8}-7"$/);
+  expect(changed).toMatch(/^"10-[0-9a-f]{8}-7"$/);
   expect(changed).not.toBe(first);
 });
 

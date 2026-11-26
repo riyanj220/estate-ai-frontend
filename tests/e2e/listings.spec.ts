@@ -163,7 +163,7 @@ test("registry: the browser revalidates it with its ETag @smoke", async ({ page,
   await expect(category(page)).toBeVisible();
   const after = await stats(request);
   expect(after.registryGets).toBe(2);
-  expect(after.lastRegistryConditional).toMatch(/^"8-[0-9a-f]{8}-7"$/);
+  expect(after.lastRegistryConditional).toMatch(/^"10-[0-9a-f]{8}-7"$/);
   expect(after.registryNotModified).toBe(1);
   await expect(category(page).locator("option")).toHaveCount(5);
 });

@@ -311,8 +311,9 @@ test("Published: the editor works, the identity fields are read only with the no
   await expect(page.getByRole("heading", { level: 1, name: "Listing" })).toBeVisible();
   await expect(statusLine(page)).toHaveText("Published");
   await expect(page.getByTestId("identity-note")).toHaveText(IDENTITY_NOTE);
-  // The registry's identity flag decides: city, locality, area value, unit and marla basis are shown but cannot be changed.
-  for (const name of ["City", "Locality", "Area value", "Unit", "Marla basis"]) {
+  // The registry's identity flag decides: city, locality, area value and unit are shown but cannot be changed; the marla basis can.
+  await expect(page.getByLabel("Marla basis", { exact: true })).not.toHaveAttribute("aria-readonly", "true");
+  for (const name of ["City", "Locality", "Area value", "Unit"]) {
     await expectLocked(page, name);
   }
   // A read only text control cannot be typed into, and a select keeps its value.

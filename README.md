@@ -1210,7 +1210,7 @@ Story 2.17 (frontend half). The contract is the backend's `GET /api/v1/me/listin
 - **Stub** (`tests/e2e/stub-backend.mjs`): statuses on every Listing (`status`, `restricted`, `restrictionReason`), the transition table with
   the purpose rule, the Suspended and restricted limits, stale before conflict, `GET /api/v1/me/listings/counts` and the `status` filter
   (invalid value `400`), the Published edit rules (identity lock with the unchanged re-send accepted, required items and live images
-  judged), view-only statuses refused `403` for edits and images, the last-image rule, the registry's `quota_identity` flags on all eight
+  judged), view-only statuses refused `403` for edits and images, the last-image rule, the registry's `quota_identity` flags on the seven
   identity fields (purpose, category and subtype are registry fields in the stub too, as in the backend). The status route answers in the
   backend's order: body shape, owner, stale revision, account and listing limits, the transition table. Presets `published_sale`,
   `published_rent`, `published_one_image`, `published_many`, `published_many_and_draft`, `archived_one`, `sold_one`, `rented_one`,
@@ -1230,7 +1230,7 @@ Story 2.18 (frontend half). The contract is the backend's `POST /api/v1/listings
 `Idempotency-Key`, CSRF): `200` is the owner Listing plus `publication_kind` (`republish_counted` or `republish_free`); the errors have the
 shape of Publish (`400` with every problem at once, `409 stale_revision`, `409 conflict`, `409 quota_exhausted` with `details`, `403
 forbidden` for a restricted listing, `403 email_not_verified`, `403 publishing_unavailable`, `422 idempotency_key_reused`). A republication
-is free only when the last counted publication was in the same Karachi month and none of the eight identity fields changed; the backend
+is free only when the last counted publication was in the same Karachi month and none of the seven identity fields changed; the backend
 decides, the page only reports.
 
 - **One machine, two modes**: `publish-section.tsx` takes `mode="publish" | "republish"`. The key per attempt, the locks, the error
@@ -1253,7 +1253,7 @@ decides, the page only reports.
   is shown as the not-found state by design.
 - **Stub**: the publish route also serves `/republish` (same code path): the backend's order (key and body shape, owner, replay or `422`,
   stale, status, restricted, account state, validation, quota), a key belongs to one operation, the counted or free decision from the
-  per-listing baseline (`baseline: {month, fp}` of the eight identity fields; the Karachi month is fixed at 2026-11 like the allowance),
+  per-listing baseline (`baseline: {month, fp}` of the seven identity fields; the Karachi month is fixed at 2026-11 like the allowance),
   `publication_kind` in the answer and in a replay (the original), a counted publication or republication moves the baseline, a free one does not
   and uses nothing. Presets `archived_free` (baseline this month), `archived_last_month`, `archived_two`, `archived_no_image`,
   `archived_empty`, `archived_ai_street`, `restricted_archived`, `published_counted`; `archived_one` has no baseline (counted). The
@@ -1269,3 +1269,19 @@ decides, the page only reports.
 
 `/dashboard` is a placeholder guarded on the server (see above); `/admin` is the administrator area (see "Admin area").
 Both are marked `noindex`.
+
+## Correcting the locality or area (Story 2.19)
+
+A Published listing page shows, from `GET /api/v1/listings/{id}/correction`, either the "Correct locality or area" section
+(`correction-section.tsx`: until when in Karachi time and roughly how long is left, the saved values prefilled, the localities of the
+listing's city) or the note "To change the locality or area, archive this listing and republish it." A restricted listing and a Suspended
+owner see neither; a failed check offers Retry. Only the changed fields are sent to `POST .../correction`, after a dialog saying it can
+be done only once. A request that changes nothing, or only the marla size (an ordinary edit now: it is no longer an identity field), is
+answered on the page without a request. The button is `aria-disabled` with the reason while the main form has unsaved changes; while the
+request runs Save, the images and the status actions wait. A `400` shows next to the fields; `409` (stale, not published, window closed)
+and `403` read the listing and the window again and say why. The correction's controls have their own labels ("Corrected area value"),
+as the main form shows the same fields read only.
+
+Stub: the window is 24 hours after the last counted publication (`published_counted` is inside it, one hour old; `published_one` has
+none); `/__correction-mode` (`ok`, `hold`, `read_error`, `stale`, `conflict`, `unavailable`, `restricted_race`, `invalid`, `session_gone`,
+`error`, `broken`), `/__correction-release`, `/__correction-stats`. Tests: `tests/e2e/listing-correction.spec.ts`.

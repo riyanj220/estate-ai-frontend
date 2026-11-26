@@ -334,7 +334,6 @@ const REGISTRY_FIELDS = {
       description: "Square feet in one marla.",
       ai_extractable: true,
       valuation_input: true,
-      quota_identity: true,
     }),
     fieldDef("area_sqft", "decimal", "optional", { min: "0.0001", max: "9999999999.9999", scale: 4, derived: true, searchable: true, sortable: true, description: "Area in square feet, computed from the area, its unit and the marla size." }),
   ],
@@ -665,7 +664,7 @@ Object.defineProperty(REGISTRY_FIELDS, "oddclass", {
     });
   },
 });
-const REGISTRY_VERSION = 8;
+const REGISTRY_VERSION = 10;
 const REGISTRY_SHAPE = 7;
 let fieldsName = "default";
 let taxonomyName = "default";
@@ -873,12 +872,25 @@ const statusOf = (item) => item.status ?? "draft";
 /** Story 2.17: only a Draft, Published or Archived Listing that is not restricted can be edited; the rest is view only. */
 const editableListing = (item) => item.restricted !== true && ["draft", "published", "archived"].includes(statusOf(item));
 // Story 2.18: the identity fields the quota rule watches (the registry's `quota_identity` ones) and the current Karachi month (the allowance's period).
-const IDENTITY_FIELDS = ["purpose", "category", "subtype", "city", "locality", "area_value", "area_unit", "marla_basis"];
+const IDENTITY_FIELDS = ["purpose", "category", "subtype", "city", "locality", "area_value", "area_unit"];
 const KARACHI_MONTH = "2026-11";
 const canonicalNumber = (value) => (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value)) ? String(Number(value)) : value ?? null);
-const identityFingerprint = (item) => JSON.stringify(IDENTITY_FIELDS.map((name) => (name === "area_value" || name === "marla_basis" ? canonicalNumber(item.fields[name]) : item.fields[name] ?? null)));
+const identityFingerprint = (item) => JSON.stringify(IDENTITY_FIELDS.map((name) => (name === "area_value" ? canonicalNumber(item.fields[name]) : item.fields[name] ?? null)));
 /** A Listing whose last counted publication was in `month` with its identity as it is now. */
-const countedIn = (item, month) => Object.assign(item, { baseline: { month, fp: identityFingerprint(item) } });
+const countedIn = (item, month, at = Date.now() - 60 * 60 * 1000) => Object.assign(item, { baseline: { month, fp: identityFingerprint(item), at, used: false } });
+// Story 2.19: the correction window is 24 hours after the last counted publication, once.
+const CORRECTION_HOURS = 24 * 60 * 60 * 1000;
+const correctionEnds = (item) => {
+  const baseline = item.baseline;
+  if (statusOf(item) !== "published" || item.restricted === true || !baseline || baseline.used || !baseline.at) return null;
+  return Date.now() < baseline.at + CORRECTION_HOURS ? baseline.at + CORRECTION_HOURS : null;
+};
+/** ISO 8601 in the Karachi offset, like the backend. */
+const karachiIso = (ms) => `${new Date(ms + 5 * 60 * 60 * 1000).toISOString().slice(0, 19)}+05:00`;
+let correctionMode = "ok";
+let correctionAttempts = [];
+let correctionGets = 0;
+let heldCorrectionAnswers = [];
 const STATUS_NAMES = ["draft", "published", "archived", "sold", "rented", "removed"];
 const publishReady = (seq) =>
   withImages(
@@ -2123,6 +2135,84 @@ createServer((req, res) => {
   // same key and content answers the original success, another content is 422), owner (404), stale revision (409 + current), Draft (409
   // conflict), account state (403, two reasons), validation (400, all at once), quota (409 with details), then the write. A refusal
   // changes nothing: no counted publication, no claimed key, no status.
+  // ---- The correction of the locality and area (Story 2.19), mirroring the backend's order of refusals.
+  if (url.pathname === "/__correction-mode") {
+    return choose("correctionMode", ["ok", "hold", "read_error", "stale", "conflict", "unavailable", "restricted_race", "invalid", "session_gone", "error", "broken"], (v) => (correctionMode = v));
+  }
+  if (url.pathname === "/__correction-release") {
+    const answers = heldCorrectionAnswers;
+    heldCorrectionAnswers = [];
+    for (const answer of answers) answer();
+    return json(200, { released: answers.length });
+  }
+  if (url.pathname === "/__correction-stats") return json(200, { gets: correctionGets, attempts: correctionAttempts });
+  const correctionMatch = /^\/api\/v1\/listings\/([^/]+)\/correction$/.exec(url.pathname);
+  if (correctionMatch && req.method === "GET") {
+    correctionGets += 1;
+    res.setHeader("cache-control", "no-store");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    const target = sessionAdmin ? undefined : listings.find((item) => item.id === correctionMatch[1] && item.owner === "mine");
+    if (!target) return json(404, envelope("not_found", "Not found."));
+    if (correctionMode === "read_error") return json(500, envelope("server_error", "Internal detail that must not show."));
+    const ends = signInMode === "suspended" ? null : correctionEnds(target);
+    return json(200, { available: ends !== null, expires_at: ends === null ? null : karachiIso(ends) });
+  }
+  if (correctionMatch && req.method === "POST") {
+    return readBody((body) => {
+      unsafeCount += 1;
+      const sentToken = req.headers["x-csrftoken"] ?? null;
+      correctionAttempts.push({ token: sentToken, body });
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe(correctionMode, sentToken)) return;
+      const fail = (fields) => json(400, envelope("validation_error", "The request contains invalid values.", fields));
+      const target = sessionAdmin ? undefined : listings.find((item) => item.id === correctionMatch[1] && item.owner === "mine");
+      if (!target) return json(404, envelope("not_found", "Not found."));
+      if (correctionMode === "error" || correctionMode === "broken") return serverFailure(correctionMode);
+      const sent = body?.fields ?? {};
+      const outside = Object.keys(sent).filter((key) => !["locality", "area_value", "area_unit", "marla_basis"].includes(key));
+      if (outside.length > 0) return fail(Object.fromEntries(outside.map((key) => [key, ["not_editable"]])));
+      if (correctionMode === "stale") {
+        target.fields.title = "Changed in another session";
+        target.revision += 1;
+      }
+      if (body.base_revision !== target.revision) return json(409, { ...envelope("stale_revision", "The resource changed since it was loaded."), current: publicListing(target) });
+      if (correctionMode === "conflict") {
+        target.status = "archived";
+        target.revision += 1;
+      }
+      if (statusOf(target) !== "published") return json(409, envelope("conflict", "This action cannot be done in the current state."));
+      if (correctionMode === "restricted_race") {
+        target.restricted = true;
+        target.revision += 1;
+      }
+      if (target.restricted === true || signInMode === "suspended") return json(403, envelope("forbidden", "Forbidden."));
+      if (correctionMode === "unavailable" && target.baseline) target.baseline.used = true; // used or expired meanwhile
+      if (correctionEnds(target) === null) return json(409, envelope("correction_unavailable", "The correction window is closed. Archive the listing to change these details."));
+      if (correctionMode === "invalid") return fail({ locality: ["locality_not_in_city"], area_value: ["invalid_area"] });
+      const problems = {};
+      const next = { ...target.fields, ...sent };
+      if (Object.hasOwn(sent, "locality") && (next.locality === null || cityOfLocality(next.locality) !== next.city)) problems.locality = [next.locality === null ? "required" : "locality_not_in_city"];
+      if (Object.hasOwn(sent, "area_value")) {
+        if (typeof next.area_value !== "string" || !/^\d{1,10}(\.\d{1,4})?$/.test(next.area_value) || Number(next.area_value) <= 0) problems.area_value = [next.area_value === null ? "required" : "invalid_area"];
+        else next.area_value = Number(next.area_value).toFixed(4);
+      }
+      const changed = (key) => differs(target.fields[key], next[key]);
+      if (!problems.area_value && !problems.locality) {
+        if (Object.hasOwn(sent, "marla_basis") && changed("marla_basis") && !changed("area_value") && !changed("area_unit")) problems.marla_basis = ["not_editable"];
+        else if (!["locality", "area_value", "area_unit", "marla_basis"].some(changed)) problems.non_field_errors = ["no_change"];
+      }
+      if (Object.keys(problems).length > 0) return fail(problems);
+      const answer = () => {
+        target.fields = next;
+        settleArea(target.fields);
+        target.revision += 1;
+        target.baseline = { ...target.baseline, fp: identityFingerprint(target), used: true };
+        return json(200, publicListing(target));
+      };
+      if (correctionMode === "hold") return void heldCorrectionAnswers.push(answer);
+      return answer();
+    });
+  }
   const publishMatch = /^\/api\/v1\/listings\/([^/]+)\/(publish|republish)$/.exec(url.pathname);
   if (publishMatch && req.method === "POST") {
     return readBody((parsed) => {
@@ -2240,7 +2330,7 @@ createServer((req, res) => {
         target.revision += 1;
         if (counted) {
           publishUsed[accountVariant] = (publishUsed[accountVariant] ?? 0) + 1;
-          target.baseline = { month: KARACHI_MONTH, fp: identityFingerprint(target) }; // a counted publication is the new baseline; a free one does not move it
+          target.baseline = { month: KARACHI_MONTH, fp: identityFingerprint(target), at: Date.now(), used: false }; // a counted publication is the new baseline; a free one does not move it
         }
         publishRecords.set(recordKey, { id: target.id, base: body.base_revision, op: publishMatch[2], kind });
       };
@@ -3635,6 +3725,11 @@ createServer((req, res) => {
     countsGets = 0;
     statusAttempts = [];
     statusLostSpent = false;
+    correctionMode = "ok";
+    correctionAttempts = [];
+    correctionGets = 0;
+    for (const answer of heldCorrectionAnswers) answer();
+    heldCorrectionAnswers = [];
     for (const answer of heldStatusAnswers) answer();
     heldStatusAnswers = [];
     registryMode = listingsMode = createMode = detailMode = "ok";
