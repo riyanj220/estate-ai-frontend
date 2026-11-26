@@ -717,3 +717,25 @@ progress {
 .usage-table tr:focus {
   outline: 3px solid var(--color-accent);
 }
+
+/* Account suspension (Story 2.21): the admin result card and the suspended account's banner wrap long text */
+.account-details {
+  margin-bottom: var(--space);
+}
+.account-details dt {
+  font-weight: 600;
+}
+.account-details dd {
+  margin: 0 0 0.5rem;
+}
+.account-details dd,
+.account-text,
+.suspension-banner {
+  overflow-wrap: anywhere;
+}
+.suspension-banner {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 0 1.5rem 0.5rem;
+  color: var(--color-error);
+}

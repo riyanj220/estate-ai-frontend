@@ -35,6 +35,15 @@ const KINDS: Record<string, KindEntry> = {
     title: "Your sign-in email address was changed.",
     text: "If this was not you, contact support.",
   },
+  // Story 2.21: both payloads are empty; the reason is only ever read from the account's own session.
+  "account.suspended": {
+    title: "Your account was suspended.",
+    text: "While the suspension lasts, the reason is shown at the top of the page.",
+  },
+  "account.reactivated": {
+    title: "Your account was reactivated.",
+    text: "Your account is no longer suspended.",
+  },
   // Story 2.13: the payload is only the draft's id and the days left (never its title or any content).
   "listing.draft_expiring": {
     title: (payload) => {

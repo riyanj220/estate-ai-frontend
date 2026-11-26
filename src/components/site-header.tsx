@@ -91,6 +91,13 @@ export function SiteHeader() {
           )}
         </nav>
       </div>
+      {/* Story 2.21: a Suspended account reads why. The reason comes only with its own session (`me`). */}
+      {status === "signed_in" && account?.state === "suspended" && (
+        <p className="suspension-banner" data-testid="suspension-banner">
+          <strong>Your account is suspended.</strong>
+          {account.suspension_reason ? ` Reason: ${account.suspension_reason}` : ""}
+        </p>
+      )}
       <p aria-live="polite" className={failure ? "header-error" : "sr-only"} data-testid="header-status">
         {failure}
       </p>
