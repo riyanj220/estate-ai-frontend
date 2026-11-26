@@ -39,9 +39,16 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <Link href="/" className="brand">
-          EstateAI
-        </Link>
+        <div className="account-nav">
+          <Link href="/" className="brand">
+            EstateAI
+          </Link>
+          <nav aria-label="Main">
+            <Link href="/listings" className="text-link">
+              Browse
+            </Link>
+          </nav>
+        </div>
         <nav aria-label="Account" className="account-nav" aria-busy={status === "loading"}>
           {status === "loading" && <span className="nav-placeholder" aria-hidden="true" />}
           {status === "signed_out" && (

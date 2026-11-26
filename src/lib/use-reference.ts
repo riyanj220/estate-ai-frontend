@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getApi } from "@/lib/api";
 import { readErrorBody, withTimeout } from "@/lib/forms";
-import { KIND_ORDER, isAmenityCode, type AmenityKind, type CatalogueItem } from "@/lib/amenities";
+import { readAmenityCatalogue, type AmenityCatalogueList } from "@/lib/amenities";
 import { isListingId } from "@/lib/listing-labels";
 
 /**
@@ -90,33 +90,8 @@ export function useLocationLists(cityId: string, enabled: boolean): LocationList
   return { city, locality, nameOf };
 }
 
-/**
- * The amenity catalogue (Story 2.8, public `GET /api/v1/reference/amenities`): the items the Amenities section offers, in the order the
- * server lists them. Read at runtime, never an enum and never stored. Fail closed like the other lists: the body must hold an `items` list;
- * an item needs a code and a group that match the backend's token rule (`^[a-z][a-z0-9_]{1,47}$`), a label of 2 to 80 code points with no
- * surrounding space and a `kind` of `on_property`, `community` or `nearby`; ANY item that fails (or a repeated code) makes the load a failed one.
- */
-export type AmenityCatalogueList = { status: RefStatus; items: CatalogueItem[] };
+/** The amenity catalogue (Story 2.8) as the client loads it; the parser lives in `amenities.ts`. */
 export type AmenityCatalogue = AmenityCatalogueList & { retry: () => void; retrying: boolean };
-
-export function readAmenityCatalogue(data: unknown): AmenityCatalogueList {
-  const raw = typeof data === "object" && data !== null ? (data as { items?: unknown }).items : undefined;
-  if (!Array.isArray(raw)) return { status: "error", items: [] };
-  if (raw.length === 0) return { status: "empty", items: [] };
-  const seen = new Set<string>();
-  const items: CatalogueItem[] = [];
-  for (const entry of raw) {
-    const { code, label, kind, group } = (typeof entry === "object" && entry !== null ? entry : {}) as Record<string, unknown>;
-    // Fail closed: one item that cannot be trusted makes the whole load a failure. Dropping it would turn an active code the owner
-    // answered into an "Other" entry and hide it from the form.
-    if (!isAmenityCode(code) || seen.has(code)) return { status: "error", items: [] };
-    if (typeof label !== "string" || label !== label.trim() || Array.from(label).length < 2 || Array.from(label).length > 80) return { status: "error", items: [] };
-    if (!KIND_ORDER.includes(kind as AmenityKind) || !isAmenityCode(group)) return { status: "error", items: [] };
-    seen.add(code);
-    items.push({ code, label, kind: kind as AmenityKind, group });
-  }
-  return { status: "ready", items };
-}
 
 async function fetchCatalogue(): Promise<AmenityCatalogueList> {
   try {
