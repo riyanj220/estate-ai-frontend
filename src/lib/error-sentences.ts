@@ -62,6 +62,7 @@ export const SENTENCE_CODES: Record<string, string> = {
   "Enter a number within the allowed range, using digits and a decimal point.": "out_of_range",
   "Choose a locality that belongs to the selected city.": "locality_not_in_city",
   "Add at least one image.": "images_required",
+  "Nothing would change. Enter a different locality or area.": "no_change",
   "Confirm this value before publishing.": "confirm_required",
 };
 

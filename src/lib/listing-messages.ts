@@ -331,7 +331,7 @@ export const PUBLISH_FORM_UNAVAILABLE = "Publishing is not available until the f
 // ---- Republication (Story 2.18).
 export const REPUBLISH_TITLE = "Republish";
 export const REPUBLISH_TEXT =
-  "Republishing makes this listing visible to everyone again. It uses 1 of your monthly publications unless you republish in the same month as your last counted publication without changing the category, subtype, purpose, city, locality, area value, area unit or marla basis.";
+  "Republishing makes this listing visible to everyone again. It uses 1 of your monthly publications unless you republish in the same month as your last counted publication without changing the category, subtype, purpose, city, locality, area value or area unit.";
 export const REPUBLISH_LABEL = "Republish listing";
 export const REPUBLISH_SAVE_FIRST = "Save your changes before republishing";
 export const REPUBLISH_WAIT = "Wait for the current save or image change to finish, then republish.";
@@ -413,3 +413,28 @@ export const READ_ONLY_FALLBACK = "This listing cannot be edited here.";
 export const restrictionReasonText = (reason: string): string => `Reason: ${reason}`;
 export const noTabListings = (label: string): string => `You have no ${label.toLowerCase()} listings.`;
 export const SHOWING_TAB = (label: string): string => `Showing ${label.toLowerCase()} listings.`;
+
+// ---- The one-time correction of locality and area (Story 2.19).
+export const CORRECTION_TITLE = "Correct locality or area";
+export const CORRECTION_NOTE = "To change the locality or area, archive this listing and republish it.";
+export const CORRECTION_INTRO = "If you made a mistake, you can correct the locality or area once, without using a publication.";
+export const correctionUntilText = (until: string, left: string): string => `You can do this until ${until} (Karachi time), ${left}.`;
+export const CORRECTION_LABEL = "Save correction";
+export const CORRECTION_DIALOG_TITLE = "Correct the locality or area?";
+export const CORRECTION_DIALOG_TEXT = "This can be done only once for this publication. Check the values before you continue.";
+export const CORRECTION_CONFIRM = "Correct now";
+export const CORRECTION_WORKING = "Saving the correction…";
+export const CORRECTION_DONE = "The locality and area were corrected. No publication was used.";
+export const CORRECTION_NO_CHANGE = "Nothing would change. Enter a different locality or area.";
+export const CORRECTION_BASIS_ONLY = "To change only the marla size, use the Edit details form above.";
+export const CORRECTION_SAVE_FIRST = "Save your changes before you correct the locality or area.";
+export const CORRECTION_WAIT = "Wait for the current save or image change to finish, then try again.";
+export const CORRECTION_FORM_LOADING = "The correction is available when the form has loaded.";
+export const CORRECTION_PAUSED = "Saving and image changes are paused while the correction is saved.";
+export const CORRECTION_FAILED = "We could not correct this listing. Try again.";
+export const CORRECTION_UNSURE = "We could not confirm whether the correction was saved. Reload the page to see the latest.";
+export const CORRECTION_STALE = "This listing was changed in another session. We loaded the latest version: check it and try again.";
+export const CORRECTION_CONFLICT = "This listing has changed, so it cannot be corrected now. We loaded the latest version.";
+export const CORRECTION_UNAVAILABLE = "The correction window is closed. Archive the listing to change these details.";
+export const CORRECTION_FORBIDDEN = "This listing cannot be corrected right now.";
+export const CORRECTION_CHECK_FAILED = "We could not check whether the locality or area can still be corrected.";

@@ -89,6 +89,8 @@ import {
   lostEditsText,
   statusChangedText,
   STATUS_PAUSED,
+  CORRECTION_DONE,
+  CORRECTION_PAUSED,
   restrictionReasonText,
   PREVIEW_SAVED_HINT,
   SAVE_PAUSED,
@@ -101,6 +103,7 @@ import { useFormFeedback } from "@/lib/use-form-feedback";
 import { useAmenityCatalogue, useLocationLists } from "@/lib/use-reference";
 import { useRegistry, type FieldDef, type Registry } from "@/lib/use-registry";
 import { isEditableListing, targetsFor, type StatusTarget } from "@/lib/listing-status";
+import { CorrectionSection } from "./correction-section";
 import { DeleteDraft } from "./delete-draft";
 import { DetailsSection, IDENTITY_NOTE_ID } from "./details-section";
 import { ImagesSection } from "./images-section";
@@ -274,6 +277,8 @@ export function DraftEditor({
   // The status of the Listing is being changed (Story 2.17): Save, the image actions and the form wait, like the change waits for them.
   const [changingStatus, setChangingStatus] = useState(false);
   const statusRunning = useRef(false);
+  // That change is the correction of the locality and area (Story 2.19): the status actions wait too.
+  const [correcting, setCorrecting] = useState(false);
   // The outcome of a status change or the reason one did not happen: a polite note that stays mounted.
   const [statusNote, setStatusNote] = useState("");
   const statusNoteRef = useRef<HTMLParagraphElement>(null);
@@ -987,6 +992,25 @@ export function DraftEditor({
     sayStatus(STATUS_ACTIONS[target].done);
   }
 
+  /** The locality or area was corrected (200): the page takes the Listing and announces it. */
+  function onCorrected(next: ListingView) {
+    adoptLatest(next);
+    setPublishedNote("");
+    sayStatus(CORRECTION_DONE);
+  }
+
+  /** A correction was refused because the page is out of date or the window is closed: read the Listing again and say why. */
+  async function correctionRefused(text: string): Promise<void> {
+    const latest = await fetchLatest();
+    if (latest.kind === "gone") return await onSessionGone();
+    if (latest.kind === "missing") return onNotFound();
+    if (latest.kind !== "found" || !hasRevision(latest.listing)) return sayStatus(STATUS_CONFLICT_NOT_LOADED);
+    if (!isEditableListing(latest.listing.status, latest.listing.restricted)) return adoptNonEditable(latest.listing);
+    adoptLatest(latest.listing);
+    setPublishedNote("");
+    sayStatus(text);
+  }
+
   /** The Listing is no longer one the owner may edit (sold, rented, removed, restricted): it is shown view only and the typed changes are said to be gone. */
   function adoptNonEditable(next: ListingView) {
     const hadChanges = dirty;
@@ -1583,7 +1607,7 @@ export function DraftEditor({
               )}
               {changingStatus && (
                 <p className="hint" data-testid="status-paused">
-                  {STATUS_PAUSED}
+                  {correcting ? CORRECTION_PAUSED : STATUS_PAUSED}
                 </p>
               )}
               <button
@@ -1644,6 +1668,26 @@ export function DraftEditor({
           formState={status === "ready" ? "ready" : status === "loading" ? "loading" : "error"}
         />
       )}
+      {/* A Suspended owner cannot correct or republish, so neither the form nor the note is shown to one. */}
+      {listing.status === "published" && !listing.restricted && account?.state !== "suspended" && (
+        <CorrectionSection
+          listing={listing}
+          registry={registry}
+          localities={lists.locality}
+          dirty={dirty}
+          blocked={pending || imagesBusy || (changingStatus && !correcting)}
+          saveRunning={() => submitting.current}
+          onBusyChange={(busy) => {
+            statusRunning.current = busy;
+            setChangingStatus(busy);
+            setCorrecting(busy);
+          }}
+          onSessionGone={onSessionGone}
+          onNotFound={onNotFound}
+          onCorrected={onCorrected}
+          onRefused={correctionRefused}
+        />
+      )}
       <StatusActions
         listingId={listing.id}
         revision={listing.revision}
@@ -1651,7 +1695,7 @@ export function DraftEditor({
         purpose={listing.fields.purpose}
         restricted={listing.restricted}
         dirty={dirty}
-        blocked={pending || imagesBusy}
+        blocked={pending || imagesBusy || correcting}
         saveRunning={() => submitting.current}
         onBusyChange={(busy) => {
           statusRunning.current = busy;
