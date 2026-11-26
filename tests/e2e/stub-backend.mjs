@@ -1269,6 +1269,25 @@ let quotaPolicy = quotaRows();
 let quotaMode = "ok";
 let quotaStats = { policyGets: 0, usageGets: 0, puts: [] };
 
+// Story 2.21: the one account the administrator can look up (stateful), and the reason a Suspended session reads in `me`.
+const ACCOUNT_ID = "00000000-0000-4000-c000-000000000001";
+const SUSPENSION_REASON = "Repeated misleading listings.";
+const adminAccountRow = () => ({
+  id: ACCOUNT_ID,
+  account_type: "individual",
+  display_name: "Ayesha Khan",
+  state: "active",
+  email: "ayesha@example.com",
+  email_verified: true,
+  suspension_reason: "",
+  suspended_at: null,
+});
+const ACCOUNT_MODES = ["ok", "invalid", "conflict", "error", "csrf_once", "session_gone"];
+let suspensionReason = SUSPENSION_REASON;
+let adminAccount = adminAccountRow();
+let accountsMode = "ok";
+let accountsPosts = [];
+
 createServer((req, res) => {
   const url = new URL(req.url, "http://stub");
   const json = (status, body) => {
@@ -1398,6 +1417,7 @@ createServer((req, res) => {
     full_name: meMode === "agency" || meMode === "agency_bare" ? "" : signInMode === "no_name" ? "" : profile.full_name,
     agency_name: meMode === "agency" ? agencyProfile.agency_name : "",
     capabilities: ["sign_in", "browse"],
+    suspension_reason: signInMode === "suspended" ? suspensionReason : null,
   });
   if (url.pathname === "/api/v1/csrf" && req.method === "GET") {
     csrfFetches += 1;
@@ -1793,6 +1813,41 @@ createServer((req, res) => {
         return json(200, row);
       });
     }
+  }
+  // ---- Account suspension (Story 2.21)
+  if (url.pathname === "/__accounts-mode") {
+    return choose("accountsMode", ACCOUNT_MODES, (v) => {
+      accountsMode = v;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__accounts-stats") return json(200, { posts: accountsPosts });
+  const accountRoute = url.pathname.match(/^\/api\/v1\/admin\/accounts\/(?:(lookup)|([^/]+)\/(suspend|reactivate))$/);
+  if (accountRoute && req.method === "POST") {
+    res.setHeader("cache-control", "no-store");
+    return readBody((body) => {
+      const [, lookup, id, action] = accountRoute;
+      const token = req.headers["x-csrftoken"] ?? null;
+      accountsPosts.push({ action: lookup ?? action, body, token });
+      if (signedInUnsafe(accountsMode, token)) return;
+      if (!sessionAdmin) return json(404, envelope("not_found", "Not found."));
+      if (accountsMode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+      if (accountsMode === "invalid") return json(400, envelope("validation_error", "Some fields are invalid.", { reason: ["contains_contact_details"] }));
+      if (lookup) {
+        return body?.email === adminAccount.email ? json(200, adminAccount) : json(404, envelope("not_found", "Not found."));
+      }
+      if (id !== ACCOUNT_ID) return json(404, envelope("not_found", "Not found."));
+      const suspended = adminAccount.state === "suspended";
+      if (accountsMode === "conflict" || suspended === (action === "suspend")) return json(409, envelope("conflict", "Conflict."));
+      Object.assign(
+        adminAccount,
+        action === "suspend"
+          ? { state: "suspended", suspension_reason: body.reason, suspended_at: "2026-11-26T10:00:00+05:00" }
+          : { state: "active", suspension_reason: "", suspended_at: null },
+      );
+      const { account_type, state, suspension_reason, suspended_at } = adminAccount;
+      return json(200, { id: ACCOUNT_ID, account_type, state, suspension_reason, suspended_at });
+    });
   }
   // ---- Listings and the registry (Story 2.1)
   if (url.pathname === "/__registry-mode") {
@@ -3689,6 +3744,10 @@ createServer((req, res) => {
     quotaPolicy = quotaRows();
     quotaMode = "ok";
     quotaStats = { policyGets: 0, usageGets: 0, puts: [] };
+    adminAccount = adminAccountRow();
+    accountsMode = "ok";
+    accountsPosts = [];
+    suspensionReason = SUSPENSION_REASON;
     lastCookie = "";
     registrationMode = "accepted";
     lastRegistration = null;

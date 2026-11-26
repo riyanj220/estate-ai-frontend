@@ -194,15 +194,16 @@ test("an administrator sees the shell and the empty dashboard", async ({ page, r
   expect((await stats(request)).adminMeCount).toBeGreaterThan(0);
 });
 
-test("navigation: Dashboard and Publication limits are links; the rest are disabled Coming soon items", async ({ page, request }) => {
+test("navigation: Dashboard, Publication limits and Accounts are links; the rest are disabled Coming soon items", async ({ page, request }) => {
   await startSession(page, request, "admin");
   await page.goto("/admin");
   const nav = page.getByRole("navigation", { name: "Administration" });
-  await expect(nav.getByRole("link")).toHaveCount(2);
+  await expect(nav.getByRole("link")).toHaveCount(3);
+  await expect(nav.getByRole("link", { name: "Accounts" })).toHaveAttribute("href", "/admin/accounts");
   await expect(nav.getByRole("link", { name: "Publication limits" })).toHaveAttribute("href", "/admin/publication-limits");
   await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
   await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/admin");
-  for (const name of ["Listings", "Users", "Reports", "Audit log"]) {
+  for (const name of ["Listings", "Reports", "Audit log"]) {
     const item = nav.getByRole("listitem").filter({ hasText: name });
     await expect(item).toContainText("Coming soon");
     await expect(item.getByRole("link")).toHaveCount(0);
