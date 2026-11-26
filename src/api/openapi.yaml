@@ -70,6 +70,221 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/accounts/{account_id}/reactivate:
+    post:
+      operationId: reactivate_admin_account
+      description: '`reason` is 5 to 500 characters after trimming, one line, without
+        contact details, else `400 validation_error`. An unknown id or an administrator
+        account is `404 not_found`. An account that is not Suspended is `409 conflict`.
+        The state becomes `active`, or `email_unverified` if the email was never verified.
+        Needs `X-CSRFToken`. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.'
+      summary: Reactivate a suspended account
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountReasonRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountStatus'
+          description: Reactivated
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/accounts/{account_id}/suspend:
+    post:
+      operationId: suspend_admin_account
+      description: '`reason` is 5 to 500 characters after trimming, one line, without
+        contact details, else `400 validation_error`. An unknown id or an administrator
+        account is `404 not_found`. A Suspended or Deactivated account is `409 conflict`.
+        The account sees the reason; its Listings leave public view. Needs `X-CSRFToken`.
+        Visitors get `401 unauthenticated`; signed-in non-administrators get `404
+        not_found`. Never cached.'
+      summary: Suspend an account
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountReasonRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountStatus'
+          description: Suspended
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/accounts/lookup:
+    post:
+      operationId: lookup_admin_account
+      description: 'A reasoned private read: `reason` (10 to 300 characters, one line,
+        no contact details) is recorded in the audit trail. Only Individual and Agency
+        accounts; an unknown or administrator address is `404 not_found`. Needs `X-CSRFToken`.
+        Visitors get `401 unauthenticated`; signed-in non-administrators get `404
+        not_found`. Never cached.'
+      summary: Look up an account by email, with a reason
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountLookupRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAccount'
+          description: The account
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/admin/me:
     get:
       operationId: get_admin_me
@@ -3937,6 +4152,54 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
 components:
   schemas:
+    AccountLookupRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 10
+          maxLength: 300
+        email:
+          type: string
+          minLength: 1
+          description: Matched ignoring case.
+          maxLength: 254
+      required:
+      - email
+      - reason
+    AccountReasonRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 5
+          description: One line, without contact details.
+          maxLength: 500
+      required:
+      - reason
+    AccountStatus:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        account_type:
+          $ref: '#/components/schemas/OwnerAccountTypeEnum'
+        state:
+          $ref: '#/components/schemas/StateEnum'
+        suspension_reason:
+          type: string
+          description: Empty when none.
+        suspended_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - account_type
+      - id
+      - state
+      - suspended_at
+      - suspension_reason
     ActorSummary:
       type: object
       properties:
@@ -3960,6 +4223,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CapabilitiesEnum'
+        suspension_reason:
+          type: string
+          nullable: true
+          description: 'Why the account is Suspended; null otherwise. Private: owner
+            only.'
       required:
       - account_type
       - agency_name
@@ -3968,6 +4236,7 @@ components:
       - full_name
       - id
       - state
+      - suspension_reason
     ActorSummaryAccountTypeEnum:
       enum:
       - individual
@@ -3978,6 +4247,40 @@ components:
         * `individual` - individual
         * `agency` - agency
         * `admin` - admin
+    AdminAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        account_type:
+          $ref: '#/components/schemas/OwnerAccountTypeEnum'
+        state:
+          $ref: '#/components/schemas/StateEnum'
+        suspension_reason:
+          type: string
+          description: Empty when none.
+        suspended_at:
+          type: string
+          format: date-time
+          nullable: true
+        email:
+          type: string
+          description: Private.
+        display_name:
+          type: string
+          description: Full name or agency name; empty when there is no profile.
+        email_verified:
+          type: boolean
+      required:
+      - account_type
+      - display_name
+      - email
+      - email_verified
+      - id
+      - state
+      - suspended_at
+      - suspension_reason
     AdminMe:
       type: object
       properties:

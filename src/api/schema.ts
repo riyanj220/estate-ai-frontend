@@ -24,6 +24,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/accounts/{account_id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reactivate a suspended account
+         * @description `reason` is 5 to 500 characters after trimming, one line, without contact details, else `400 validation_error`. An unknown id or an administrator account is `404 not_found`. An account that is not Suspended is `409 conflict`. The state becomes `active`, or `email_unverified` if the email was never verified. Needs `X-CSRFToken`. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["reactivate_admin_account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/accounts/{account_id}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suspend an account
+         * @description `reason` is 5 to 500 characters after trimming, one line, without contact details, else `400 validation_error`. An unknown id or an administrator account is `404 not_found`. A Suspended or Deactivated account is `409 conflict`. The account sees the reason; its Listings leave public view. Needs `X-CSRFToken`. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["suspend_admin_account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/accounts/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Look up an account by email, with a reason
+         * @description A reasoned private read: `reason` (10 to 300 characters, one line, no contact details) is recorded in the audit trail. Only Individual and Agency accounts; an unknown or administrator address is `404 not_found`. Needs `X-CSRFToken`. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["lookup_admin_account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/me": {
         parameters: {
             query?: never;
@@ -961,6 +1021,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccountLookupRequest: {
+            reason: string;
+            /** @description Matched ignoring case. */
+            email: string;
+        };
+        AccountReasonRequest: {
+            /** @description One line, without contact details. */
+            reason: string;
+        };
+        AccountStatus: {
+            /** Format: uuid */
+            id: string;
+            account_type: components["schemas"]["OwnerAccountTypeEnum"];
+            state: components["schemas"]["StateEnum"];
+            /** @description Empty when none. */
+            suspension_reason: string;
+            /** Format: date-time */
+            suspended_at: string | null;
+        };
         ActorSummary: {
             /** Format: uuid */
             id: string;
@@ -973,6 +1052,8 @@ export interface components {
             /** @description Agency name (public); empty for non-agency accounts. */
             agency_name: string;
             capabilities: components["schemas"]["CapabilitiesEnum"][];
+            /** @description Why the account is Suspended; null otherwise. Private: owner only. */
+            suspension_reason: string | null;
         };
         /**
          * @description * `individual` - individual
@@ -981,6 +1062,21 @@ export interface components {
          * @enum {string}
          */
         ActorSummaryAccountTypeEnum: "individual" | "agency" | "admin";
+        AdminAccount: {
+            /** Format: uuid */
+            id: string;
+            account_type: components["schemas"]["OwnerAccountTypeEnum"];
+            state: components["schemas"]["StateEnum"];
+            /** @description Empty when none. */
+            suspension_reason: string;
+            /** Format: date-time */
+            suspended_at: string | null;
+            /** @description Private. */
+            email: string;
+            /** @description Full name or agency name; empty when there is no profile. */
+            display_name: string;
+            email_verified: boolean;
+        };
         AdminMe: {
             /** Format: uuid */
             id: string;
@@ -2666,6 +2762,250 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActorSummary"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reactivate_admin_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Reactivated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountStatus"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    suspend_admin_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Suspended */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountStatus"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    lookup_admin_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountLookupRequest"];
+            };
+        };
+        responses: {
+            /** @description The account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAccount"];
                 };
             };
             /** @description Bad request or validation error */
