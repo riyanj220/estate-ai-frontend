@@ -697,3 +697,23 @@ progress {
 .tab-count {
   font-variant-numeric: tabular-nums;
 }
+
+/* Admin publication limits (Story 2.20): the usage table wraps long addresses instead of scrolling sideways */
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--space);
+}
+.usage-table th,
+.usage-table td {
+  padding: 0.5rem 0.5rem 0.5rem 0;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+.usage-table td:first-child {
+  overflow-wrap: anywhere;
+}
+.usage-table tr:focus {
+  outline: 3px solid var(--color-accent);
+}

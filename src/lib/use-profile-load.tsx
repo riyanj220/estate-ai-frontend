@@ -126,19 +126,33 @@ export function useProfileLoad<T>(
 }
 
 /** The loading and load-failure states of a profile page (the heading and Retry button stay mounted while retrying). */
-export function ProfileLoadState({ load, onRetry, noun }: { load: ProfileLoad<unknown>; onRetry: () => void; noun: string }) {
+export function ProfileLoadState({
+  load,
+  onRetry,
+  noun,
+  determiner = "your",
+  titleId = "load-error-title",
+}: {
+  load: ProfileLoad<unknown>;
+  onRetry: () => void;
+  noun: string;
+  /** "the" where the thing loaded is not the reader's own (the admin pages). */
+  determiner?: string;
+  /** Overridable so two load states on one page do not share an id. */
+  titleId?: string;
+}) {
   if (load.kind === "loading") {
     return (
       <p role="status" className="muted" data-testid="profile-loading">
-        Loading your {noun}…
+        Loading {determiner} {noun}…
       </p>
     );
   }
   if (load.kind !== "error") return null;
   return (
-    <section className="card" aria-labelledby="load-error-title">
-      <h2 id="load-error-title" className="section-title">
-        We could not load your {noun}
+    <section className="card" aria-labelledby={titleId}>
+      <h2 id={titleId} className="section-title">
+        We could not load {determiner} {noun}
       </h2>
       <p className="muted" data-testid="load-error-message">
         {load.message ?? "Check your connection and try again."}

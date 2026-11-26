@@ -7,8 +7,13 @@ import { NotificationsLink } from "@/components/notifications-link";
 import { useSession } from "@/lib/session";
 import { AdminSessionWatch } from "./admin-session-watch";
 
-// Placeholders for later administration screens. Only the dashboard exists; the rest are inert text, never links, so
-// no empty routes ship. Hand-off: turn an entry into a link when its route and page (with `requireAdmin()`) exist, and
+// The administration screens that exist.
+const PAGES = [
+  { href: "/admin", label: "Dashboard" },
+  { href: "/admin/publication-limits", label: "Publication limits" },
+];
+
+// Placeholders for later administration screens: inert text, never links, so no empty routes ship. Hand-off: turn an entry into a link when its route and page (with `requireAdmin()`) exist, and
 // every page under `(protected)` must call `requireAdmin()` (tests/e2e/admin-guard-rule.spec.ts enforces it).
 const PLACEHOLDERS = ["Listings", "Users", "Reports", "Audit log"];
 
@@ -98,11 +103,13 @@ export function AdminShell({ children, embedded = false }: { children: React.Rea
         </div>
         <nav aria-label="Administration" className="admin-nav">
           <ul>
-            <li>
-              <Link href="/admin" className="text-link" aria-current={pathname === "/admin" ? "page" : undefined}>
-                Dashboard
-              </Link>
-            </li>
+            {PAGES.map(({ href, label }) => (
+              <li key={href}>
+                <Link href={href} className="text-link" aria-current={pathname === href ? "page" : undefined}>
+                  {label}
+                </Link>
+              </li>
+            ))}
             {PLACEHOLDERS.map((name) => (
               <li key={name}>
                 <span className="admin-nav-disabled">
