@@ -1259,6 +1259,16 @@ const agencyIdentifiers = () => ({
         : null,
 });
 
+// Story 2.20: the administrator's publication limits and this month's usage (masked addresses, 20 per page).
+const quotaRows = () => [
+  { account_type: "individual", monthly_limit: 2, effective_from: "2026-01-01T00:00:00+05:00" },
+  { account_type: "agency", monthly_limit: 10, effective_from: "2026-01-01T00:00:00+05:00" },
+];
+const QUOTA_MODES = ["ok", "load_error", "empty", "more_fail", "stale_cursor", "put_error", "put_invalid", "csrf_once", "csrf_always", "session_gone"];
+let quotaPolicy = quotaRows();
+let quotaMode = "ok";
+let quotaStats = { policyGets: 0, usageGets: 0, puts: [] };
+
 createServer((req, res) => {
   const url = new URL(req.url, "http://stub");
   const json = (status, body) => {
@@ -1721,6 +1731,69 @@ createServer((req, res) => {
     }
     return false;
   };
+  // ---- Publication limits (Story 2.20)
+  if (url.pathname === "/__quota-mode") {
+    return choose("quotaMode", QUOTA_MODES, (v) => {
+      quotaMode = v;
+      csrfOnceSpent = false;
+    });
+  }
+  if (url.pathname === "/__quota-stats") return json(200, quotaStats);
+  if (url.pathname.startsWith("/api/v1/admin/quota-")) {
+    res.setHeader("cache-control", "no-store");
+    const refused = () => {
+      if (!hasSession()) json(401, envelope("unauthenticated", "Authentication required."));
+      else if (!sessionAdmin) json(404, envelope("not_found", "Not found."));
+      else return false;
+      return true;
+    };
+    if (req.method === "GET" && url.pathname === "/api/v1/admin/quota-policy") {
+      quotaStats.policyGets += 1;
+      if (refused()) return;
+      if (quotaMode === "load_error") return json(500, envelope("server_error", "Internal detail that must not show."));
+      return json(200, { items: quotaPolicy });
+    }
+    if (req.method === "GET" && url.pathname === "/api/v1/admin/quota-usage") {
+      quotaStats.usageGets += 1;
+      if (refused()) return;
+      const cursor = url.searchParams.get("cursor");
+      if (quotaMode === "load_error" || (quotaMode === "more_fail" && cursor)) return json(500, envelope("server_error", "Internal detail that must not show."));
+      if (quotaMode === "stale_cursor" && cursor) return json(400, envelope("validation_error", "Invalid cursor.", { cursor: ["invalid"] }));
+      const total = quotaMode === "empty" ? 0 : 23;
+      const from = cursor ? 20 : 0;
+      const results = Array.from({ length: total }, (_, i) => {
+        const accountType = i % 2 ? "agency" : "individual";
+        return {
+          account_id: `00000000-0000-4000-b000-${String(i + 1).padStart(12, "0")}`,
+          email: `u***@host${i + 1}.example.com`,
+          account_type: accountType,
+          used: 1,
+          limit: quotaPolicy.find((row) => row.account_type === accountType).monthly_limit,
+        };
+      }).slice(from, from + 20);
+      return json(200, {
+        period_start: "2026-11-01T00:00:00+05:00",
+        resets_at: "2026-12-01T00:00:00+05:00",
+        next: from + 20 < total ? "http://backend.invalid/api/v1/admin/quota-usage?cursor=page-2" : null,
+        previous: null,
+        results,
+      });
+    }
+    const putMatch = url.pathname.match(/^\/api\/v1\/admin\/quota-policy\/(individual|agency)$/);
+    if (req.method === "PUT" && putMatch) {
+      return readBody((body) => {
+        const token = req.headers["x-csrftoken"] ?? null;
+        quotaStats.puts.push({ accountType: putMatch[1], body, token });
+        if (signedInUnsafe(quotaMode, token)) return;
+        if (refused()) return;
+        if (quotaMode === "put_error") return json(500, envelope("server_error", "Internal detail that must not show."));
+        if (quotaMode === "put_invalid") return json(400, envelope("validation_error", "Some fields are invalid.", { monthly_limit: ["max_value"] }));
+        const row = quotaPolicy.find((entry) => entry.account_type === putMatch[1]);
+        if (row.monthly_limit !== body?.monthly_limit) Object.assign(row, { monthly_limit: body.monthly_limit, effective_from: karachiIso(Date.now()) });
+        return json(200, row);
+      });
+    }
+  }
   // ---- Listings and the registry (Story 2.1)
   if (url.pathname === "/__registry-mode") {
     return choose("registryMode", ["ok", "flaky", "flaky_slow", "gone", "error", "broken", "hang", "malformed", "empty_choices", "bad_subtypes", "odd_ids"], (v) => {
@@ -3613,6 +3686,9 @@ createServer((req, res) => {
   }
   if (url.pathname === "/__reset") {
     mode = "up";
+    quotaPolicy = quotaRows();
+    quotaMode = "ok";
+    quotaStats = { policyGets: 0, usageGets: 0, puts: [] };
     lastCookie = "";
     registrationMode = "accepted";
     lastRegistration = null;

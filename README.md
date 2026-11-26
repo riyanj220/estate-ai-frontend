@@ -397,10 +397,14 @@ The frontend decides nothing about administration: it shows what the backend ans
   ordinary account and an expired administrator see the form; an administrator already signed in is redirected to the
   validated target. It is not linked from any public page and links to none.
 - **Shell** (`admin-shell.tsx`): own chrome (skip link, "EstateAI Administration", a named "Administration" navigation, an
-  "Administrator account" navigation with Change password and Sign out, `main`). Only Dashboard is a link
-  (`aria-current="page"`); Listings, Users, Reports and Audit log are inert "Coming soon" items with no routes. The public
+  "Administrator account" navigation with Change password and Sign out, `main`). Dashboard and Publication limits are
+  links (`aria-current="page"`); Listings, Users, Reports and Audit log are inert "Coming soon" items with no routes. The public
   site header hides itself under `/admin` (`site-header.tsx`). Sign out uses the provider `signOut` then a hard
   navigation to `/admin/sign-in`.
+- **Publication limits** (`/admin/publication-limits`, Story 2.20): one limit form per account type (0 to 1000), confirmed
+  in a dialog before `PUT /api/v1/admin/quota-policy/{account_type}` (future publications only), and this month's usage by
+  account (masked addresses as the server sends them, load more by cursor). Stub: `/__quota-mode`, `/__quota-stats`.
+  Tests: `tests/e2e/admin-quota.spec.ts`.
 - **Session expiry** (`admin-session-watch.tsx`): administrator sessions end after 30 idle minutes or 8 hours (backend).
   The watcher follows the session provider (re-checks on focus, visibility and route change) and, on signed out or a
   non-administrator account, replaces the content with a short message and hard-navigates to

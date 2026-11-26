@@ -194,11 +194,12 @@ test("an administrator sees the shell and the empty dashboard", async ({ page, r
   expect((await stats(request)).adminMeCount).toBeGreaterThan(0);
 });
 
-test("navigation: only Dashboard is a link; the rest are disabled Coming soon items", async ({ page, request }) => {
+test("navigation: Dashboard and Publication limits are links; the rest are disabled Coming soon items", async ({ page, request }) => {
   await startSession(page, request, "admin");
   await page.goto("/admin");
   const nav = page.getByRole("navigation", { name: "Administration" });
-  await expect(nav.getByRole("link")).toHaveCount(1);
+  await expect(nav.getByRole("link")).toHaveCount(2);
+  await expect(nav.getByRole("link", { name: "Publication limits" })).toHaveAttribute("href", "/admin/publication-limits");
   await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
   await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/admin");
   for (const name of ["Listings", "Users", "Reports", "Audit log"]) {
@@ -575,6 +576,8 @@ test("the change-password page offers the way back to the admin area for an admi
   await startSession(page, request, "admin");
   await page.goto("/account/password");
   await expect(page.getByRole("link", { name: "Back to administration" })).toHaveAttribute("href", "/admin");
+  // Leave the page first: its session check could otherwise see the new session and redirect during the next navigation.
+  await page.goto("about:blank");
   await request.get(`${STUB}/__force-session`);
   await page.goto("/account/password");
   await expect(page.getByRole("link", { name: "Back to administration" })).toHaveCount(0);
