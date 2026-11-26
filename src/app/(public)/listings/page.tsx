@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdvertiserLine } from "@/components/advertiser-line";
 import { FilterPanel } from "@/components/filter-panel";
 import { priceText } from "@/components/listing-facts";
 import { RetryImage } from "@/components/retry-image";
@@ -151,6 +152,7 @@ function Card({ card }: { card: PublicCard }) {
       {area !== NOT_SET && <p>{area}</p>}
       {rooms && <p>{rooms}</p>}
       {place && <p>{place}</p>}
+      {card.advertiser && <AdvertiserLine advertiser={card.advertiser} testId="browse-advertiser" />}
       {publishedOn && (
         <p className="hint">
           Published <time dateTime={publishedOn}>{publishedText(publishedOn)}</time>

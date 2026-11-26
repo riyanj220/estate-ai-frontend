@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdvertiserLine } from "@/components/advertiser-line";
 import { ListingFacts } from "@/components/listing-facts";
 import { RetryImage } from "@/components/retry-image";
 import type { AmenityCatalogueList } from "@/lib/amenities";
@@ -64,6 +65,7 @@ export default async function ListingPage({ params }: Props) {
             </>
           )}
         </p>
+        {result.advertiser && <AdvertiserLine advertiser={result.advertiser} testId="listing-advertiser" />}
         {media.length === 0 ? (
           <p className="muted">{PREVIEW_NO_IMAGES}</p>
         ) : (

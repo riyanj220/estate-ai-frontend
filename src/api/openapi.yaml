@@ -4004,10 +4004,12 @@ paths:
       operationId: get_public_listing
       description: 'Public; the answer is the same for every caller, the owner included.
         The public projection only: never a private address, coordinates, a phone
-        number, the owner, the status, the revision or the provenance. `nearby` amenities
-        are the seller''s own declaration. A Listing that is not publicly visible,
-        an unknown and a malformed id are the same `404 not_found`. `200` has `Cache-Control:
-        public, max-age=60` and no cookie; errors are `no-store`.'
+        number, the owner account, the status, the revision or the provenance. Of
+        the owner, `advertiser` gives only the type and, for an Agency, its name,
+        logo and verification. `nearby` amenities are the seller''s own declaration.
+        A Listing that is not publicly visible, an unknown and a malformed id are
+        the same `404 not_found`. `200` has `Cache-Control: public, max-age=60` and
+        no cookie; errors are `no-store`.'
       summary: One published Listing
       parameters:
       - in: path
@@ -4696,6 +4698,29 @@ components:
       - admin
       type: string
       description: '* `admin` - admin'
+    Advertiser:
+      type: object
+      description: Who advertises the Listing (FR-39). Nothing else about the owner
+        is public here.
+      properties:
+        type:
+          $ref: '#/components/schemas/OwnerAccountTypeEnum'
+        agency_name:
+          type: string
+          nullable: true
+          description: Agencies only.
+        logo_url:
+          type: string
+          nullable: true
+          description: 'Agencies only: the public logo route; null without a logo.'
+        verified:
+          type: boolean
+          description: An Agency with Verification granted. Always false for now.
+      required:
+      - agency_name
+      - logo_url
+      - type
+      - verified
     AgencyProfile:
       type: object
       properties:
@@ -7965,6 +7990,8 @@ components:
           allOf:
           - $ref: '#/components/schemas/Place'
           nullable: true
+        advertiser:
+          $ref: '#/components/schemas/Advertiser'
         cover_url:
           type: string
           nullable: true
@@ -7974,6 +8001,7 @@ components:
           format: date
           description: The Asia/Karachi date of the first publication.
       required:
+      - advertiser
       - category
       - city
       - cover_url
@@ -7986,8 +8014,9 @@ components:
       - title
     PublicListingDetail:
       type: object
-      description: The public projection plus the publication date and the names of
-        the city and locality.
+      description: |-
+        The public projection plus the publication date, the names of the city and locality, and
+        the advertiser.
       properties:
         id:
           type: string
@@ -8022,11 +8051,14 @@ components:
           allOf:
           - $ref: '#/components/schemas/Place'
           nullable: true
+        advertiser:
+          $ref: '#/components/schemas/Advertiser'
         published_on:
           type: string
           format: date
           description: The Asia/Karachi date of the first publication.
       required:
+      - advertiser
       - category
       - city
       - description

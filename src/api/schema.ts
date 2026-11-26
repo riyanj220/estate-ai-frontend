@@ -922,7 +922,7 @@ export interface paths {
         };
         /**
          * One published Listing
-         * @description Public; the answer is the same for every caller, the owner included. The public projection only: never a private address, coordinates, a phone number, the owner, the status, the revision or the provenance. `nearby` amenities are the seller's own declaration. A Listing that is not publicly visible, an unknown and a malformed id are the same `404 not_found`. `200` has `Cache-Control: public, max-age=60` and no cookie; errors are `no-store`.
+         * @description Public; the answer is the same for every caller, the owner included. The public projection only: never a private address, coordinates, a phone number, the owner account, the status, the revision or the provenance. Of the owner, `advertiser` gives only the type and, for an Agency, its name, logo and verification. `nearby` amenities are the seller's own declaration. A Listing that is not publicly visible, an unknown and a malformed id are the same `404 not_found`. `200` has `Cache-Control: public, max-age=60` and no cookie; errors are `no-store`.
          */
         get: operations["get_public_listing"];
         put?: never;
@@ -1148,6 +1148,16 @@ export interface components {
          * @enum {string}
          */
         AdminMeAccountTypeEnum: "admin";
+        /** @description Who advertises the Listing (FR-39). Nothing else about the owner is public here. */
+        Advertiser: {
+            type: components["schemas"]["OwnerAccountTypeEnum"];
+            /** @description Agencies only. */
+            agency_name: string | null;
+            /** @description Agencies only: the public logo route; null without a logo. */
+            logo_url: string | null;
+            /** @description An Agency with Verification granted. Always false for now. */
+            verified: boolean;
+        };
         AgencyProfile: {
             /** @description Public. */
             agency_name: string;
@@ -2562,6 +2572,7 @@ export interface components {
             fields: components["schemas"]["PublicCardFields"];
             city: components["schemas"]["Place"] | null;
             locality: components["schemas"]["Place"] | null;
+            advertiser: components["schemas"]["Advertiser"];
             /** @description Relative path of the cover image on the media endpoint. */
             cover_url: string | null;
             /**
@@ -2570,7 +2581,10 @@ export interface components {
              */
             published_on: string;
         };
-        /** @description The public projection plus the publication date and the names of the city and locality. */
+        /**
+         * @description The public projection plus the publication date, the names of the city and locality, and
+         *     the advertiser.
+         */
         PublicListingDetail: {
             /** Format: uuid */
             id: string;
@@ -2585,6 +2599,7 @@ export interface components {
             registry_version: number;
             city: components["schemas"]["Place"] | null;
             locality: components["schemas"]["Place"] | null;
+            advertiser: components["schemas"]["Advertiser"];
             /**
              * Format: date
              * @description The Asia/Karachi date of the first publication.

@@ -13,12 +13,17 @@ import { readRegistry, type Registry } from "./registry";
 /** Server-side reads of the public (Story 3.1) endpoints. Only the names read here are ever rendered. */
 export const BROWSE_PATH = "/listings";
 
+/** Who advertises a Listing (Story 3.6). Name, logo and verification are an Agency's only. */
+export type Advertiser = { type: "individual" } | { type: "agency"; name: string | null; logoUrl: string | null; verified: boolean };
+
 export type PublicCard = {
   listing: ListingView;
   cityName: string | null;
   localityName: string | null;
   coverUrl: string | null;
   publishedOn: string | null;
+  /** Null when the answer is not readable: nothing is then claimed about the advertiser. */
+  advertiser: Advertiser | null;
 };
 /** `problems`: the parameter names the server refused, each with its sentence. */
 export type BrowseResult =
@@ -32,6 +37,22 @@ const placeName = (place: unknown): string | null => {
   return typeof name === "string" && name.trim() ? name.trim() : null;
 };
 const dateText = (value: unknown): string | null => (typeof value === "string" && isIsoDate(value) ? value : null);
+
+const LOGO_PATH = /^\/api\/v1\/agencies\/[0-9a-f-]{36}\/logo$/;
+
+/** Only the public logo route is ever used as a logo address, and only a literal `true` reads as verified. */
+function advertiserOf(value: unknown): Advertiser | null {
+  if (typeof value !== "object" || value === null) return null;
+  const { type, agency_name, logo_url, verified } = value as Record<string, unknown>;
+  if (type === "individual") return { type };
+  if (type !== "agency") return null;
+  return {
+    type,
+    name: typeof agency_name === "string" && agency_name.trim() ? agency_name.trim() : null,
+    logoUrl: typeof logo_url === "string" && LOGO_PATH.test(logo_url) ? logo_url : null,
+    verified: verified === true,
+  };
+}
 
 /** Only the media endpoint of this Listing is ever used as an image address. */
 const coverOf = (url: unknown, id: string): string | null =>
@@ -51,6 +72,7 @@ function readCard(card: components["schemas"]["PublicListingCard"]): PublicCard 
     localityName: placeName(card.locality),
     coverUrl: coverOf(card.cover_url, card.id),
     publishedOn: dateText(card.published_on),
+    advertiser: advertiserOf(card.advertiser),
   };
 }
 
@@ -133,7 +155,7 @@ export const fetchDetail = cache(async (id: string): Promise<DetailResult> => {
     if (!response.ok || !data) return { kind: "error" };
     const listing = readPreview(data, id);
     if (!listing) return { kind: "error" };
-    return { kind: "ok", listing, cityName: placeName(data.city), localityName: placeName(data.locality), publishedOn: dateText(data.published_on) };
+    return { kind: "ok", listing, cityName: placeName(data.city), localityName: placeName(data.locality), publishedOn: dateText(data.published_on), advertiser: advertiserOf(data.advertiser) };
   } catch {
     return { kind: "error" };
   }

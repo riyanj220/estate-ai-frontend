@@ -486,6 +486,29 @@ progress {
   margin-left: 0.5rem;
 }
 
+/* Who advertises a public Listing (Story 3.6). The verified mark belongs to the Agency only, never to a Listing's facts. */
+.advertiser {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.advertiser-logo {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  border-radius: var(--radius);
+}
+.verified-mark {
+  padding: 0 0.5rem;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
 /* Images section of the Draft page (Story 2.10) */
 .image-add {
   margin-bottom: var(--space);
