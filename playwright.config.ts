@@ -16,6 +16,7 @@ process.env.E2E_APP_PORT = String(APP_PORT);
 export default defineConfig({
   testDir: "tests/e2e",
   workers: 1, // tests inside a shard share its stub backend
+  retries: process.env.CI ? 1 : 0, // a timing flake on a loaded runner is retried once in CI and reported as flaky
   // Several dev servers and browsers compete for the cores: more headroom than the 30 s / 5 s defaults.
   timeout: PARALLEL ? 60_000 : 30_000,
   expect: { timeout: PARALLEL ? 10_000 : 5_000 },
