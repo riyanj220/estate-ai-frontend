@@ -12,9 +12,14 @@ import { readRegistry, type Registry } from "./registry";
 
 /** Server-side reads of the public (Story 3.1) endpoints. Only the names read here are ever rendered. */
 export const BROWSE_PATH = "/listings";
+export const agencyPath = (id: string) => `/agencies/${id}`;
 
-/** Who advertises a Listing (Story 3.6). Name, logo and verification are an Agency's only. */
-export type Advertiser = { type: "individual" } | { type: "agency"; name: string | null; logoUrl: string | null; verified: boolean };
+/** Who advertises a Listing (Story 3.6). Id (public, for its page), name, logo and verification are an Agency's only. */
+export type Advertiser = { type: "individual" } | { type: "agency"; id: string | null; name: string | null; logoUrl: string | null; verified: boolean };
+
+/** An Agency's public profile (Story 3.8): nothing else is read. */
+export type PublicAgency = { name: string; logoUrl: string | null; description: string; verified: boolean };
+export type AgencyResult = { kind: "ok"; agency: PublicAgency } | { kind: "not_found" } | { kind: "error" };
 
 export type PublicCard = {
   listing: ListingView;
@@ -29,6 +34,7 @@ export type PublicCard = {
 export type BrowseResult =
   | { kind: "ok"; cards: PublicCard[]; nextCursor: string | null }
   | { kind: "bad_request"; problems: Record<string, string> }
+  | { kind: "not_found" }
   | { kind: "error" };
 export type DetailResult = ({ kind: "ok" } & Omit<PublicCard, "coverUrl">) | { kind: "not_found" } | { kind: "error" };
 
@@ -39,17 +45,19 @@ const placeName = (place: unknown): string | null => {
 const dateText = (value: unknown): string | null => (typeof value === "string" && isIsoDate(value) ? value : null);
 
 const LOGO_PATH = /^\/api\/v1\/agencies\/[0-9a-f-]{36}\/logo$/;
+const logoOf = (url: unknown): string | null => (typeof url === "string" && LOGO_PATH.test(url) ? url : null);
 
 /** Only the public logo route is ever used as a logo address, and only a literal `true` reads as verified. */
 function advertiserOf(value: unknown): Advertiser | null {
   if (typeof value !== "object" || value === null) return null;
-  const { type, agency_name, logo_url, verified } = value as Record<string, unknown>;
+  const { type, agency_id, agency_name, logo_url, verified } = value as Record<string, unknown>;
   if (type === "individual") return { type };
   if (type !== "agency") return null;
   return {
     type,
+    id: typeof agency_id === "string" && isListingId(agency_id) ? agency_id : null,
     name: typeof agency_name === "string" && agency_name.trim() ? agency_name.trim() : null,
-    logoUrl: typeof logo_url === "string" && LOGO_PATH.test(logo_url) ? logo_url : null,
+    logoUrl: logoOf(logo_url),
     verified: verified === true,
   };
 }
@@ -94,11 +102,16 @@ function problemsOf(body: unknown): Record<string, string> {
   );
 }
 
-export async function fetchBrowse(query: URLSearchParams): Promise<BrowseResult> {
+/** The public list, or one Agency's (the same filters, sorts and cursors). */
+export async function fetchBrowse(query: URLSearchParams, agencyId?: string): Promise<BrowseResult> {
   try {
     const api = await getApi();
     // The values go through as typed: the server judges them and answers 400. The filter names come from the registry, not from the types.
-    const { data, error, response } = await api.GET("/api/v1/public/listings", { params: { query: Object.fromEntries(query) as Record<string, string> as { cursor?: string } } });
+    const filters = Object.fromEntries(query) as Record<string, string> as { cursor?: string };
+    const { data, error, response } = agencyId
+      ? await api.GET("/api/v1/public/agencies/{agency_id}/listings", { params: { path: { agency_id: agencyId }, query: filters } })
+      : await api.GET("/api/v1/public/listings", { params: { query: filters } });
+    if (agencyId && response.status === 404) return { kind: "not_found" };
     if (response.status === 400) return { kind: "bad_request", problems: problemsOf(error) };
     if (!response.ok || !data || !Array.isArray(data.results)) return { kind: "error" };
     const cards = data.results.map(readCard).filter((card): card is PublicCard => card !== null);
@@ -107,6 +120,22 @@ export async function fetchBrowse(query: URLSearchParams): Promise<BrowseResult>
     return { kind: "error" };
   }
 }
+
+/** Memoised for one render pass: the page and its title share one read. */
+export const fetchAgency = cache(async (id: string): Promise<AgencyResult> => {
+  if (!isListingId(id)) return { kind: "not_found" };
+  try {
+    const api = await getApi();
+    const { data, response } = await api.GET("/api/v1/public/agencies/{agency_id}", { params: { path: { agency_id: id } } });
+    if (response.status === 404) return { kind: "not_found" };
+    const name = typeof data?.name === "string" ? data.name.trim() : "";
+    if (!response.ok || !data || !name) return { kind: "error" };
+    const description = typeof data.description === "string" ? data.description.trim() : "";
+    return { kind: "ok", agency: { name, description, logoUrl: logoOf(data.logo_url), verified: data.verified === true } };
+  } catch {
+    return { kind: "error" };
+  }
+});
 
 export async function fetchFilterSchema(): Promise<FilterSchema | null> {
   try {

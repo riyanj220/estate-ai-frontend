@@ -500,6 +500,10 @@ progress {
   object-fit: contain;
   border-radius: var(--radius);
 }
+.agency-profile {
+  margin-bottom: var(--space);
+  overflow-wrap: anywhere;
+}
 .verified-mark {
   padding: 0 0.5rem;
   border-radius: var(--radius);

@@ -3914,6 +3914,344 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/public/agencies/{agency_id}:
+    get:
+      operationId: get_public_agency
+      description: 'Public; the answer is the same for every caller. Only the name,
+        logo route, description and verification: never the business phone, office
+        address, email, city or account. `agency_id` is `advertiser.agency_id` of
+        a Listing. Only an Active Agency: a Suspended, Deactivated or unverified one,
+        an unknown, malformed or non-agency id are the same `404 not_found`. `200`
+        has `Cache-Control: public, max-age=60` and no cookie (so a profile may stay
+        in a cache for up to a minute); errors are `no-store`.'
+      summary: An Agency's public profile
+      parameters:
+      - in: path
+        name: agency_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - public
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicAgency'
+          description: The Agency
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/public/agencies/{agency_id}/listings:
+    get:
+      operationId: list_public_agency_listings
+      description: '`GET /api/v1/public/listings` narrowed to one Agency: the same
+        visibility, filters, preferences, sorts, `limit`, `cursor`, errors and caching.
+        An Agency whose profile is `404 not_found` is the same `404` here, whatever
+        the parameters.'
+      summary: Browse and filter one Agency's published Listings
+      parameters:
+      - in: path
+        name: agency_id
+        schema:
+          type: string
+        required: true
+      - in: query
+        name: amenities
+        schema:
+          type: string
+        description: Filter (amenities).
+      - in: query
+        name: area_sqft_max
+        schema:
+          type: string
+        description: Filter (range).
+      - in: query
+        name: area_sqft_min
+        schema:
+          type: string
+        description: Filter (range).
+      - in: query
+        name: asking_price_max
+        schema:
+          type: string
+        description: Filter (range).
+      - in: query
+        name: asking_price_min
+        schema:
+          type: string
+        description: Filter (range).
+      - in: query
+        name: bathrooms_max
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: bathrooms_min
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: bedrooms_max
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: bedrooms_min
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: category
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: city
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: furnishing
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: limit
+        schema:
+          type: integer
+      - in: query
+        name: locality
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: parking_spaces_max
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: parking_spaces_min
+        schema:
+          type: integer
+        description: Filter (range).
+      - in: query
+        name: prefer_amenities
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_area_sqft_max
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_area_sqft_min
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_asking_price_max
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_asking_price_min
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_bathrooms_max
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_bathrooms_min
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_bedrooms_max
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_bedrooms_min
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_category
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_city
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_furnishing
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_locality
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_parking_spaces_max
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_parking_spaces_min
+        schema:
+          type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_price_basis
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_purpose
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_rental_period
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_subtype
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: price_basis
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: purpose
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: rental_period
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: sort
+        schema:
+          type: string
+          enum:
+          - newest
+          - price_asc
+          - price_desc
+          - relevance
+      - in: query
+        name: subtype
+        schema:
+          type: string
+        description: Filter (choice).
+      tags:
+      - public
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicListingPage'
+          description: One page
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/public/filters:
     get:
       operationId: get_public_filters
@@ -4250,11 +4588,11 @@ paths:
       description: 'Public; the answer is the same for every caller, the owner included.
         The public projection only: never a private address, coordinates, a phone
         number, the owner account, the status, the revision or the provenance. Of
-        the owner, `advertiser` gives only the type and, for an Agency, its name,
-        logo and verification. `nearby` amenities are the seller''s own declaration.
-        A Listing that is not publicly visible, an unknown and a malformed id are
-        the same `404 not_found`. `200` has `Cache-Control: public, max-age=60` and
-        no cookie; errors are `no-store`.'
+        the owner, `advertiser` gives only the type and, for an Agency, its public
+        id, name, logo and verification. `nearby` amenities are the seller''s own
+        declaration. A Listing that is not publicly visible, an unknown and a malformed
+        id are the same `404 not_found`. `200` has `Cache-Control: public, max-age=60`
+        and no cookie; errors are `no-store`.'
       summary: One published Listing
       parameters:
       - in: path
@@ -4950,6 +5288,11 @@ components:
       properties:
         type:
           $ref: '#/components/schemas/OwnerAccountTypeEnum'
+        agency_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: 'Agencies only: the public profile id (`/api/v1/public/agencies/{agency_id}`).'
         agency_name:
           type: string
           nullable: true
@@ -4962,6 +5305,7 @@ components:
           type: boolean
           description: An Agency with Verification granted. Always false for now.
       required:
+      - agency_id
       - agency_name
       - logo_url
       - type
@@ -7474,6 +7818,27 @@ components:
       required:
       - confirmed
       - origin
+    PublicAgency:
+      type: object
+      description: An Agency's public profile (FR-41), and nothing else about it.
+      properties:
+        name:
+          type: string
+        logo_url:
+          type: string
+          nullable: true
+          description: The public logo route; null without a logo.
+        description:
+          type: string
+          description: Empty when none was written.
+        verified:
+          type: boolean
+          description: An Agency with Verification granted. Always false for now.
+      required:
+      - description
+      - logo_url
+      - name
+      - verified
     PublicCardFields:
       type: object
       description: Price, area and room facts by registry id. Null means unknown or

@@ -937,6 +937,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/agencies/{agency_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An Agency's public profile
+         * @description Public; the answer is the same for every caller. Only the name, logo route, description and verification: never the business phone, office address, email, city or account. `agency_id` is `advertiser.agency_id` of a Listing. Only an Active Agency: a Suspended, Deactivated or unverified one, an unknown, malformed or non-agency id are the same `404 not_found`. `200` has `Cache-Control: public, max-age=60` and no cookie (so a profile may stay in a cache for up to a minute); errors are `no-store`.
+         */
+        get: operations["get_public_agency"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/agencies/{agency_id}/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Browse and filter one Agency's published Listings
+         * @description `GET /api/v1/public/listings` narrowed to one Agency: the same visibility, filters, preferences, sorts, `limit`, `cursor`, errors and caching. An Agency whose profile is `404 not_found` is the same `404` here, whatever the parameters.
+         */
+        get: operations["list_public_agency_listings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/filters": {
         parameters: {
             query?: never;
@@ -986,7 +1026,7 @@ export interface paths {
         };
         /**
          * One published Listing
-         * @description Public; the answer is the same for every caller, the owner included. The public projection only: never a private address, coordinates, a phone number, the owner account, the status, the revision or the provenance. Of the owner, `advertiser` gives only the type and, for an Agency, its name, logo and verification. `nearby` amenities are the seller's own declaration. A Listing that is not publicly visible, an unknown and a malformed id are the same `404 not_found`. `200` has `Cache-Control: public, max-age=60` and no cookie; errors are `no-store`.
+         * @description Public; the answer is the same for every caller, the owner included. The public projection only: never a private address, coordinates, a phone number, the owner account, the status, the revision or the provenance. Of the owner, `advertiser` gives only the type and, for an Agency, its public id, name, logo and verification. `nearby` amenities are the seller's own declaration. A Listing that is not publicly visible, an unknown and a malformed id are the same `404 not_found`. `200` has `Cache-Control: public, max-age=60` and no cookie; errors are `no-store`.
          */
         get: operations["get_public_listing"];
         put?: never;
@@ -1215,6 +1255,11 @@ export interface components {
         /** @description Who advertises the Listing (FR-39). Nothing else about the owner is public here. */
         Advertiser: {
             type: components["schemas"]["OwnerAccountTypeEnum"];
+            /**
+             * Format: uuid
+             * @description Agencies only: the public profile id (`/api/v1/public/agencies/{agency_id}`).
+             */
+            agency_id: string | null;
             /** @description Agencies only. */
             agency_name: string | null;
             /** @description Agencies only: the public logo route; null without a logo. */
@@ -2364,6 +2409,16 @@ export interface components {
         ProvenanceEntry: {
             origin: components["schemas"]["OriginEnum"];
             confirmed: boolean;
+        };
+        /** @description An Agency's public profile (FR-41), and nothing else about it. */
+        PublicAgency: {
+            name: string;
+            /** @description The public logo route; null without a logo. */
+            logo_url: string | null;
+            /** @description Empty when none was written. */
+            description: string;
+            /** @description An Agency with Verification granted. Always false for now. */
+            verified: boolean;
         };
         /** @description Price, area and room facts by registry id. Null means unknown or not applicable. */
         PublicCardFields: {
@@ -7396,6 +7451,242 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_public_agency: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Agency */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicAgency"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_public_agency_listings: {
+        parameters: {
+            query?: {
+                /** @description Filter (amenities). */
+                amenities?: string;
+                /** @description Filter (range). */
+                area_sqft_max?: string;
+                /** @description Filter (range). */
+                area_sqft_min?: string;
+                /** @description Filter (range). */
+                asking_price_max?: string;
+                /** @description Filter (range). */
+                asking_price_min?: string;
+                /** @description Filter (range). */
+                bathrooms_max?: number;
+                /** @description Filter (range). */
+                bathrooms_min?: number;
+                /** @description Filter (range). */
+                bedrooms_max?: number;
+                /** @description Filter (range). */
+                bedrooms_min?: number;
+                /** @description Filter (choice). */
+                category?: string;
+                /** @description Filter (choice). */
+                city?: string;
+                cursor?: string;
+                /** @description Filter (choice). */
+                furnishing?: string;
+                limit?: number;
+                /** @description Filter (choice). */
+                locality?: string;
+                /** @description Filter (range). */
+                parking_spaces_max?: number;
+                /** @description Filter (range). */
+                parking_spaces_min?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_amenities?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_area_sqft_max?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_area_sqft_min?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_asking_price_max?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_asking_price_min?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_bathrooms_max?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_bathrooms_min?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_bedrooms_max?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_bedrooms_min?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_category?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_city?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_furnishing?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_locality?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_parking_spaces_max?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_parking_spaces_min?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_price_basis?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_purpose?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_rental_period?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_subtype?: string;
+                /** @description Filter (choice). */
+                price_basis?: string;
+                /** @description Filter (choice). */
+                purpose?: string;
+                /** @description Filter (choice). */
+                rental_period?: string;
+                sort?: "newest" | "price_asc" | "price_desc" | "relevance";
+                /** @description Filter (choice). */
+                subtype?: string;
+            };
+            header?: never;
+            path: {
+                agency_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicListingPage"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Too many requests */
