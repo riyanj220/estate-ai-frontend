@@ -3,6 +3,7 @@ import { canOwnListings } from "@/lib/account";
 import { requireAccount } from "@/lib/current-account";
 import { LISTINGS_UNAVAILABLE } from "@/lib/listing-messages";
 import { CreateListingForm } from "./create-listing-form";
+import { CreateWithAi } from "./create-with-ai";
 
 export const metadata: Metadata = { title: "Create listing | EstateAI", robots: { index: false, follow: false } };
 
@@ -20,5 +21,11 @@ export default async function CreateListingPage() {
       </>
     );
   }
-  return <CreateListingForm />;
+  return (
+    <>
+      <CreateListingForm />
+      {/* Off by default until the assistant exists; read per request (the page is already dynamic). */}
+      {process.env.AI_FEATURES === "1" && <CreateWithAi />}
+    </>
+  );
 }
