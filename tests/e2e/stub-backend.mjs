@@ -1325,6 +1325,9 @@ let publicRequests = [];
 // Story 6.1: search by description. Modes through /__search-mode; the interpretation is fixed.
 let searchMode = "ok";
 let searchRequests = [];
+// Story 6.3: transcription of a recording. Modes through /__voice-mode; the words are fixed.
+let voiceMode = "ok";
+let voiceRequests = [];
 const SEARCH_PARAMS = { purpose: "sale", category: "house", prefer_parking_spaces_min: "1", prefer_amenities: "nearby_park" };
 // Favourites (Story 3.7): the saved listing ids, latest first. An id without a public card reads as no longer available.
 let favourites = [];
@@ -1495,6 +1498,35 @@ createServer((req, res) => {
         : { status: "interpreted", message: "", params: SEARCH_PARAMS, unsupported: ["near a metro station"], notices: ["Nearby facilities are seller-declared and not verified."] };
       // "slow" leaves time to see the progress indicator.
       setTimeout(() => json(200, answer), searchMode === "slow" ? 1500 : 0);
+    });
+  }
+  if (url.pathname === "/__voice-mode") {
+    voiceMode = url.searchParams.get("value") ?? "ok";
+    return json(200, { voiceMode });
+  }
+  if (url.pathname === "/__voice-requests") return json(200, { requests: voiceRequests });
+  if (url.pathname === "/api/v1/public/search/transcription" && req.method === "POST") {
+    res.setHeader("cache-control", "no-store");
+    if (req.headers["x-csrftoken"] !== `csrf-${csrfSeed}`) return json(403, envelope("forbidden", "CSRF check failed."));
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    return req.on("end", () => {
+      const body = Buffer.concat(chunks).toString("latin1");
+      voiceRequests.push({
+        url: url.pathname + url.search,
+        multipart: (req.headers["content-type"] ?? "").startsWith("multipart/form-data"),
+        parts: [...body.matchAll(/; name="([^"]*)"/g)].map((match) => match[1]),
+        audio: body.includes("FAKE-RECORDING"),
+      });
+      if (voiceMode === "rate_limited") {
+        res.writeHead(429, { "content-type": "application/json", "retry-after": "60" });
+        return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+      }
+      if (voiceMode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+      const answer = voiceMode === "fallback"
+        ? { status: "fallback", transcript: "", message: "Voice search is unavailable right now. Type your search instead." }
+        : { status: "transcribed", transcript: "house for sale near a park", message: "" };
+      setTimeout(() => json(200, answer), voiceMode === "slow" ? 1500 : 0);
     });
   }
   if (url.pathname === "/__public-mode") {
@@ -4169,6 +4201,8 @@ createServer((req, res) => {
     publicRequests = [];
     searchMode = "ok";
     searchRequests = [];
+    voiceMode = "ok";
+    voiceRequests = [];
     favourites = [];
     favouritesMode = "ok";
     suspensionReason = SUSPENSION_REASON;
