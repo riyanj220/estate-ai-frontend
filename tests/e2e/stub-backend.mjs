@@ -1226,7 +1226,7 @@ const pending = []; // responses held open by the hang mode
 // Story 5.8: one assistant session per Draft. Modes through /__assistant-mode; "hold" keeps a turn open until /__assistant-release.
 // Stories 5.9 and 5.10: what the Draft still needs; "extract" saves two fields to it, "review" says nothing required is missing.
 const nextStep = (kind, question, fields_asked = [], in_form = false) => ({ kind, question, fields_asked, optional: [], in_form });
-const ASSISTANT_MODES = ["extract", "review", "ok", "sources", "no_explanations", "error", "timeout", "budget_exhausted", "rate_limited", "conflict", "hold", "forbidden", "open_conflict", "describe_fail"];
+const ASSISTANT_MODES = ["extract", "review", "ok", "sources", "no_explanations", "error", "timeout", "budget_exhausted", "fallback", "lost", "rate_limited", "conflict", "hold", "forbidden", "open_conflict", "describe_fail"];
 let assistantMode = "ok";
 let assistantSessions = new Map();
 let assistantRequests = [];
@@ -2364,9 +2364,12 @@ createServer((req, res) => {
       assistantRequests.push(body);
       const session = [...assistantSessions.values()].find((item) => item.id === turnRoute[1]);
       if (!session) return json(404, envelope("not_found", "Not found."));
+      // Story 5.14: an answered turn id is answered again from what was stored.
+      const stored = session.turns.find((item) => item.client_turn_id === body.client_turn_id);
+      if (stored) return json(200, { outcome: "success", message: "", turn: stored, next_step: session.next_step, summary: session.summary ?? [] });
       if (assistantMode === "rate_limited") return throttled();
       if (assistantMode === "conflict") return json(409, envelope("conflict", "Raw server text."));
-      if (["error", "timeout", "budget_exhausted"].includes(assistantMode)) return json(200, { outcome: assistantMode, message: "Raw server text.", turn: null, next_step: null });
+      if (["error", "timeout", "budget_exhausted", "fallback"].includes(assistantMode)) return json(200, { outcome: assistantMode, message: "Raw server text.", turn: null, next_step: null });
       const answer = () => {
         const sources = assistantMode === "sources" ? [{ title: "Marla", source: "Measures", version: 1 }] : [];
         // Markup in a reply must stay text.
@@ -2384,6 +2387,8 @@ createServer((req, res) => {
         }
         if (assistantMode === "review") session.next_step = nextStep("review", "All required details are filled in. You can review your listing now.");
         session.turns.push(turn);
+        // "lost": the turn is kept but its answer never reaches the browser.
+        if (assistantMode === "lost") return json(502, envelope("server_error", "Raw server text."));
         json(200, { outcome: "success", message: assistantMode === "no_explanations" ? "Raw server text." : "", turn, next_step: session.next_step, summary: session.summary ?? [] });
       };
       if (assistantMode === "hold") return void assistantHeld.push(answer);
@@ -2415,6 +2420,8 @@ createServer((req, res) => {
       if (target.fields.description && target.provenance.description?.origin !== "ai" && body.replace !== true) {
         return json(400, envelope("validation_error", "Invalid.", { description: ["manual_description"] }));
       }
+      if (assistantMode === "rate_limited") return throttled();
+      if (["timeout", "budget_exhausted", "fallback"].includes(assistantMode)) return json(200, { outcome: assistantMode, message: "Raw server text.", listing: null, claims: [], left_out: [] });
       if (assistantMode === "describe_fail") return json(200, { outcome: "error", message: "Raw server text.", listing: null, claims: [], left_out: [] });
       target.fields.description = "This house is for sale.\n\nIt has <b>three</b> bedrooms.";
       target.provenance = { ...target.provenance, description: { origin: "ai", confirmed: false } };
