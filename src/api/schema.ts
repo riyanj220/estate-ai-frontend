@@ -1487,6 +1487,34 @@ export interface components {
          * @enum {string}
          */
         AreaUnitEnum: "sqft" | "sqyd" | "marla" | "kanal" | "acre";
+        AssistantApplied: {
+            /** @description A registry field id. */
+            field: string;
+            /** @description As on the Listing: text, integer or boolean. */
+            value: unknown;
+        };
+        AssistantNextStep: {
+            kind: components["schemas"]["AssistantNextStepKindEnum"];
+            /** @description Plain text. */
+            question: string;
+            /** @description The missing required fields asked about; empty for `review`. */
+            fields_asked: string[];
+            /** @description Missing optional fields the Seller may add. */
+            optional: string[];
+            /** @description True when only the manual form can set it. */
+            in_form: boolean;
+        };
+        /**
+         * @description * `required` - required
+         *     * `review` - review
+         * @enum {string}
+         */
+        AssistantNextStepKindEnum: "required" | "review";
+        AssistantRejected: {
+            field: string;
+            /** @description The same codes as a Listing edit. */
+            code: string;
+        };
         AssistantSession: {
             /** Format: uuid */
             id: string;
@@ -1500,6 +1528,8 @@ export interface components {
             knowledge_notice: string;
             /** @description Oldest first. */
             turns: components["schemas"]["AssistantTurn"][];
+            /** @description Null when the Listing is no longer a Draft. */
+            next_step: components["schemas"]["AssistantNextStep"] | null;
         };
         AssistantSessionOpenRequest: {
             /**
@@ -1527,6 +1557,14 @@ export interface components {
             sources: components["schemas"]["AssistantSource"][];
             /** Format: date-time */
             created_at: string;
+            /** @description Saved to the Draft, unconfirmed. */
+            applied: components["schemas"]["AssistantApplied"][];
+            /** @description Understood but not saved. */
+            rejected: components["schemas"]["AssistantRejected"][];
+            /** @description Fields the Seller changed while the assistant worked: left as they were. */
+            conflicts: string[];
+            /** @description Plain text. */
+            notices: string[];
         };
         AssistantTurnBodyRequest: {
             message: string;
@@ -1542,6 +1580,8 @@ export interface components {
             message: string;
             /** @description Null unless `success`: nothing was stored. */
             turn: components["schemas"]["AssistantTurn"] | null;
+            /** @description Null unless `success`. */
+            next_step: components["schemas"]["AssistantNextStep"] | null;
         };
         /**
          * @description * `not_applicable` - not_applicable

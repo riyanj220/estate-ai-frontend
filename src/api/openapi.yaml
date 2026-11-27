@@ -5932,6 +5932,63 @@ components:
         * `marla` - marla
         * `kanal` - kanal
         * `acre` - acre
+    AssistantApplied:
+      type: object
+      properties:
+        field:
+          type: string
+          description: A registry field id.
+        value:
+          description: 'As on the Listing: text, integer or boolean.'
+      required:
+      - field
+      - value
+    AssistantNextStep:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/AssistantNextStepKindEnum'
+        question:
+          type: string
+          description: Plain text.
+        fields_asked:
+          type: array
+          items:
+            type: string
+          description: The missing required fields asked about; empty for `review`.
+        optional:
+          type: array
+          items:
+            type: string
+          description: Missing optional fields the Seller may add.
+        in_form:
+          type: boolean
+          description: True when only the manual form can set it.
+      required:
+      - fields_asked
+      - in_form
+      - kind
+      - optional
+      - question
+    AssistantNextStepKindEnum:
+      enum:
+      - required
+      - review
+      type: string
+      description: |-
+        * `required` - required
+        * `review` - review
+    AssistantRejected:
+      type: object
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+          description: The same codes as a Listing edit.
+      required:
+      - code
+      - field
     AssistantSession:
       type: object
       properties:
@@ -5956,11 +6013,17 @@ components:
           items:
             $ref: '#/components/schemas/AssistantTurn'
           description: Oldest first.
+        next_step:
+          allOf:
+          - $ref: '#/components/schemas/AssistantNextStep'
+          nullable: true
+          description: Null when the Listing is no longer a Draft.
       required:
       - created_at
       - id
       - knowledge_notice
       - listing_id
+      - next_step
       - registry_version
       - schema_version
       - turns
@@ -6011,11 +6074,36 @@ components:
         created_at:
           type: string
           format: date-time
+        applied:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssistantApplied'
+          description: Saved to the Draft, unconfirmed.
+        rejected:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssistantRejected'
+          description: Understood but not saved.
+        conflicts:
+          type: array
+          items:
+            type: string
+          description: 'Fields the Seller changed while the assistant worked: left
+            as they were.'
+        notices:
+          type: array
+          items:
+            type: string
+          description: Plain text.
       required:
+      - applied
       - client_turn_id
+      - conflicts
       - created_at
       - id
       - message
+      - notices
+      - rejected
       - reply
       - sequence
       - sources
@@ -6047,8 +6135,14 @@ components:
           - $ref: '#/components/schemas/AssistantTurn'
           nullable: true
           description: 'Null unless `success`: nothing was stored.'
+        next_step:
+          allOf:
+          - $ref: '#/components/schemas/AssistantNextStep'
+          nullable: true
+          description: Null unless `success`.
       required:
       - message
+      - next_step
       - outcome
       - turn
     BallotingStatusEnum:

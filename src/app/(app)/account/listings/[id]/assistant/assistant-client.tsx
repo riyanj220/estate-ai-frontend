@@ -14,8 +14,11 @@ import {
   MESSAGE_REQUIRED,
   NOT_A_DRAFT,
   NO_EXPLANATIONS,
+  SAVED_HEADING,
   SEND_CONFLICT,
   TURN_TIMEOUT_MS,
+  appliedText,
+  readNextStep,
   readSession,
   readTurn,
   type AssistantSession,
@@ -88,13 +91,14 @@ export function AssistantClient({ id, admin }: { id: string; admin: boolean }) {
           {load.profile.refusal}
         </p>
       ) : (
-        <Chat key={load.profile.session.id} session={load.profile.session} signInPath={signInPath} onSessionGone={sessionGone} />
+        <Chat key={load.profile.session.id} session={load.profile.session} manual={manual} signInPath={signInPath} onSessionGone={sessionGone} />
       )}
     </>
   );
 }
 
-function Turn({ message, reply, sources }: { message: string; reply?: string; sources?: AssistantTurn["sources"] }) {
+function Turn({ message, turn }: { message: string; turn?: AssistantTurn }) {
+  const { reply, sources, applied, notices } = turn ?? {};
   return (
     <li className="card" data-testid="chat-turn">
       <p className="chat-text">
@@ -107,6 +111,23 @@ function Turn({ message, reply, sources }: { message: string; reply?: string; so
           {reply}
         </p>
       )}
+      {applied && applied.length > 0 && (
+        <div data-testid="chat-applied">
+          <p>{SAVED_HEADING}</p>
+          <ul>
+            {applied.map((item) => (
+              <li key={item.field} className="chat-text">
+                {appliedText(item)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {notices?.map((text, index) => (
+        <p key={index} className="chat-text notice" data-testid="chat-notice">
+          {text}
+        </p>
+      ))}
       {sources && sources.length > 0 && (
         <div className="muted" data-testid="chat-sources">
           <p>Sources</p>
@@ -124,11 +145,22 @@ function Turn({ message, reply, sources }: { message: string; reply?: string; so
   );
 }
 
-function Chat({ session, signInPath, onSessionGone }: { session: AssistantSession; signInPath: string; onSessionGone: () => Promise<void> }) {
+function Chat({
+  session,
+  manual,
+  signInPath,
+  onSessionGone,
+}: {
+  session: AssistantSession;
+  manual: string;
+  signInPath: string;
+  onSessionGone: () => Promise<void>;
+}) {
   const router = useRouter();
   const { account } = useSession();
   const { withNotice, notice } = useAiNotice();
   const [turns, setTurns] = useState<AssistantTurn[]>(session.turns);
+  const [nextStep, setNextStep] = useState(() => readNextStep(session.next_step));
   const [text, setText] = useState("");
   const [sending, setSending] = useState<string | null>(null);
   const [problem, setProblem] = useState("");
@@ -173,6 +205,7 @@ function Chat({ session, signInPath, onSessionGone }: { session: AssistantSessio
         const turn = readTurn(data?.turn);
         if (data?.outcome === "success" && turn) {
           setTurns((current) => [...current.filter((item) => item.id !== turn.id), turn]);
+          setNextStep(readNextStep(data.next_step));
           setText("");
           attempt.current = null;
           if (data.message) setInfo(NO_EXPLANATIONS);
@@ -216,13 +249,13 @@ function Chat({ session, signInPath, onSessionGone }: { session: AssistantSessio
   return (
     <>
       <p className="muted">
-        Ask about property terms or tell the assistant about your property. It cannot change your listing yet: enter details in the manual
-        form. Do not type phone numbers, email addresses or street addresses.
+        Ask about property terms or tell the assistant about your property. It fills in your draft for you to check; it cannot publish it.
+        Do not type phone numbers, email addresses or street addresses: those go in the form.
       </p>
       <div role="log" aria-label="Conversation">
         <ol className="chat-list">
           {turns.map((turn) => (
-            <Turn key={turn.id} message={turn.message} reply={turn.reply} sources={turn.sources} />
+            <Turn key={turn.id} message={turn.message} turn={turn} />
           ))}
           {sending !== null && <Turn message={sending} />}
         </ol>
@@ -234,6 +267,21 @@ function Chat({ session, signInPath, onSessionGone }: { session: AssistantSessio
         <p role="alert" className="notice" data-testid="chat-problem">
           {problem}
         </p>
+      )}
+      {nextStep && (
+        <div className="card" data-testid="chat-next">
+          <p className="chat-text">
+            <strong>{nextStep.kind === "review" ? "Ready to review: " : "Next: "}</strong>
+            {nextStep.question}
+          </p>
+          {(nextStep.kind === "review" || nextStep.in_form) && (
+            <p>
+              <Link href={manual} className="text-link">
+                {nextStep.kind === "review" ? "Review your listing" : "Open the form"}
+              </Link>
+            </p>
+          )}
+        </div>
       )}
       <form method="post" onSubmit={onSubmit} noValidate className="card" aria-busy={sending !== null}>
         <div className="field">
