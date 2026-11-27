@@ -198,7 +198,8 @@ test("navigation: the built screens are links; the rest are disabled Coming soon
   await startSession(page, request, "admin");
   await page.goto("/admin");
   const nav = page.getByRole("navigation", { name: "Administration" });
-  await expect(nav.getByRole("link")).toHaveCount(7);
+  await expect(nav.getByRole("link")).toHaveCount(8);
+  await expect(nav.getByRole("link", { name: "Closure requests" })).toHaveAttribute("href", "/admin/closure-requests");
   await expect(nav.getByRole("link", { name: "Flags" })).toHaveAttribute("href", "/admin/flags");
   await expect(nav.getByRole("link", { name: "Listings" })).toHaveAttribute("href", "/admin/listings");
   await expect(nav.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/admin/reports");

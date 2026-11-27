@@ -1323,6 +1323,9 @@ const VERIFICATION_ID = "00000000-0000-4000-c000-000000000001";
 let verification = null;
 let verificationHistory = [];
 let verificationPosts = [];
+// Stories 10.1 and 10.2: the one closure request (null until sent).
+const CLOSURE_ID = "00000000-0000-4000-c000-000000000002";
+let closure = null;
 let accountsMode = "ok";
 let accountsPosts = [];
 // Epic 9: the one Report (null until sent) and the moderation state of one published listing and one draft.
@@ -2422,6 +2425,45 @@ const server = createServer((req, res) => {
       const status = { approve: "verified", reject: "rejected", revoke: "revoked" }[action];
       decide({ approve: "approved", reject: "rejected", revoke: "revoked" }[action], status, body?.reason ?? "");
       return json(200, { id: VERIFICATION_ID, status, decided_at: verification.decided_at });
+    });
+  }
+  // ---- Account closure (Stories 10.1 and 10.2)
+  if (url.pathname.startsWith("/api/v1/me/closure-requests") || url.pathname.startsWith("/api/v1/admin/closure-requests")) {
+    res.setHeader("cache-control", "no-store");
+    const admin = url.pathname.startsWith("/api/v1/admin/");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication required."));
+    if (admin && !sessionAdmin) return json(404, envelope("not_found", "Not found."));
+    if (!admin && sessionAdmin) return json(403, envelope("forbidden", "Forbidden."));
+    const own = () => {
+      if (!closure) return { can_submit: true, request: null };
+      const { id, kind, status, submitted_at, decided_at, decision_reason } = closure;
+      return { can_submit: status !== "pending", request: { id, kind, status, submitted_at, decided_at, decision_reason } };
+    };
+    const row = () => ({
+      ...own().request,
+      account_id: CLOSURE_ID,
+      account_type: "individual",
+      account_state: closure.status === "approved" ? "deactivated" : signInMode === "suspended" ? "suspended" : "active",
+      masked_email: closure.status === "approved" ? null : "a***@example.com",
+    });
+    if (req.method === "GET") {
+      if (!admin) return json(200, own());
+      const wanted = url.searchParams.get("status") ?? "pending";
+      return json(200, { next: null, previous: null, results: closure?.status === wanted ? [row()] : [] });
+    }
+    return readBody((body) => {
+      if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
+      const conflict = () => json(409, envelope("conflict", "Conflict."));
+      if (!admin) {
+        if (closure?.status === "pending") return conflict();
+        closure = { id: CLOSURE_ID, kind: body.kind, status: "pending", submitted_at: "2026-11-27T10:00:00+05:00", decided_at: null, decision_reason: "" };
+        return json(201, own());
+      }
+      if (!url.pathname.includes(CLOSURE_ID) || !closure) return json(404, envelope("not_found", "Not found."));
+      if (closure.status !== "pending") return conflict();
+      const status = url.pathname.endsWith("/approve") ? "approved" : "rejected";
+      Object.assign(closure, { status, decided_at: "2026-11-27T11:00:00+05:00", decision_reason: body.reason });
+      return json(200, row());
     });
   }
   // Story 9.5: reporting Messages of a Conversation; the Report joins the moderation state.
@@ -4581,6 +4623,7 @@ const server = createServer((req, res) => {
     verification = null;
     verificationHistory = [];
     verificationPosts = [];
+    closure = null;
     accountsMode = "ok";
     accountsPosts = [];
     moderation = newModeration();
