@@ -1,0 +1,146 @@
+import AxeBuilder from "@axe-core/playwright";
+import { APP_URL, STUB_URL } from "./ports";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+
+// Story 7.1, frontend half: "Message seller" on a public Listing and the Conversation page.
+const LISTING = "00000000-0000-4000-b000-000000000001";
+const THREAD = "/messages/00000000-0000-4000-f000-000000000001";
+
+test.describe.configure({ mode: "serial" });
+
+test.beforeEach(async ({ request }) => {
+  await request.get(`${STUB_URL}/__reset`);
+});
+
+async function startSession(page: Page, request: APIRequestContext, kind: "user" | "admin" = "user") {
+  await request.get(`${STUB_URL}/__force-session${kind === "admin" ? "?kind=admin" : ""}`);
+  await page.context().addCookies([{ name: "estate_session", value: "stub-live", url: APP_URL }]);
+}
+
+async function expectNoViolations(page: Page, label: string) {
+  await expect(page).toHaveTitle(/.+/);
+  expect((await new AxeBuilder({ page }).analyze()).violations, label).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), `${label} overflow`).toBe(false);
+}
+
+const mode = (request: APIRequestContext, value: string) => request.get(`${STUB_URL}/__messaging-mode?value=${value}`);
+const sent = async (request: APIRequestContext) => (await (await request.get(`${STUB_URL}/__messaging-requests`)).json()).requests;
+const open = (page: Page) => page.getByRole("button", { name: "Message seller" }).click();
+const send = (page: Page) => page.getByRole("button", { name: "Send" }).click();
+
+test("a Visitor is prompted to sign in, and a Conversation address sends them to sign in", async ({ page, request }) => {
+  await page.goto(`/listings/${LISTING}`);
+  await open(page);
+  const prompt = page.getByTestId("message-prompt");
+  await expect(prompt).toHaveText("Sign in or create an account to message the seller.");
+  await expect(prompt.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", `/sign-in?next=%2Flistings%2F${LISTING}`);
+  await expectNoViolations(page, "visitor prompt");
+  await page.goto(THREAD);
+  await expect(page).toHaveURL(new RegExp(`/sign-in\\?next=${encodeURIComponent(THREAD)}`));
+  expect(await sent(request)).toEqual([]);
+});
+
+test("send an inquiry, see it, reply, receive and open it again @smoke", async ({ page, request }) => {
+  await startSession(page, request);
+  await page.goto(`/listings/${LISTING}`);
+  await open(page);
+  const box = page.getByLabel("Your message to the seller");
+  await expect(box).toBeFocused();
+  await send(page);
+  await expect(page.locator("form").getByRole("alert")).toHaveText("Write a message.");
+  await box.fill("x".repeat(2001));
+  await send(page);
+  await expect(page.locator("form").getByRole("alert")).toHaveText("Use at most 2,000 characters.");
+  await expectNoViolations(page, "inquiry form");
+  await box.fill("Is it still available?");
+  await send(page);
+  await expect(page).toHaveURL(`${APP_URL}${THREAD}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Corner house with garden" })).toBeVisible();
+  await expect(page.getByTestId("conversation-with")).toHaveText("Conversation with Sunrise Estates");
+  const messages = page.getByTestId("messages").getByRole("listitem");
+  await expect(messages).toHaveCount(1);
+  await expect(messages.first()).toContainText("Is it still available?");
+
+  await page.getByLabel("Reply").fill("When can I visit?");
+  await send(page);
+  await expect(page.getByTestId("conversation-status")).toHaveText("Message sent.");
+  await expect(messages).toHaveCount(2);
+  await expect(page.getByLabel("Reply")).toHaveValue("");
+
+  await request.get(`${STUB_URL}/__messaging-reply?body=Tomorrow`);
+  await page.getByRole("button", { name: "Check for new messages" }).click();
+  await expect(messages).toHaveCount(3);
+  await expect(messages.last()).toContainText("Sunrise Estates");
+  for (const size of [{ width: 1280, height: 800 }, { width: 375, height: 812 }]) {
+    await page.setViewportSize(size);
+    await expectNoViolations(page, `conversation ${size.width}`);
+  }
+
+  await page.getByRole("link", { name: "View listing" }).click();
+  await open(page);
+  await expect(page).toHaveURL(`${APP_URL}${THREAD}`);
+  await expect(messages).toHaveCount(3);
+});
+
+test("a lost answer is retried with the same key and nothing is sent twice", async ({ page, request }) => {
+  await startSession(page, request);
+  await mode(request, "lost");
+  await page.goto(`/listings/${LISTING}`);
+  await open(page);
+  await page.getByLabel("Your message to the seller").fill("Hello");
+  await send(page);
+  await expect(page.locator("form").getByRole("alert")).not.toBeEmpty();
+  await expect(page.locator("main")).not.toContainText("Internal detail");
+  await expect(page.getByLabel("Your message to the seller")).toHaveValue("Hello");
+  await send(page);
+  await expect(page.getByTestId("messages").getByRole("listitem")).toHaveCount(1);
+  const requests = await sent(request);
+  expect(requests).toHaveLength(2);
+  expect(requests[0].key).toBe(requests[1].key);
+});
+
+test("refusals keep the draft and say why", async ({ page, request }) => {
+  await startSession(page, request);
+  await page.goto(`/listings/${LISTING}`);
+  await open(page);
+  await page.getByLabel("Your message to the seller").fill("Hello");
+  for (const [value, text] of [
+    ["own", "You cannot message your own listing."],
+    ["unverified", "Verify your email address to send messages."],
+    ["rate_limited", "Too many attempts. Try again later."],
+  ]) {
+    await mode(request, value);
+    await send(page);
+    await expect(page.locator("form").getByRole("alert")).toHaveText(text);
+  }
+  await expect(page.getByLabel("Your message to the seller")).toHaveValue("Hello");
+});
+
+test("a read-only thread, and a Conversation that is not mine", async ({ page, request }) => {
+  await startSession(page, request);
+  await page.goto(`/listings/${LISTING}`);
+  await open(page);
+  await page.getByLabel("Your message to the seller").fill("Hello");
+  await send(page);
+  await expect(page).toHaveURL(`${APP_URL}${THREAD}`);
+  await mode(request, "sold");
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1, name: "Sold" })).toBeVisible();
+  await expect(page.getByTestId("conversation-read-only")).toHaveText("This listing is no longer available, so you cannot send messages about it.");
+  await expect(page.getByLabel("Reply")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "View listing" })).toHaveCount(0);
+  await mode(request, "read_only");
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1, name: "Listing no longer available" })).toBeVisible();
+  await expectNoViolations(page, "read only");
+  await page.goto("/messages/00000000-0000-4000-f000-000000000099");
+  await expect(page.getByTestId("conversation-missing")).toContainText("Conversation not found.");
+  await expectNoViolations(page, "missing");
+});
+
+test("an administrator has no button", async ({ page, request }) => {
+  await startSession(page, request, "admin");
+  await page.goto(`/listings/${LISTING}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Corner house with garden" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Message seller" })).toHaveCount(0);
+});

@@ -1331,6 +1331,10 @@ let voiceRequests = [];
 const SEARCH_PARAMS = { purpose: "sale", category: "house", prefer_parking_spaces_min: "1", prefer_amenities: "nearby_park" };
 // Favourites (Story 3.7): the saved listing ids, latest first. An id without a public card reads as no longer available.
 let favourites = [];
+// Story 7.1: one inquiry per Listing. Modes through /__messaging-mode; a reply from the seller through /__messaging-reply.
+let conversations = [];
+let messagingMode = "ok";
+let messagingRequests = [];
 let favouritesMode = "ok";
 const publicId = (seq) => `00000000-0000-4000-b000-${String(seq).padStart(12, "0")}`;
 const publicImageId = (seq) => `00000000-0000-4000-c000-${String(seq).padStart(12, "0")}`;
@@ -1720,6 +1724,77 @@ createServer((req, res) => {
     }
     res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "set-cookie": "csrftoken=stub; HttpOnly; Path=/; SameSite=Lax" });
     return res.end(JSON.stringify({ csrf_token: `csrf-${csrfSeed}` }));
+  }
+  if (url.pathname === "/__messaging-mode") return choose("messagingMode", ["ok", "own", "unverified", "rate_limited", "lost", "read_only", "sold"], (v) => (messagingMode = v));
+  if (url.pathname === "/__messaging-requests") return json(200, { requests: messagingRequests });
+  if (url.pathname === "/__messaging-reply") {
+    conversations[0].messages.push({ body: url.searchParams.get("body"), mine: false, key: null });
+    return json(200, {});
+  }
+  if (url.pathname === "/api/v1/conversations" || url.pathname.startsWith("/api/v1/conversations/")) {
+    res.setHeader("cache-control", "no-store");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    const [conversationId, tail] = url.pathname.slice("/api/v1/conversations/".length).split("/");
+    const found = conversations.find((entry) => entry.id === conversationId);
+    const closed = messagingMode === "read_only" || messagingMode === "sold";
+    const head = (entry) => ({
+      id: entry.id,
+      listing_id: entry.listingId,
+      listing: closed
+        ? { availability: messagingMode === "sold" ? "sold" : "unavailable", title: null }
+        : { availability: "available", title: PUBLIC_CARDS.find((card) => card.id === entry.listingId)?.title ?? "Listing" },
+      role: "initiator",
+      counterpart_name: "Sunrise Estates",
+      writable: !closed,
+      read_only_reason: closed ? "conversation_read_only" : null,
+      last_seq: entry.messages.length,
+      last_message_at: "2026-11-27T10:00:00Z",
+      created_at: "2026-11-27T10:00:00Z",
+    });
+    const wire = (entry, message, index) => ({
+      id: `00000000-0000-4000-e000-${String(index + 1).padStart(12, "0")}`,
+      conversation_id: entry.id,
+      seq: index + 1,
+      body: message.body,
+      mine: message.mine,
+      client_message_id: message.key,
+      created_at: "2026-11-27T10:00:00Z",
+    });
+    if (req.method === "GET") {
+      if (url.pathname === "/api/v1/conversations") {
+        const listingId = url.searchParams.get("listing_id");
+        return json(200, { results: conversations.filter((entry) => entry.listingId === listingId).map(head) });
+      }
+      if (!found) return json(404, envelope("not_found", "Not found."));
+      if (!tail) return json(200, head(found));
+      const after = Number(url.searchParams.get("after") ?? 0);
+      return json(200, { results: found.messages.map((message, index) => wire(found, message, index)).filter((message) => message.seq > after), has_more: false });
+    }
+    if (req.headers["x-csrftoken"] !== `csrf-${csrfSeed}`) return json(403, envelope("forbidden", "CSRF check failed."));
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    return req.on("end", () => {
+      const body = JSON.parse(raw);
+      const key = req.headers["idempotency-key"];
+      messagingRequests.push({ path: url.pathname, key, body });
+      if (messagingMode === "own") return json(409, envelope("own_listing", "You cannot message your own listing."));
+      if (messagingMode === "unverified") return json(403, envelope("messaging_email_unverified", "Verify your email address to send messages."));
+      if (messagingMode === "rate_limited") return json(429, envelope("throttled", "Too many requests."));
+      let entry = found ?? conversations.find((item) => item.listingId === body.listing_id);
+      if (!entry) {
+        entry = { id: "00000000-0000-4000-f000-000000000001", listingId: body.listing_id, messages: [] };
+        conversations.push(entry);
+      }
+      if (!entry.messages.some((message) => message.key === key)) entry.messages.push({ body: body.body.trim(), mine: true, key });
+      // "lost": saved, but the answer never arrives; the retry succeeds.
+      if (messagingMode === "lost") {
+        messagingMode = "ok";
+        return json(500, envelope("server_error", "Internal detail that must not show."));
+      }
+      const index = entry.messages.findIndex((message) => message.key === key);
+      const message = wire(entry, entry.messages[index], index);
+      return json(201, url.pathname === "/api/v1/conversations" ? { conversation: head(entry), message } : message);
+    });
   }
   if (url.pathname === "/__favourites-preset") {
     // "some": the first public card and one listing that is no longer public.
@@ -4205,6 +4280,9 @@ createServer((req, res) => {
     voiceRequests = [];
     favourites = [];
     favouritesMode = "ok";
+    conversations = [];
+    messagingMode = "ok";
+    messagingRequests = [];
     suspensionReason = SUSPENSION_REASON;
     lastCookie = "";
     registrationMode = "accepted";
