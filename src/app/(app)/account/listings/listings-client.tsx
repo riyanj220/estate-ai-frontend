@@ -365,6 +365,7 @@ export function ListingsClient({ admin }: { admin: boolean }) {
                           {summaryOf(item.fields)}
                         </Link>
                         <span className="status-marker">{label(item.status)}</span>
+                        {item.underReview && <span className="status-marker">Under review</span>}
                         <Link href={`${LISTINGS_PATH}/${encodeURIComponent(item.id)}/preview`} className="text-link" data-testid="listing-preview-link">
                           Preview<span className="sr-only">: {summaryOf(item.fields)}</span>
                         </Link>

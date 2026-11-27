@@ -92,6 +92,7 @@ import {
   CORRECTION_DONE,
   CORRECTION_PAUSED,
   restrictionReasonText,
+  UNDER_REVIEW_NOTE,
   PREVIEW_SAVED_HINT,
   SAVE_PAUSED,
   SAVE_WAIT,
@@ -1030,7 +1031,7 @@ export function DraftEditor({
       return;
     }
     const held = listingRef.current;
-    setListing((now) => ({ ...now, status: next.status, revision: next.revision, media: next.media, restricted: next.restricted, restrictionReason: next.restrictionReason }));
+    setListing((now) => ({ ...now, status: next.status, revision: next.revision, media: next.media, restricted: next.restricted, restrictionReason: next.restrictionReason, underReview: next.underReview }));
     // The identity fields lock once published: whatever was typed there goes back to the saved value.
     if (registry && next.status === "published") {
       const saved = toValues(held);
@@ -1460,6 +1461,11 @@ export function DraftEditor({
           ))}
         </dl>
       </section>
+      {listing.underReview && (
+        <p className="state-note" data-testid="under-review">
+          {UNDER_REVIEW_NOTE}
+        </p>
+      )}
       {!editable ? (
         <div className="notice" data-testid="draft-not-editable">
           <p>{listing.restricted ? RESTRICTED_NOTE : Object.hasOwn(READ_ONLY_NOTES, listing.status ?? "") ? READ_ONLY_NOTES[listing.status ?? ""] : READ_ONLY_FALLBACK}</p>

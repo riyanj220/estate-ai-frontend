@@ -13,11 +13,13 @@ const PAGES = [
   { href: "/admin/publication-limits", label: "Publication limits" },
   { href: "/admin/accounts", label: "Accounts" },
   { href: "/admin/verification", label: "Verification" },
+  { href: "/admin/listings", label: "Listings" },
+  { href: "/admin/reports", label: "Reports" },
 ];
 
 // Placeholders for later administration screens: inert text, never links, so no empty routes ship. Hand-off: turn an entry into a link when its route and page (with `requireAdmin()`) exist, and
 // every page under `(protected)` must call `requireAdmin()` (tests/e2e/admin-guard-rule.spec.ts enforces it).
-const PLACEHOLDERS = ["Listings", "Reports", "Audit log"];
+const PLACEHOLDERS = ["Audit log"];
 
 /**
  * Admin account controls shared by the shell and the unavailable state: Change password (marked `from=admin` so a lost

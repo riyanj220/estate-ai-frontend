@@ -410,6 +410,7 @@ export const READ_ONLY_NOTES: Record<string, string> = {
 };
 export const RESTRICTED_NOTE = "This listing is restricted. It is not visible to the public and is view only: it cannot be edited.";
 export const READ_ONLY_FALLBACK = "This listing cannot be edited here.";
+export const UNDER_REVIEW_NOTE = "Under review: someone reported this listing and an administrator is looking at it. This changes nothing by itself.";
 export const restrictionReasonText = (reason: string): string => `Reason: ${reason}`;
 export const noTabListings = (label: string): string => `You have no ${label.toLowerCase()} listings.`;
 export const SHOWING_TAB = (label: string): string => `Showing ${label.toLowerCase()} listings.`;

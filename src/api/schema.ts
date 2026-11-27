@@ -84,6 +84,166 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listings for review, newest first
+         * @description 20 per page; `next` is a link, `previous` is always null. Without `status` every non-Draft Listing; `status=draft` lists Drafts without their content. `owner` is an account id; the dates are Karachi calendar days, inclusive. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["list_admin_listings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/listings/{listing_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One non-Draft Listing with its content, images, actions and history
+         * @description A Draft is `404 not_found` here: use the reasoned read. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["get_admin_listing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/listings/{listing_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a removed Listing to archived
+         * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; an action not open for this Listing now is `409 conflict`. The owner is notified with the reason. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["archive_admin_listing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/listings/{listing_id}/lift-restriction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lift a restriction
+         * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; an action not open for this Listing now is `409 conflict`. The owner is notified with the reason. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["lift_admin_listing_restriction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/listings/{listing_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a Draft's content, with a reason
+         * @description Needs `X-CSRFToken`. A reasoned private read recorded in the audit trail. Images are counted, not served. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["read_admin_draft_listing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/listings/{listing_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove a published Listing
+         * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; an action not open for this Listing now is `409 conflict`. The owner is notified with the reason. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["take_down_admin_listing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/listings/{listing_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a removed Listing to published
+         * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; an action not open for this Listing now is `409 conflict`. The owner is notified with the reason. Consumes no publication; a restriction stays in force. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["restore_admin_listing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/listings/{listing_id}/restrict": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restrict a published or archived Listing
+         * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; an action not open for this Listing now is `409 conflict`. The owner is notified with the reason. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["restrict_admin_listing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/me": {
         parameters: {
             query?: never;
@@ -158,6 +318,106 @@ export interface paths {
         get: operations["list_admin_quota_usage"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listing Reports in one status, oldest first, with unresolved counts
+         * @description 20 per page; `next` is a link, `previous` is always null. `status` defaults to `pending`. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["list_admin_reports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One Report with its snapshot and review history
+         * @description Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["get_admin_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{report_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss a Report being reviewed, with notes
+         * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; a Report in another status is `409 conflict`. The Listing is not changed. The reporter is notified. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["dismiss_admin_report"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{report_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve a Report being reviewed, with notes
+         * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; a Report in another status is `409 conflict`. The Listing is not changed. The reporter is notified. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["resolve_admin_report"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{report_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start reviewing a pending Report
+         * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; a Report in another status is `409 conflict`. The Listing is not changed. The Listing shows as under review. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["start_admin_report_review"];
         delete?: never;
         options?: never;
         head?: never;
@@ -757,7 +1017,7 @@ export interface paths {
         };
         /**
          * The bytes of one image of a Listing the caller may see
-         * @description The media endpoint: the only place an image is served, decided at request time by the single visibility policy. An image of a public Listing (Published, not restricted, owner Active) goes to anyone, a Visitor and an administrator included, with `Cache-Control: public, max-age=60` (so it may stay in a cache for up to a minute after the Listing stops being public), no cookie and nothing varying by cookie, whatever cookies the request carries. An image of any other Listing (a Draft, a restricted one, one whose owner is Suspended or Deactivated) goes only to the owning account (Suspended and Email-unverified owners included, a Deactivated one not) with `Cache-Control: private, no-store`. Anyone else (another account, an administrator, a Visitor), an unknown or malformed id and another Listing's image get the same `404 not_found` (a Visitor gets 404, never 401). The body is the stored, re-encoded image with its stored `Content-Type` (`image/jpeg`, `image/png` or `image/webp`), `Content-Length`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` (no file name) and `Content-Security-Policy: default-src 'none'; sandbox`. `HEAD` answers the same headers without a body. `Range` is ignored (always `200`, the whole file) and there is no `ETag`. `Accept` is ignored.
+         * @description The media endpoint: the only place an image is served, decided at request time by the single visibility policy. An image of a public Listing (Published, not restricted, owner Active) goes to anyone, a Visitor and an administrator included, with `Cache-Control: public, max-age=60` (so it may stay in a cache for up to a minute after the Listing stops being public), no cookie and nothing varying by cookie, whatever cookies the request carries. An image of any other Listing (a Draft, a restricted one, one whose owner is Suspended or Deactivated) goes only to the owning account (Suspended and Email-unverified owners included, a Deactivated one not) with `Cache-Control: private, no-store`; an administrator also gets non-Draft images for moderation review, never cached. Anyone else (another account, a Visitor), an unknown or malformed id and another Listing's image get the same `404 not_found` (a Visitor gets 404, never 401). The body is the stored, re-encoded image with its stored `Content-Type` (`image/jpeg`, `image/png` or `image/webp`), `Content-Length`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` (no file name) and `Content-Security-Policy: default-src 'none'; sandbox`. `HEAD` answers the same headers without a body. `Range` is ignored (always `200`, the whole file) and there is no `ETag`. `Accept` is ignored.
          */
         get: operations["get_listing_image_file"];
         put?: never;
@@ -802,6 +1062,26 @@ export interface paths {
          * @description Needs `X-CSRFToken` and an `Idempotency-Key` header (1 to 128 characters from `A-Za-z0-9._:-`; a missing or malformed one is `400 validation_error` under `fields.idempotency_key`). Body: `{base_revision}` and nothing else. Publishing is immediate (no approval) and all-or-nothing: it uses one of the owner's monthly publications and makes the Listing public if its owner is Active. The same key with the same body within 24 hours returns the Listing as it is now with no second publication; the same key with another body is `422 idempotency_key_reused`. Refusals, in order: another account's, an administrator's, an unknown and a malformed id are `404 not_found`; a Visitor is `401`; a `base_revision` that is not the current `revision` is `409 stale_revision` with the Listing under `current`; a Listing that is not a `draft` is `409 conflict`; a restricted Listing is `403 forbidden`; an Email-unverified account is `403 email_not_verified` and a Suspended one `403 publishing_unavailable`; every missing or invalid required item is `400 validation_error`, all at once, keyed by registry field id (`required` and the field's own codes), `images` (`images_required`: at least one image) and a field of class `private` or of the quota identity that the Assistant filled in and the owner has not confirmed (`confirm_required`); a used-up allowance is `409 quota_exhausted` with the caller's own `limit`, `used` and `resets_at` under `details`. A refused attempt consumes nothing. Never cached.
          */
         post: operations["publish_listing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/listings/{listing_id}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a publicly visible Listing
+         * @description Needs `X-CSRFToken`. A Visitor is `401`; a Suspended account or an administrator `403 forbidden`; a Listing that is not public `404 not_found`; your own `403 forbidden`; one of yours already open `409 conflict`; at most 10 Reports a day (`429 throttled`). The Listing is not changed. Never cached.
+         */
+        post: operations["report_listing"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1257,6 +1537,26 @@ export interface paths {
          * @description Individual and Agency accounts (Active, Email-unverified or Suspended). The month is the calendar month in Asia/Karachi; `period_start` and `resets_at` carry the +05:00 offset. `used` counts only this account's counted publications and can exceed `limit` after a later limit decrease, `remaining` never goes below 0. A Visitor and a Deactivated account (which has no session) get `unauthenticated` (401); an administrator gets `forbidden` (403). Never cached.
          */
         get: operations["get_my_publication_allowance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/reports/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One of the caller's own Reports
+         * @description Another account's, an unknown and a malformed id are `404 not_found`. The review notes are never shown. Never cached.
+         */
+        get: operations["get_own_report"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1722,6 +2022,10 @@ export interface components {
             /** @description One line, without contact details. */
             reason: string;
         };
+        AccountRef: {
+            type: string;
+            masked_email: string;
+        };
         AccountStatus: {
             /** Format: uuid */
             id: string;
@@ -1768,6 +2072,62 @@ export interface components {
             /** @description Full name or agency name; empty when there is no profile. */
             display_name: string;
             email_verified: boolean;
+        };
+        AdminListingDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            owner_account_id: string;
+            owner: components["schemas"]["AccountRef"] | null;
+            status: components["schemas"]["ListingStatusEnum"];
+            restricted: boolean;
+            under_review: boolean;
+            purpose: string;
+            category: string;
+            subtype: string;
+            /** @description Always null for a Draft. */
+            title: string | null;
+            /** Format: date-time */
+            created_at: string;
+            description: string | null;
+            /** @description Public registry fields that have a value. */
+            attributes: {
+                [key: string]: unknown;
+            };
+            city: string | null;
+            locality: string | null;
+            /** @description Empty for a Draft. */
+            media: components["schemas"]["PublicImage"][];
+            image_count: number;
+            moderation_reason: string | null;
+            /** @description What can be done now. */
+            actions: components["schemas"]["ModerationActionEnum"][];
+            /** Format: date-time */
+            first_published_at: string | null;
+            open_reports: number;
+            history: components["schemas"]["ModerationRecord"][];
+        };
+        AdminListingPage: {
+            next: string | null;
+            previous: string | null;
+            results: components["schemas"]["AdminListingRow"][];
+        };
+        AdminListingRow: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            owner_account_id: string;
+            owner: components["schemas"]["AccountRef"] | null;
+            status: components["schemas"]["ListingStatusEnum"];
+            restricted: boolean;
+            under_review: boolean;
+            purpose: string;
+            category: string;
+            subtype: string;
+            /** @description Always null for a Draft. */
+            title: string | null;
+            /** Format: date-time */
+            created_at: string;
         };
         AdminMe: {
             /** Format: uuid */
@@ -2481,6 +2841,8 @@ export interface components {
             };
             /** @description The images in `position` order; empty when there are none. */
             media: components["schemas"]["Image"][];
+            /** @description A Report on this Listing is being reviewed. Derived; it changes nothing and never names the reporter. */
+            under_review: boolean;
             /** @description Set by moderation: a restricted Listing is never public and the owner cannot edit it (it may still be archived). Owner resource only, never in a public shape. */
             restricted: boolean;
             /** @description A short plain-text reason for a restricted or removed Listing, shown to the owner only; null otherwise. */
@@ -3089,6 +3451,30 @@ export interface components {
             /** @description Ask again with `after` = the last `seq`. */
             has_more: boolean;
         };
+        /**
+         * @description * `restrict` - restrict
+         *     * `remove` - remove
+         *     * `lift_restriction` - lift_restriction
+         *     * `restore` - restore
+         *     * `archive_removed` - archive_removed
+         * @enum {string}
+         */
+        ModerationActionEnum: "restrict" | "remove" | "lift_restriction" | "restore" | "archive_removed";
+        ModerationReasonRequest: {
+            /** @description One line, without contact details or links. The owner reads it. */
+            reason: string;
+        };
+        ModerationRecord: {
+            action: components["schemas"]["ModerationActionEnum"];
+            reason: string;
+            status_before: components["schemas"]["ListingStatusEnum"];
+            status_after: components["schemas"]["ListingStatusEnum"];
+            restriction_after: boolean;
+            /** Format: date-time */
+            at: string;
+            /** Format: uuid */
+            by_account_id: string;
+        };
         Notification: {
             /** Format: uuid */
             id: string;
@@ -3150,6 +3536,21 @@ export interface components {
          * @enum {string}
          */
         OutcomeEnum: "success" | "fallback" | "error" | "timeout" | "budget_exhausted";
+        OwnReport: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            listing_id: string;
+            /** @description As it was when reported. */
+            title: string | null;
+            reason: components["schemas"]["ReportReasonEnum"];
+            description: string;
+            status: components["schemas"]["ReportStatusEnum"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            closed_at: string | null;
+        };
         OwnVerification: {
             status: components["schemas"]["OwnVerificationStatusEnum"];
             can_submit: boolean;
@@ -3864,6 +4265,92 @@ export interface components {
          * @enum {string}
          */
         RentalPeriodEnum: "day" | "week" | "month" | "year";
+        ReportCreateRequest: {
+            reason: components["schemas"]["ReportReasonEnum"];
+            description?: string;
+        };
+        ReportDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            listing_id: string;
+            reason: components["schemas"]["ReportReasonEnum"];
+            status: components["schemas"]["ReportStatusEnum"];
+            description: string;
+            snapshot: components["schemas"]["ReportSnapshot"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            closed_at: string | null;
+            reporter: components["schemas"]["AccountRef"] | null;
+            owner: components["schemas"]["AccountRef"] | null;
+            /** Format: uuid */
+            owner_account_id: string;
+            history: components["schemas"]["ReportMove"][];
+            /** @description Open Reports on this Listing. */
+            open_for_listing: number;
+        };
+        ReportMove: {
+            to_status: components["schemas"]["ReportMoveEnum"];
+            notes: string;
+            /** Format: date-time */
+            at: string;
+            /** Format: uuid */
+            by_account_id: string;
+        };
+        /**
+         * @description * `reviewing` - reviewing
+         *     * `resolved` - resolved
+         *     * `dismissed` - dismissed
+         * @enum {string}
+         */
+        ReportMoveEnum: "reviewing" | "resolved" | "dismissed";
+        ReportNotesRequest: {
+            /** @description Administrators only. */
+            notes: string;
+        };
+        ReportQueue: {
+            next: string | null;
+            previous: string | null;
+            results: components["schemas"]["_Row"][];
+            unresolved: components["schemas"]["_Unresolved"];
+        };
+        /**
+         * @description * `misleading` - misleading
+         *     * `duplicate` - duplicate
+         *     * `prohibited_content` - prohibited_content
+         *     * `abusive` - abusive
+         *     * `ai_generated_content` - ai_generated_content
+         *     * `other` - other
+         * @enum {string}
+         */
+        ReportReasonEnum: "misleading" | "duplicate" | "prohibited_content" | "abusive" | "ai_generated_content" | "other";
+        /** @description The public view of the Listing when it was reported. */
+        ReportSnapshot: {
+            purpose: string;
+            category: string;
+            subtype: string;
+            title: string | null;
+            description: string | null;
+            city: string | null;
+            locality: string | null;
+            image_count: number;
+            /** @description Public registry fields that had a value. */
+            fields: {
+                [key: string]: unknown;
+            };
+        };
+        ReportStartRequest: {
+            notes?: string;
+        };
+        /**
+         * @description * `pending` - pending
+         *     * `reviewing` - reviewing
+         *     * `resolved` - resolved
+         *     * `dismissed` - dismissed
+         * @enum {string}
+         */
+        ReportStatusEnum: "pending" | "reviewing" | "resolved" | "dismissed";
         /** @description The owner Listing plus how the republication was recorded (Story 2.18). */
         RepublishedListing: {
             /** Format: uuid */
@@ -3879,6 +4366,8 @@ export interface components {
             };
             /** @description The images in `position` order; empty when there are none. */
             media: components["schemas"]["Image"][];
+            /** @description A Report on this Listing is being reviewed. Derived; it changes nothing and never names the reporter. */
+            under_review: boolean;
             /** @description Set by moderation: a restricted Listing is never public and the owner cannot edit it (it may still be archived). Owner resource only, never in a public shape. */
             restricted: boolean;
             /** @description A short plain-text reason for a restricted or removed Listing, shown to the owner only; null otherwise. */
@@ -4163,6 +4652,22 @@ export interface components {
             account_state: string | null;
             /** Format: date-time */
             submitted_at: string;
+        };
+        _Row: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            listing_id: string;
+            /** @description As it was when reported. */
+            title: string | null;
+            reason: components["schemas"]["ReportReasonEnum"];
+            status: components["schemas"]["ReportStatusEnum"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        _Unresolved: {
+            pending: number;
+            reviewing: number;
         };
         /**
          * @description Stable error code catalogue.
@@ -4505,6 +5010,659 @@ export interface operations {
             };
         };
     };
+    list_admin_listings: {
+        parameters: {
+            query?: {
+                category?: "apartment" | "commercial" | "house" | "plot";
+                created_from?: string;
+                created_to?: string;
+                cursor?: string;
+                owner?: string;
+                status?: "archived" | "draft" | "published" | "removed" | "rented" | "sold";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminListingPage"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_admin_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Listing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminListingDetail"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    archive_admin_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationRecord"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    lift_admin_listing_restriction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationRecord"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    read_admin_draft_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonedReadRequest"];
+            };
+        };
+        responses: {
+            /** @description The Draft */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminListingDetail"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    take_down_admin_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationRecord"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    restore_admin_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationRecord"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    restrict_admin_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationRecord"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     get_admin_me: {
         parameters: {
             query?: never;
@@ -4758,6 +5916,410 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuotaUsagePage"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_admin_reports: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                reason?: "abusive" | "ai_generated_content" | "duplicate" | "misleading" | "other" | "prohibited_content";
+                status?: "dismissed" | "pending" | "resolved" | "reviewing";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportQueue"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_admin_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetail"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    dismiss_admin_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportNotesRequest"];
+            };
+        };
+        responses: {
+            /** @description Dismissed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetail"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resolve_admin_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportNotesRequest"];
+            };
+        };
+        responses: {
+            /** @description Resolved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetail"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    start_admin_report_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReportStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Reviewing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetail"];
                 };
             };
             /** @description Bad request or validation error */
@@ -7945,6 +9507,88 @@ export interface operations {
             };
         };
     };
+    report_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Reported */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnReport"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     republish_listing: {
         parameters: {
             query?: never;
@@ -10087,6 +11731,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_own_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnReport"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Not found */

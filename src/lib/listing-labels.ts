@@ -55,6 +55,8 @@ export type ListingView = {
   restricted: boolean;
   /** A short plain-text reason for a restricted or removed Listing, shown to the owner only; null otherwise. */
   restrictionReason: string | null;
+  /** Derived by the server from a report being reviewed (Story 9.2): information only, it changes nothing the owner may do. */
+  underReview: boolean;
 };
 
 /** One image of a Draft as the page needs it. The `url` is the relative path of the media endpoint, never anything else. */
@@ -145,6 +147,7 @@ export function readListing(value: unknown): ListingView | null {
     media,
     restricted: (value as Record<string, unknown>).restricted === true,
     restrictionReason: text((value as Record<string, unknown>).restriction_reason),
+    underReview: (value as Record<string, unknown>).under_review === true,
   };
 }
 

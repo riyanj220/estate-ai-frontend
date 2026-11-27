@@ -285,6 +285,603 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/listings:
+    get:
+      operationId: list_admin_listings
+      description: 20 per page; `next` is a link, `previous` is always null. Without
+        `status` every non-Draft Listing; `status=draft` lists Drafts without their
+        content. `owner` is an account id; the dates are Karachi calendar days, inclusive.
+        Visitors get `401 unauthenticated`; signed-in non-administrators get `404
+        not_found`. Never cached.
+      summary: Listings for review, newest first
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+          enum:
+          - apartment
+          - commercial
+          - house
+          - plot
+      - in: query
+        name: created_from
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: created_to
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: owner
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - archived
+          - draft
+          - published
+          - removed
+          - rented
+          - sold
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListingPage'
+          description: One page
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/listings/{listing_id}:
+    get:
+      operationId: get_admin_listing
+      description: 'A Draft is `404 not_found` here: use the reasoned read. Visitors
+        get `401 unauthenticated`; signed-in non-administrators get `404 not_found`.
+        Never cached.'
+      summary: One non-Draft Listing with its content, images, actions and history
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListingDetail'
+          description: The Listing
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/listings/{listing_id}/archive:
+    post:
+      operationId: archive_admin_listing
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; an action
+        not open for this Listing now is `409 conflict`. The owner is notified with
+        the reason. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Move a removed Listing to archived
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationReasonRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationRecord'
+          description: Recorded
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/listings/{listing_id}/lift-restriction:
+    post:
+      operationId: lift_admin_listing_restriction
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; an action
+        not open for this Listing now is `409 conflict`. The owner is notified with
+        the reason. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Lift a restriction
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationReasonRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationRecord'
+          description: Recorded
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/listings/{listing_id}/read:
+    post:
+      operationId: read_admin_draft_listing
+      description: Needs `X-CSRFToken`. A reasoned private read recorded in the audit
+        trail. Images are counted, not served. Visitors get `401 unauthenticated`;
+        signed-in non-administrators get `404 not_found`. Never cached.
+      summary: Read a Draft's content, with a reason
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonedReadRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListingDetail'
+          description: The Draft
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/listings/{listing_id}/remove:
+    post:
+      operationId: take_down_admin_listing
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; an action
+        not open for this Listing now is `409 conflict`. The owner is notified with
+        the reason. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Remove a published Listing
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationReasonRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationRecord'
+          description: Recorded
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/listings/{listing_id}/restore:
+    post:
+      operationId: restore_admin_listing
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; an action
+        not open for this Listing now is `409 conflict`. The owner is notified with
+        the reason. Consumes no publication; a restriction stays in force. Visitors
+        get `401 unauthenticated`; signed-in non-administrators get `404 not_found`.
+        Never cached.
+      summary: Restore a removed Listing to published
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationReasonRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationRecord'
+          description: Recorded
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/listings/{listing_id}/restrict:
+    post:
+      operationId: restrict_admin_listing
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; an action
+        not open for this Listing now is `409 conflict`. The owner is notified with
+        the reason. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Restrict a published or archived Listing
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationReasonRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationRecord'
+          description: Recorded
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/admin/me:
     get:
       operationId: get_admin_me
@@ -505,6 +1102,369 @@ paths:
               schema:
                 $ref: '#/components/schemas/QuotaUsagePage'
           description: One page
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reports:
+    get:
+      operationId: list_admin_reports
+      description: 20 per page; `next` is a link, `previous` is always null. `status`
+        defaults to `pending`. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Listing Reports in one status, oldest first, with unresolved counts
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: reason
+        schema:
+          type: string
+          enum:
+          - abusive
+          - ai_generated_content
+          - duplicate
+          - misleading
+          - other
+          - prohibited_content
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - dismissed
+          - pending
+          - resolved
+          - reviewing
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportQueue'
+          description: One page
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reports/{report_id}:
+    get:
+      operationId: get_admin_report
+      description: Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: One Report with its snapshot and review history
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDetail'
+          description: The Report
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reports/{report_id}/dismiss:
+    post:
+      operationId: dismiss_admin_report
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; a Report
+        in another status is `409 conflict`. The Listing is not changed. The reporter
+        is notified. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Dismiss a Report being reviewed, with notes
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportNotesRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDetail'
+          description: Dismissed
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reports/{report_id}/resolve:
+    post:
+      operationId: resolve_admin_report
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; a Report
+        in another status is `409 conflict`. The Listing is not changed. The reporter
+        is notified. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Resolve a Report being reviewed, with notes
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportNotesRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDetail'
+          description: Resolved
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reports/{report_id}/start:
+    post:
+      operationId: start_admin_report_review
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; a Report
+        in another status is `409 conflict`. The Listing is not changed. The Listing
+        shows as under review. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Start reviewing a pending Report
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportStartRequest'
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDetail'
+          description: Reviewing
         '400':
           description: Bad request or validation error
           content:
@@ -3088,10 +4048,11 @@ paths:
         An image of any other Listing (a Draft, a restricted one, one whose owner
         is Suspended or Deactivated) goes only to the owning account (Suspended and
         Email-unverified owners included, a Deactivated one not) with `Cache-Control:
-        private, no-store`. Anyone else (another account, an administrator, a Visitor),
-        an unknown or malformed id and another Listing''s image get the same `404
-        not_found` (a Visitor gets 404, never 401). The body is the stored, re-encoded
-        image with its stored `Content-Type` (`image/jpeg`, `image/png` or `image/webp`),
+        private, no-store`; an administrator also gets non-Draft images for moderation
+        review, never cached. Anyone else (another account, a Visitor), an unknown
+        or malformed id and another Listing''s image get the same `404 not_found`
+        (a Visitor gets 404, never 401). The body is the stored, re-encoded image
+        with its stored `Content-Type` (`image/jpeg`, `image/png` or `image/webp`),
         `Content-Length`, `X-Content-Type-Options: nosniff`, `Content-Disposition:
         inline` (no file name) and `Content-Security-Policy: default-src ''none'';
         sandbox`. `HEAD` answers the same headers without a body. `Range` is ignored
@@ -3307,6 +4268,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/listings/{listing_id}/reports:
+    post:
+      operationId: report_listing
+      description: Needs `X-CSRFToken`. A Visitor is `401`; a Suspended account or
+        an administrator `403 forbidden`; a Listing that is not public `404 not_found`;
+        your own `403 forbidden`; one of yours already open `409 conflict`; at most
+        10 Reports a day (`429 throttled`). The Listing is not changed. Never cached.
+      summary: Report a publicly visible Listing
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCreateRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnReport'
+          description: Reported
         '400':
           description: Bad request or validation error
           content:
@@ -5238,6 +6271,70 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/reports/{report_id}:
+    get:
+      operationId: get_own_report
+      description: Another account's, an unknown and a malformed id are `404 not_found`.
+        The review notes are never shown. Never cached.
+      summary: One of the caller's own Reports
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnReport'
+          description: The Report
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/notifications:
     get:
       operationId: list_notifications
@@ -7123,6 +8220,16 @@ components:
           maxLength: 500
       required:
       - reason
+    AccountRef:
+      type: object
+      properties:
+        type:
+          type: string
+        masked_email:
+          type: string
+      required:
+      - masked_email
+      - type
     AccountStatus:
       type: object
       properties:
@@ -7227,6 +8334,160 @@ components:
       - state
       - suspended_at
       - suspension_reason
+    AdminListingDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_account_id:
+          type: string
+          format: uuid
+        owner:
+          allOf:
+          - $ref: '#/components/schemas/AccountRef'
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ListingStatusEnum'
+        restricted:
+          type: boolean
+        under_review:
+          type: boolean
+        purpose:
+          type: string
+        category:
+          type: string
+        subtype:
+          type: string
+        title:
+          type: string
+          nullable: true
+          description: Always null for a Draft.
+        created_at:
+          type: string
+          format: date-time
+        description:
+          type: string
+          nullable: true
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Public registry fields that have a value.
+        city:
+          type: string
+          nullable: true
+        locality:
+          type: string
+          nullable: true
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicImage'
+          description: Empty for a Draft.
+        image_count:
+          type: integer
+        moderation_reason:
+          type: string
+          nullable: true
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModerationActionEnum'
+          description: What can be done now.
+        first_published_at:
+          type: string
+          format: date-time
+          nullable: true
+        open_reports:
+          type: integer
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModerationRecord'
+      required:
+      - actions
+      - attributes
+      - category
+      - city
+      - created_at
+      - description
+      - first_published_at
+      - history
+      - id
+      - image_count
+      - locality
+      - media
+      - moderation_reason
+      - open_reports
+      - owner
+      - owner_account_id
+      - purpose
+      - restricted
+      - status
+      - subtype
+      - title
+      - under_review
+    AdminListingPage:
+      type: object
+      properties:
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminListingRow'
+      required:
+      - next
+      - previous
+      - results
+    AdminListingRow:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_account_id:
+          type: string
+          format: uuid
+        owner:
+          allOf:
+          - $ref: '#/components/schemas/AccountRef'
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ListingStatusEnum'
+        restricted:
+          type: boolean
+        under_review:
+          type: boolean
+        purpose:
+          type: string
+        category:
+          type: string
+        subtype:
+          type: string
+        title:
+          type: string
+          nullable: true
+          description: Always null for a Draft.
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - category
+      - created_at
+      - id
+      - owner
+      - owner_account_id
+      - purpose
+      - restricted
+      - status
+      - subtype
+      - title
+      - under_review
     AdminMe:
       type: object
       properties:
@@ -8668,6 +9929,10 @@ components:
           items:
             $ref: '#/components/schemas/Image'
           description: The images in `position` order; empty when there are none.
+        under_review:
+          type: boolean
+          description: A Report on this Listing is being reviewed. Derived; it changes
+            nothing and never names the reporter.
         restricted:
           type: boolean
           description: 'Set by moderation: a restricted Listing is never public and
@@ -8689,6 +9954,7 @@ components:
       - restriction_reason
       - revision
       - status
+      - under_review
       - visibility
     ListingConfirmRequest:
       type: object
@@ -10241,6 +11507,58 @@ components:
       required:
       - has_more
       - results
+    ModerationActionEnum:
+      enum:
+      - restrict
+      - remove
+      - lift_restriction
+      - restore
+      - archive_removed
+      type: string
+      description: |-
+        * `restrict` - restrict
+        * `remove` - remove
+        * `lift_restriction` - lift_restriction
+        * `restore` - restore
+        * `archive_removed` - archive_removed
+    ModerationReasonRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 5
+          description: One line, without contact details or links. The owner reads
+            it.
+          maxLength: 120
+      required:
+      - reason
+    ModerationRecord:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/ModerationActionEnum'
+        reason:
+          type: string
+        status_before:
+          $ref: '#/components/schemas/ListingStatusEnum'
+        status_after:
+          $ref: '#/components/schemas/ListingStatusEnum'
+        restriction_after:
+          type: boolean
+        at:
+          type: string
+          format: date-time
+        by_account_id:
+          type: string
+          format: uuid
+      required:
+      - action
+      - at
+      - by_account_id
+      - reason
+      - restriction_after
+      - status_after
+      - status_before
     Notification:
       type: object
       properties:
@@ -10347,6 +11665,41 @@ components:
         * `error` - error
         * `timeout` - timeout
         * `budget_exhausted` - budget_exhausted
+    OwnReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        listing_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          nullable: true
+          description: As it was when reported.
+        reason:
+          $ref: '#/components/schemas/ReportReasonEnum'
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReportStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - closed_at
+      - created_at
+      - description
+      - id
+      - listing_id
+      - reason
+      - status
+      - title
     OwnVerification:
       type: object
       properties:
@@ -11990,6 +13343,202 @@ components:
         * `week` - week
         * `month` - month
         * `year` - year
+    ReportCreateRequest:
+      type: object
+      properties:
+        reason:
+          $ref: '#/components/schemas/ReportReasonEnum'
+        description:
+          type: string
+          maxLength: 1000
+      required:
+      - reason
+    ReportDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        listing_id:
+          type: string
+          format: uuid
+        reason:
+          $ref: '#/components/schemas/ReportReasonEnum'
+        status:
+          $ref: '#/components/schemas/ReportStatusEnum'
+        description:
+          type: string
+        snapshot:
+          $ref: '#/components/schemas/ReportSnapshot'
+        created_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        reporter:
+          allOf:
+          - $ref: '#/components/schemas/AccountRef'
+          nullable: true
+        owner:
+          allOf:
+          - $ref: '#/components/schemas/AccountRef'
+          nullable: true
+        owner_account_id:
+          type: string
+          format: uuid
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportMove'
+        open_for_listing:
+          type: integer
+          description: Open Reports on this Listing.
+      required:
+      - closed_at
+      - created_at
+      - description
+      - history
+      - id
+      - listing_id
+      - open_for_listing
+      - owner
+      - owner_account_id
+      - reason
+      - reporter
+      - snapshot
+      - status
+    ReportMove:
+      type: object
+      properties:
+        to_status:
+          $ref: '#/components/schemas/ReportMoveEnum'
+        notes:
+          type: string
+        at:
+          type: string
+          format: date-time
+        by_account_id:
+          type: string
+          format: uuid
+      required:
+      - at
+      - by_account_id
+      - notes
+      - to_status
+    ReportMoveEnum:
+      enum:
+      - reviewing
+      - resolved
+      - dismissed
+      type: string
+      description: |-
+        * `reviewing` - reviewing
+        * `resolved` - resolved
+        * `dismissed` - dismissed
+    ReportNotesRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          minLength: 5
+          description: Administrators only.
+          maxLength: 1000
+      required:
+      - notes
+    ReportQueue:
+      type: object
+      properties:
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/_Row'
+        unresolved:
+          $ref: '#/components/schemas/_Unresolved'
+      required:
+      - next
+      - previous
+      - results
+      - unresolved
+    ReportReasonEnum:
+      enum:
+      - misleading
+      - duplicate
+      - prohibited_content
+      - abusive
+      - ai_generated_content
+      - other
+      type: string
+      description: |-
+        * `misleading` - misleading
+        * `duplicate` - duplicate
+        * `prohibited_content` - prohibited_content
+        * `abusive` - abusive
+        * `ai_generated_content` - ai_generated_content
+        * `other` - other
+    ReportSnapshot:
+      type: object
+      description: The public view of the Listing when it was reported.
+      properties:
+        purpose:
+          type: string
+        category:
+          type: string
+        subtype:
+          type: string
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        locality:
+          type: string
+          nullable: true
+        image_count:
+          type: integer
+        fields:
+          type: object
+          additionalProperties: {}
+          description: Public registry fields that had a value.
+      required:
+      - category
+      - city
+      - description
+      - fields
+      - image_count
+      - locality
+      - purpose
+      - subtype
+      - title
+    ReportStartRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          maxLength: 1000
+    ReportStatusEnum:
+      enum:
+      - pending
+      - reviewing
+      - resolved
+      - dismissed
+      type: string
+      description: |-
+        * `pending` - pending
+        * `reviewing` - reviewing
+        * `resolved` - resolved
+        * `dismissed` - dismissed
     RepublishedListing:
       type: object
       description: The owner Listing plus how the republication was recorded (Story
@@ -12021,6 +13570,10 @@ components:
           items:
             $ref: '#/components/schemas/Image'
           description: The images in `position` order; empty when there are none.
+        under_review:
+          type: boolean
+          description: A Report on this Listing is being reviewed. Derived; it changes
+            nothing and never names the reporter.
         restricted:
           type: boolean
           description: 'Set by moderation: a restricted Listing is never public and
@@ -12051,6 +13604,7 @@ components:
       - restriction_reason
       - revision
       - status
+      - under_review
       - visibility
     RoadAccessEnum:
       enum:
@@ -12571,6 +14125,43 @@ components:
       - id
       - status
       - submitted_at
+    _Row:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        listing_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          nullable: true
+          description: As it was when reported.
+        reason:
+          $ref: '#/components/schemas/ReportReasonEnum'
+        status:
+          $ref: '#/components/schemas/ReportStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - id
+      - listing_id
+      - reason
+      - status
+      - title
+    _Unresolved:
+      type: object
+      properties:
+        pending:
+          type: integer
+        reviewing:
+          type: integer
+      required:
+      - pending
+      - reviewing
     ErrorCode:
       type: string
       enum:
