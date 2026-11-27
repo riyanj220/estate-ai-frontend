@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { components } from "@/api/schema";
 import { getApi } from "@/lib/api";
@@ -71,6 +72,11 @@ export function AgencyProfileClient() {
     <>
       <p className="muted" data-testid="verification-status">
         Agency verification: {verificationLabel(load.profile.verification_status)}
+      </p>
+      <p>
+        <Link href="/account/verification" className="text-link">
+          Verification request
+        </Link>
       </p>
       <ProfileImageSection
         kind="agency"

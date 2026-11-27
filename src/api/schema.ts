@@ -164,6 +164,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/verification-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verification requests in one status, oldest first
+         * @description 20 per page; `next` is a link, `previous` is always null. `status` defaults to `pending`; `verified` lists the approvals that can be revoked. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["list_admin_verification_requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/verification-requests/{request_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a pending request
+         * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; a request in another status is `409 conflict`. The Agency is notified. A Suspended or Deactivated Agency is `409`. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["approve_admin_verification_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/verification-requests/{request_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read one request's submitted details and history, with a reason
+         * @description Needs `X-CSRFToken`. A reasoned private read: `reason` (10 to 300 characters, one line, no contact details) is recorded in the audit trail. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["read_admin_verification_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/verification-requests/{request_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject a pending request, with a reason
+         * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; a request in another status is `409 conflict`. The Agency is notified. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["reject_admin_verification_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/verification-requests/{request_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke an approval, with a reason
+         * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; a request in another status is `409 conflict`. The Agency is notified. The Agency's Listings stay published. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["revoke_admin_verification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agencies/{agency_id}/logo": {
         parameters: {
             query?: never;
@@ -867,6 +967,66 @@ export interface paths {
         get: operations["get_agency_logo_file"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/agency-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in Agency's Verification status and latest request
+         * @description Agency accounts only: others get `403 forbidden`, a Visitor `401`. Never cached. A Suspended Agency may read.
+         */
+        get: operations["get_agency_verification"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/agency-verification/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Verification
+         * @description Agency accounts only: others get `403 forbidden`, a Visitor `401`. Never cached. Needs `X-CSRFToken`. No document is uploaded. `409 conflict` while a request is pending or the Agency is already verified; a Suspended Agency is `403`.
+         */
+        post: operations["submit_agency_verification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/agency-verification/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw the pending Verification request
+         * @description Agency accounts only: others get `403 forbidden`, a Visitor `401`. Never cached. Needs `X-CSRFToken`. `409 conflict` when none is pending.
+         */
+        post: operations["withdraw_agency_verification"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1653,7 +1813,7 @@ export interface components {
             email: string;
             /** @description The address of the newest unused, unexpired email-change request, or null. */
             pending_email: string | null;
-            /** @description Read-only Agency Verification status (`unverified` until a later story). */
+            /** @description Read-only: `verified` after an administrator approval, else `unverified`. */
             verification_status: string;
             /** @description The logo as the owner sees it, or null (none, or its file was lost). */
             image: components["schemas"]["ProfileImage"] | null;
@@ -2990,6 +3150,36 @@ export interface components {
          * @enum {string}
          */
         OutcomeEnum: "success" | "fallback" | "error" | "timeout" | "budget_exhausted";
+        OwnVerification: {
+            status: components["schemas"]["OwnVerificationStatusEnum"];
+            can_submit: boolean;
+            can_withdraw: boolean;
+            /** @description The latest request. */
+            request: components["schemas"]["OwnVerificationRequest"] | null;
+        };
+        OwnVerificationRequest: {
+            business_name: string;
+            /** @description Private. */
+            registration_number: string;
+            /** @description Private. */
+            note: string;
+            /** Format: date-time */
+            submitted_at: string;
+            /** Format: date-time */
+            decided_at: string | null;
+            /** @description Why it was rejected or revoked; else empty. */
+            decision_reason: string;
+        };
+        /**
+         * @description * `unverified` - unverified
+         *     * `pending` - pending
+         *     * `verified` - verified
+         *     * `rejected` - rejected
+         *     * `revoked` - revoked
+         *     * `withdrawn` - withdrawn
+         * @enum {string}
+         */
+        OwnVerificationStatusEnum: "unverified" | "pending" | "verified" | "rejected" | "revoked" | "withdrawn";
         /**
          * @description * `individual` - individual
          *     * `agency` - agency
@@ -3596,6 +3786,9 @@ export interface components {
          * @enum {string}
          */
         ReasonEnum: "rent_not_supported" | "type_not_supported" | "locality_missing" | "locality_not_covered" | "area_missing" | "marla_basis_unknown" | "temporarily_unavailable";
+        ReasonedReadRequest: {
+            reason: string;
+        };
         RegistrationAccepted: {
             status: components["schemas"]["RegistrationAcceptedStatusEnum"];
         };
@@ -3860,9 +4053,83 @@ export interface components {
          * @enum {string}
          */
         VerdictEnum: "about_equal" | "above" | "below";
+        /**
+         * @description * `approved` - approved
+         *     * `rejected` - rejected
+         *     * `revoked` - revoked
+         *     * `withdrawn` - withdrawn
+         * @enum {string}
+         */
+        VerificationActionEnum: "approved" | "rejected" | "revoked" | "withdrawn";
+        VerificationDecision: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["VerificationRequestStatusEnum"];
+            /** Format: date-time */
+            decided_at: string;
+        };
+        VerificationDetail: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["VerificationRequestStatusEnum"];
+            business_name: string;
+            agency_name: string | null;
+            /**
+             * Format: uuid
+             * @description The public Agency id.
+             */
+            agency_id: string | null;
+            /** @description `email_unverified`, `active`, `suspended` or `deactivated`. */
+            account_state: string | null;
+            /** Format: date-time */
+            submitted_at: string;
+            /** @description Private. */
+            registration_number: string;
+            /** @description Private. */
+            note: string;
+            /** Format: date-time */
+            decided_at: string | null;
+            decision_reason: string;
+            history: components["schemas"]["VerificationHistory"][];
+        };
+        VerificationHistory: {
+            action: components["schemas"]["VerificationActionEnum"];
+            /** Format: date-time */
+            at: string;
+            /**
+             * Format: uuid
+             * @description The administrator, or the Agency for `withdrawn`.
+             */
+            by_account_id: string;
+            reason: string;
+        };
+        VerificationQueue: {
+            next: string | null;
+            previous: string | null;
+            results: components["schemas"]["_AgencySummary"][];
+        };
+        VerificationReasonRequest: {
+            /** @description One line, without contact details. The Agency reads it. */
+            reason: string;
+        };
         VerificationRequestRequest: {
             /** @description The address to send a new link to. */
             email: string;
+        };
+        /**
+         * @description * `pending` - pending
+         *     * `verified` - verified
+         *     * `rejected` - rejected
+         *     * `revoked` - revoked
+         *     * `withdrawn` - withdrawn
+         * @enum {string}
+         */
+        VerificationRequestStatusEnum: "pending" | "verified" | "rejected" | "revoked" | "withdrawn";
+        VerificationSubmitRequest: {
+            business_name: string;
+            /** @description Registration or licence number: letters, digits, spaces, `.`, `/`, `-`. */
+            registration_number: string;
+            note?: string;
         };
         Verified: {
             status: components["schemas"]["EmailVerifiedStatusEnum"];
@@ -3880,6 +4147,22 @@ export interface components {
              * @description A WebM, Ogg, MP4 (M4A) or WAV recording of up to 2 MB (2,097,152 bytes).
              */
             audio: string;
+        };
+        _AgencySummary: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["VerificationRequestStatusEnum"];
+            business_name: string;
+            agency_name: string | null;
+            /**
+             * Format: uuid
+             * @description The public Agency id.
+             */
+            agency_id: string | null;
+            /** @description `email_unverified`, `active`, `suspended` or `deactivated`. */
+            account_state: string | null;
+            /** Format: date-time */
+            submitted_at: string;
         };
         /**
          * @description Stable error code catalogue.
@@ -4475,6 +4758,409 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuotaUsagePage"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_admin_verification_requests: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                status?: "pending" | "rejected" | "revoked" | "verified" | "withdrawn";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationQueue"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    approve_admin_verification_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Verified */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationDecision"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    read_admin_verification_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonedReadRequest"];
+            };
+        };
+        responses: {
+            /** @description The request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationDetail"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reject_admin_verification_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerificationReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Rejected */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationDecision"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    revoke_admin_verification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerificationReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationDecision"];
                 };
             };
             /** @description Bad request or validation error */
@@ -8037,6 +8723,238 @@ export interface operations {
                     "image/jpeg": string;
                     "image/png": string;
                     "image/webp": string;
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_agency_verification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnVerification"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    submit_agency_verification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerificationSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description Pending */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnVerification"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    withdraw_agency_verification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnVerification"];
                 };
             };
             /** @description Bad request or validation error */

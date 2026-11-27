@@ -546,6 +546,363 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/verification-requests:
+    get:
+      operationId: list_admin_verification_requests
+      description: 20 per page; `next` is a link, `previous` is always null. `status`
+        defaults to `pending`; `verified` lists the approvals that can be revoked.
+        Visitors get `401 unauthenticated`; signed-in non-administrators get `404
+        not_found`. Never cached.
+      summary: Verification requests in one status, oldest first
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - pending
+          - rejected
+          - revoked
+          - verified
+          - withdrawn
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationQueue'
+          description: One page
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/verification-requests/{request_id}/approve:
+    post:
+      operationId: approve_admin_verification_request
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; a request
+        in another status is `409 conflict`. The Agency is notified. A Suspended or
+        Deactivated Agency is `409`. Visitors get `401 unauthenticated`; signed-in
+        non-administrators get `404 not_found`. Never cached.
+      summary: Approve a pending request
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationDecision'
+          description: Verified
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/verification-requests/{request_id}/read:
+    post:
+      operationId: read_admin_verification_request
+      description: 'Needs `X-CSRFToken`. A reasoned private read: `reason` (10 to
+        300 characters, one line, no contact details) is recorded in the audit trail.
+        Visitors get `401 unauthenticated`; signed-in non-administrators get `404
+        not_found`. Never cached.'
+      summary: Read one request's submitted details and history, with a reason
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonedReadRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationDetail'
+          description: The request
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/verification-requests/{request_id}/reject:
+    post:
+      operationId: reject_admin_verification_request
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; a request
+        in another status is `409 conflict`. The Agency is notified. Visitors get
+        `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never
+        cached.
+      summary: Reject a pending request, with a reason
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationReasonRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationDecision'
+          description: Rejected
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/verification-requests/{request_id}/revoke:
+    post:
+      operationId: revoke_admin_verification
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; a request
+        in another status is `409 conflict`. The Agency is notified. The Agency's
+        Listings stay published. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Revoke an approval, with a reason
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationReasonRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationDecision'
+          description: Revoked
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/agencies/{agency_id}/logo:
     get:
       operationId: get_agency_logo
@@ -3763,6 +4120,188 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/agency-verification:
+    get:
+      operationId: get_agency_verification
+      description: 'Agency accounts only: others get `403 forbidden`, a Visitor `401`.
+        Never cached. A Suspended Agency may read.'
+      summary: The signed-in Agency's Verification status and latest request
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnVerification'
+          description: The status
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/agency-verification/requests:
+    post:
+      operationId: submit_agency_verification
+      description: 'Agency accounts only: others get `403 forbidden`, a Visitor `401`.
+        Never cached. Needs `X-CSRFToken`. No document is uploaded. `409 conflict`
+        while a request is pending or the Agency is already verified; a Suspended
+        Agency is `403`.'
+      summary: Request Verification
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationSubmitRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnVerification'
+          description: Pending
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/agency-verification/withdraw:
+    post:
+      operationId: withdraw_agency_verification
+      description: 'Agency accounts only: others get `403 forbidden`, a Visitor `401`.
+        Never cached. Needs `X-CSRFToken`. `409 conflict` when none is pending.'
+      summary: Withdraw the pending Verification request
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnVerification'
+          description: Withdrawn
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/me/email-change:
     post:
       operationId: request_email_change
@@ -6766,8 +7305,8 @@ components:
             or null.
         verification_status:
           type: string
-          description: Read-only Agency Verification status (`unverified` until a
-            later story).
+          description: 'Read-only: `verified` after an administrator approval, else
+            `unverified`.'
         image:
           allOf:
           - $ref: '#/components/schemas/ProfileImage'
@@ -9808,6 +10347,69 @@ components:
         * `error` - error
         * `timeout` - timeout
         * `budget_exhausted` - budget_exhausted
+    OwnVerification:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/OwnVerificationStatusEnum'
+        can_submit:
+          type: boolean
+        can_withdraw:
+          type: boolean
+        request:
+          allOf:
+          - $ref: '#/components/schemas/OwnVerificationRequest'
+          nullable: true
+          description: The latest request.
+      required:
+      - can_submit
+      - can_withdraw
+      - request
+      - status
+    OwnVerificationRequest:
+      type: object
+      properties:
+        business_name:
+          type: string
+        registration_number:
+          type: string
+          description: Private.
+        note:
+          type: string
+          description: Private.
+        submitted_at:
+          type: string
+          format: date-time
+        decided_at:
+          type: string
+          format: date-time
+          nullable: true
+        decision_reason:
+          type: string
+          description: Why it was rejected or revoked; else empty.
+      required:
+      - business_name
+      - decided_at
+      - decision_reason
+      - note
+      - registration_number
+      - submitted_at
+    OwnVerificationStatusEnum:
+      enum:
+      - unverified
+      - pending
+      - verified
+      - rejected
+      - revoked
+      - withdrawn
+      type: string
+      description: |-
+        * `unverified` - unverified
+        * `pending` - pending
+        * `verified` - verified
+        * `rejected` - rejected
+        * `revoked` - revoked
+        * `withdrawn` - withdrawn
     OwnerAccountTypeEnum:
       enum:
       - individual
@@ -11207,6 +11809,15 @@ components:
         * `area_missing` - area_missing
         * `marla_basis_unknown` - marla_basis_unknown
         * `temporarily_unavailable` - temporarily_unavailable
+    ReasonedReadRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 10
+          maxLength: 300
+      required:
+      - reason
     RegistrationAccepted:
       type: object
       properties:
@@ -11732,6 +12343,133 @@ components:
         * `about_equal` - about_equal
         * `above` - above
         * `below` - below
+    VerificationActionEnum:
+      enum:
+      - approved
+      - rejected
+      - revoked
+      - withdrawn
+      type: string
+      description: |-
+        * `approved` - approved
+        * `rejected` - rejected
+        * `revoked` - revoked
+        * `withdrawn` - withdrawn
+    VerificationDecision:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/VerificationRequestStatusEnum'
+        decided_at:
+          type: string
+          format: date-time
+      required:
+      - decided_at
+      - id
+      - status
+    VerificationDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/VerificationRequestStatusEnum'
+        business_name:
+          type: string
+        agency_name:
+          type: string
+          nullable: true
+        agency_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The public Agency id.
+        account_state:
+          type: string
+          nullable: true
+          description: '`email_unverified`, `active`, `suspended` or `deactivated`.'
+        submitted_at:
+          type: string
+          format: date-time
+        registration_number:
+          type: string
+          description: Private.
+        note:
+          type: string
+          description: Private.
+        decided_at:
+          type: string
+          format: date-time
+          nullable: true
+        decision_reason:
+          type: string
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/VerificationHistory'
+      required:
+      - account_state
+      - agency_id
+      - agency_name
+      - business_name
+      - decided_at
+      - decision_reason
+      - history
+      - id
+      - note
+      - registration_number
+      - status
+      - submitted_at
+    VerificationHistory:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/VerificationActionEnum'
+        at:
+          type: string
+          format: date-time
+        by_account_id:
+          type: string
+          format: uuid
+          description: The administrator, or the Agency for `withdrawn`.
+        reason:
+          type: string
+      required:
+      - action
+      - at
+      - by_account_id
+      - reason
+    VerificationQueue:
+      type: object
+      properties:
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/_AgencySummary'
+      required:
+      - next
+      - previous
+      - results
+    VerificationReasonRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 5
+          description: One line, without contact details. The Agency reads it.
+          maxLength: 500
+      required:
+      - reason
     VerificationRequestRequest:
       type: object
       properties:
@@ -11741,6 +12479,39 @@ components:
           description: The address to send a new link to.
       required:
       - email
+    VerificationRequestStatusEnum:
+      enum:
+      - pending
+      - verified
+      - rejected
+      - revoked
+      - withdrawn
+      type: string
+      description: |-
+        * `pending` - pending
+        * `verified` - verified
+        * `rejected` - rejected
+        * `revoked` - revoked
+        * `withdrawn` - withdrawn
+    VerificationSubmitRequest:
+      type: object
+      properties:
+        business_name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        registration_number:
+          type: string
+          minLength: 3
+          description: 'Registration or licence number: letters, digits, spaces, `.`,
+            `/`, `-`.'
+          maxLength: 60
+        note:
+          type: string
+          maxLength: 500
+      required:
+      - business_name
+      - registration_number
     Verified:
       type: object
       properties:
@@ -11767,6 +12538,39 @@ components:
             bytes).
       required:
       - audio
+    _AgencySummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/VerificationRequestStatusEnum'
+        business_name:
+          type: string
+        agency_name:
+          type: string
+          nullable: true
+        agency_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The public Agency id.
+        account_state:
+          type: string
+          nullable: true
+          description: '`email_unverified`, `active`, `suspended` or `deactivated`.'
+        submitted_at:
+          type: string
+          format: date-time
+      required:
+      - account_state
+      - agency_id
+      - agency_name
+      - business_name
+      - id
+      - status
+      - submitted_at
     ErrorCode:
       type: string
       enum:

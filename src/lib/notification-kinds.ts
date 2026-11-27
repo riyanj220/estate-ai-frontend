@@ -44,6 +44,25 @@ const KINDS: Record<string, KindEntry> = {
     title: "Your account was reactivated.",
     text: "Your account is no longer suspended.",
   },
+  // Stories 8.3 and 8.4: empty payloads; the outcome and any reason are read on the verification page.
+  "verification.approved": {
+    title: "Your agency is now verified.",
+    text: "The verified mark shows on your public profile and listings.",
+    href: () => "/account/verification",
+    linkText: "Open verification",
+  },
+  "verification.rejected": {
+    title: "Your verification request was not approved.",
+    text: "Read the reason on the verification page. You can send a new request.",
+    href: () => "/account/verification",
+    linkText: "Open verification",
+  },
+  "verification.revoked": {
+    title: "Your agency verification was revoked.",
+    text: "Read the reason on the verification page. Your listings stay published.",
+    href: () => "/account/verification",
+    linkText: "Open verification",
+  },
   // Story 2.13: the payload is only the draft's id and the days left (never its title or any content).
   "listing.draft_expiring": {
     title: (payload) => {
