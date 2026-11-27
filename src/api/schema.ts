@@ -264,6 +264,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's own inquiry about a Listing
+         * @description `results` holds at most one Conversation. Never cached.
+         */
+        get: operations["find_conversation"];
+        put?: never;
+        /**
+         * Send an inquiry about a Listing
+         * @description Needs `X-CSRFToken` and an `Idempotency-Key` header, which is the client message id: the same key and body again answers with the Message already saved, another body is `422 idempotency_key_reused`. `body` is 1 to 2,000 characters. A Message in a response is saved. 60 Messages a minute per account. At most one Conversation per Listing and account: starting again sends into it (`200`), or only returns it with `message: null` when it is read-only. 20 new Conversations a day per account.
+         */
+        post: operations["start_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One Conversation of the caller's
+         * @description Participants only; anyone else gets `not_found`. Never cached.
+         */
+        get: operations["get_conversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{conversation_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Messages of a Conversation, oldest first
+         * @description Those with `seq` above `after` (default 0), at most 200. Participants only. Never cached.
+         */
+        get: operations["list_messages"];
+        put?: never;
+        /**
+         * Send a Message in a Conversation
+         * @description Needs `X-CSRFToken` and an `Idempotency-Key` header, which is the client message id: the same key and body again answers with the Message already saved, another body is `422 idempotency_key_reused`. `body` is 1 to 2,000 characters. A Message in a response is saved. 60 Messages a minute per account.
+         */
+        post: operations["send_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/csrf": {
         parameters: {
             query?: never;
@@ -1698,6 +1766,14 @@ export interface components {
             summary: components["schemas"]["AssistantFact"][];
         };
         /**
+         * @description * `available` - available
+         *     * `sold` - sold
+         *     * `rented` - rented
+         *     * `unavailable` - unavailable
+         * @enum {string}
+         */
+        AvailabilityEnum: "available" | "sold" | "rented" | "unavailable";
+        /**
          * @description * `not_applicable` - not_applicable
          *     * `balloting_pending` - balloting_pending
          *     * `balloted` - balloted
@@ -1762,6 +1838,8 @@ export interface components {
          *     * `forbidden` - forbidden
          *     * `email_not_verified` - email_not_verified
          *     * `publishing_unavailable` - publishing_unavailable
+         *     * `messaging_email_unverified` - messaging_email_unverified
+         *     * `messaging_unavailable` - messaging_unavailable
          *     * `not_found` - not_found
          *     * `method_not_allowed` - method_not_allowed
          *     * `not_acceptable` - not_acceptable
@@ -1771,6 +1849,9 @@ export interface components {
          *     * `correction_unavailable` - correction_unavailable
          *     * `storage_cap_exceeded` - storage_cap_exceeded
          *     * `too_many_images` - too_many_images
+         *     * `own_listing` - own_listing
+         *     * `conversation_read_only` - conversation_read_only
+         *     * `counterpart_unavailable` - counterpart_unavailable
          *     * `link_used` - link_used
          *     * `link_expired` - link_expired
          *     * `unsupported_media_type` - unsupported_media_type
@@ -1780,7 +1861,7 @@ export interface components {
          *     * `busy` - busy
          * @enum {string}
          */
-        CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "email_not_verified" | "publishing_unavailable" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "quota_exhausted" | "correction_unavailable" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
+        CodeEnum: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "email_not_verified" | "publishing_unavailable" | "messaging_email_unverified" | "messaging_unavailable" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "quota_exhausted" | "correction_unavailable" | "storage_cap_exceeded" | "too_many_images" | "own_listing" | "conversation_read_only" | "counterpart_unavailable" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
         /**
          * @description * `new` - new
          *     * `excellent` - excellent
@@ -1807,6 +1888,32 @@ export interface components {
          * @enum {string}
          */
         ContentTypeEnum: "image/jpeg" | "image/png" | "image/webp";
+        Conversation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            listing_id: string;
+            listing: components["schemas"]["ConversationListing"];
+            role: components["schemas"]["RoleEnum"];
+            /** @description Null when the other account is no longer available. */
+            counterpart_name: string | null;
+            /** @description Whether the caller may send now. */
+            writable: boolean;
+            read_only_reason: (components["schemas"]["ReadOnlyReasonEnum"] | components["schemas"]["NullEnum"]) | null;
+            last_seq: number;
+            /** Format: date-time */
+            last_message_at: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ConversationList: {
+            results: components["schemas"]["Conversation"][];
+        };
+        ConversationListing: {
+            availability: components["schemas"]["AvailabilityEnum"];
+            /** @description Only while the Listing is publicly visible. */
+            title: string | null;
+        };
         /** @description `409`: the error envelope plus, for `stale_revision`, the Listing as it is now. */
         CorrectionConflict: {
             error: components["schemas"]["ErrorBody"];
@@ -2663,6 +2770,28 @@ export interface components {
          * @enum {string}
          */
         MatchEnum: "choice" | "range" | "boolean" | "amenities";
+        Message: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            conversation_id: string;
+            /** @description Order within the Conversation, from 1. */
+            seq: number;
+            body: string;
+            mine: boolean;
+            /** @description The sender's `Idempotency-Key`; null on the other's. */
+            client_message_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        MessageBodyRequest: {
+            body: string;
+        };
+        MessagePage: {
+            results: components["schemas"]["Message"][];
+            /** @description Ask again with `after` = the last `seq`. */
+            has_more: boolean;
+        };
         Notification: {
             /** Format: uuid */
             id: string;
@@ -3308,6 +3437,14 @@ export interface components {
             results: components["schemas"]["QuotaUsage"][];
         };
         /**
+         * @description * `messaging_email_unverified` - messaging_email_unverified
+         *     * `messaging_unavailable` - messaging_unavailable
+         *     * `counterpart_unavailable` - counterpart_unavailable
+         *     * `conversation_read_only` - conversation_read_only
+         * @enum {string}
+         */
+        ReadOnlyReasonEnum: "messaging_email_unverified" | "messaging_unavailable" | "counterpart_unavailable" | "conversation_read_only";
+        /**
          * @description * `rent_not_supported` - rent_not_supported
          *     * `type_not_supported` - type_not_supported
          *     * `locality_missing` - locality_missing
@@ -3427,6 +3564,12 @@ export interface components {
          * @enum {string}
          */
         RoadAccessEnum: "main_road" | "secondary_road" | "inner_street";
+        /**
+         * @description * `initiator` - initiator
+         *     * `owner` - owner
+         * @enum {string}
+         */
+        RoleEnum: "initiator" | "owner";
         SearchInterpretation: {
             /**
              * @description `fallback`: nothing was understood; offer the conventional filters.
@@ -3463,12 +3606,22 @@ export interface components {
          * @enum {string}
          */
         SectionEnum: "details" | "terms" | "location" | "amenities";
+        Sent: {
+            conversation: components["schemas"]["Conversation"];
+            /** @description Null: the existing thread is read-only; nothing was saved. */
+            message: components["schemas"]["Message"] | null;
+        };
         /** @description Exactly `email` and `password`, both strings. Nothing else is accepted. */
         SignInRequest: {
             /** @description The account email; matched case-insensitively. */
             email: string;
             /** @description The account password. */
             password: string;
+        };
+        StartBodyRequest: {
+            /** Format: uuid */
+            listing_id: string;
+            body: string;
         };
         /**
          * @description * `email_unverified` - email_unverified
@@ -3588,7 +3741,7 @@ export interface components {
          * @description Stable error code catalogue.
          * @enum {string}
          */
-        ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "email_not_verified" | "publishing_unavailable" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "quota_exhausted" | "correction_unavailable" | "storage_cap_exceeded" | "too_many_images" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
+        ErrorCode: "bad_request" | "validation_error" | "link_invalid" | "unauthenticated" | "invalid_credentials" | "forbidden" | "email_not_verified" | "publishing_unavailable" | "messaging_email_unverified" | "messaging_unavailable" | "not_found" | "method_not_allowed" | "not_acceptable" | "stale_revision" | "conflict" | "quota_exhausted" | "correction_unavailable" | "storage_cap_exceeded" | "too_many_images" | "own_listing" | "conversation_read_only" | "counterpart_unavailable" | "link_used" | "link_expired" | "unsupported_media_type" | "idempotency_key_reused" | "throttled" | "server_error" | "busy";
         ErrorEnvelope: {
             error: components["schemas"]["ErrorBody"];
         };
@@ -4659,6 +4812,445 @@ export interface operations {
                 };
             };
             /** @description `throttled`: more than 30 messages in an hour; with `Retry-After` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    find_conversation: {
+        parameters: {
+            query: {
+                listing_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationList"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    start_conversation: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartBodyRequest"];
+            };
+        };
+        responses: {
+            /** @description The existing Conversation, or a replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sent"];
+                };
+            };
+            /** @description A new Conversation */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sent"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `messaging_email_unverified`, `messaging_unavailable` (suspended), `forbidden` (administrator) or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found`: no such public Listing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `own_listing` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `idempotency_key_reused` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `throttled` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_conversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversation"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_messages: {
+        parameters: {
+            query?: {
+                after?: number;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagePage"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    send_message: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageBodyRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `messaging_email_unverified`, `messaging_unavailable` (suspended), `forbidden` (administrator) or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `conversation_read_only` or `counterpart_unavailable` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `idempotency_key_reused` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `throttled` */
             429: {
                 headers: {
                     [name: string]: unknown;

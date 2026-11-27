@@ -924,6 +924,373 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/conversations:
+    get:
+      operationId: find_conversation
+      description: '`results` holds at most one Conversation. Never cached.'
+      summary: The caller's own inquiry about a Listing
+      parameters:
+      - in: query
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - conversations
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationList'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      operationId: start_conversation
+      description: 'Needs `X-CSRFToken` and an `Idempotency-Key` header, which is
+        the client message id: the same key and body again answers with the Message
+        already saved, another body is `422 idempotency_key_reused`. `body` is 1 to
+        2,000 characters. A Message in a response is saved. 60 Messages a minute per
+        account. At most one Conversation per Listing and account: starting again
+        sends into it (`200`), or only returns it with `message: null` when it is
+        read-only. 20 new Conversations a day per account.'
+      summary: Send an inquiry about a Listing
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        required: true
+      tags:
+      - conversations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartBodyRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sent'
+          description: A new Conversation
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sent'
+          description: The existing Conversation, or a replay
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`messaging_email_unverified`, `messaging_unavailable` (suspended),
+            `forbidden` (administrator) or a missing CSRF token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`: no such public Listing'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`own_listing`'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`idempotency_key_reused`'
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`throttled`'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/conversations/{conversation_id}:
+    get:
+      operationId: get_conversation
+      description: Participants only; anyone else gets `not_found`. Never cached.
+      summary: One Conversation of the caller's
+      parameters:
+      - in: path
+        name: conversation_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - conversations
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/conversations/{conversation_id}/messages:
+    get:
+      operationId: list_messages
+      description: Those with `seq` above `after` (default 0), at most 200. Participants
+        only. Never cached.
+      summary: The Messages of a Conversation, oldest first
+      parameters:
+      - in: query
+        name: after
+        schema:
+          type: integer
+      - in: path
+        name: conversation_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - conversations
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagePage'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      operationId: send_message
+      description: 'Needs `X-CSRFToken` and an `Idempotency-Key` header, which is
+        the client message id: the same key and body again answers with the Message
+        already saved, another body is `422 idempotency_key_reused`. `body` is 1 to
+        2,000 characters. A Message in a response is saved. 60 Messages a minute per
+        account.'
+      summary: Send a Message in a Conversation
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: conversation_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - conversations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageBodyRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`messaging_email_unverified`, `messaging_unavailable` (suspended),
+            `forbidden` (administrator) or a missing CSRF token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`conversation_read_only` or `counterpart_unavailable`'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`idempotency_key_reused`'
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`throttled`'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/csrf:
     get:
       operationId: get_csrf_token
@@ -6507,6 +6874,18 @@ components:
       - outcome
       - summary
       - turn
+    AvailabilityEnum:
+      enum:
+      - available
+      - sold
+      - rented
+      - unavailable
+      type: string
+      description: |-
+        * `available` - available
+        * `sold` - sold
+        * `rented` - rented
+        * `unavailable` - unavailable
     BallotingStatusEnum:
       enum:
       - not_applicable
@@ -6620,6 +6999,8 @@ components:
       - forbidden
       - email_not_verified
       - publishing_unavailable
+      - messaging_email_unverified
+      - messaging_unavailable
       - not_found
       - method_not_allowed
       - not_acceptable
@@ -6629,6 +7010,9 @@ components:
       - correction_unavailable
       - storage_cap_exceeded
       - too_many_images
+      - own_listing
+      - conversation_read_only
+      - counterpart_unavailable
       - link_used
       - link_expired
       - unsupported_media_type
@@ -6646,6 +7030,8 @@ components:
         * `forbidden` - forbidden
         * `email_not_verified` - email_not_verified
         * `publishing_unavailable` - publishing_unavailable
+        * `messaging_email_unverified` - messaging_email_unverified
+        * `messaging_unavailable` - messaging_unavailable
         * `not_found` - not_found
         * `method_not_allowed` - method_not_allowed
         * `not_acceptable` - not_acceptable
@@ -6655,6 +7041,9 @@ components:
         * `correction_unavailable` - correction_unavailable
         * `storage_cap_exceeded` - storage_cap_exceeded
         * `too_many_images` - too_many_images
+        * `own_listing` - own_listing
+        * `conversation_read_only` - conversation_read_only
+        * `counterpart_unavailable` - counterpart_unavailable
         * `link_used` - link_used
         * `link_expired` - link_expired
         * `unsupported_media_type` - unsupported_media_type
@@ -6703,6 +7092,71 @@ components:
         * `image/jpeg` - image/jpeg
         * `image/png` - image/png
         * `image/webp` - image/webp
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        listing_id:
+          type: string
+          format: uuid
+        listing:
+          $ref: '#/components/schemas/ConversationListing'
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        counterpart_name:
+          type: string
+          nullable: true
+          description: Null when the other account is no longer available.
+        writable:
+          type: boolean
+          description: Whether the caller may send now.
+        read_only_reason:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/ReadOnlyReasonEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        last_seq:
+          type: integer
+        last_message_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - counterpart_name
+      - created_at
+      - id
+      - last_message_at
+      - last_seq
+      - listing
+      - listing_id
+      - read_only_reason
+      - role
+      - writable
+    ConversationList:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Conversation'
+      required:
+      - results
+    ConversationListing:
+      type: object
+      properties:
+        availability:
+          $ref: '#/components/schemas/AvailabilityEnum'
+        title:
+          type: string
+          nullable: true
+          description: Only while the Listing is publicly visible.
+      required:
+      - availability
+      - title
     CorrectionConflict:
       type: object
       description: '`409`: the error envelope plus, for `stale_revision`, the Listing
@@ -8745,6 +9199,59 @@ components:
         * `range` - range
         * `boolean` - boolean
         * `amenities` - amenities
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+        seq:
+          type: integer
+          description: Order within the Conversation, from 1.
+        body:
+          type: string
+        mine:
+          type: boolean
+        client_message_id:
+          type: string
+          nullable: true
+          description: The sender's `Idempotency-Key`; null on the other's.
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - body
+      - client_message_id
+      - conversation_id
+      - created_at
+      - id
+      - mine
+      - seq
+    MessageBodyRequest:
+      type: object
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+      required:
+      - body
+    MessagePage:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        has_more:
+          type: boolean
+          description: Ask again with `after` = the last `seq`.
+      required:
+      - has_more
+      - results
     Notification:
       type: object
       properties:
@@ -10211,6 +10718,18 @@ components:
       - previous
       - resets_at
       - results
+    ReadOnlyReasonEnum:
+      enum:
+      - messaging_email_unverified
+      - messaging_unavailable
+      - counterpart_unavailable
+      - conversation_read_only
+      type: string
+      description: |-
+        * `messaging_email_unverified` - messaging_email_unverified
+        * `messaging_unavailable` - messaging_unavailable
+        * `counterpart_unavailable` - counterpart_unavailable
+        * `conversation_read_only` - conversation_read_only
     ReasonEnum:
       enum:
       - rent_not_supported
@@ -10473,6 +10992,14 @@ components:
         * `main_road` - main_road
         * `secondary_road` - secondary_road
         * `inner_street` - inner_street
+    RoleEnum:
+      enum:
+      - initiator
+      - owner
+      type: string
+      description: |-
+        * `initiator` - initiator
+        * `owner` - owner
     SearchInterpretation:
       type: object
       properties:
@@ -10538,6 +11065,19 @@ components:
         * `terms` - terms
         * `location` - location
         * `amenities` - amenities
+    Sent:
+      type: object
+      properties:
+        conversation:
+          $ref: '#/components/schemas/Conversation'
+        message:
+          allOf:
+          - $ref: '#/components/schemas/Message'
+          nullable: true
+          description: 'Null: the existing thread is read-only; nothing was saved.'
+      required:
+      - conversation
+      - message
     SignInRequest:
       type: object
       description: Exactly `email` and `password`, both strings. Nothing else is accepted.
@@ -10553,6 +11093,19 @@ components:
       required:
       - email
       - password
+    StartBodyRequest:
+      type: object
+      properties:
+        listing_id:
+          type: string
+          format: uuid
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+      required:
+      - body
+      - listing_id
     StateEnum:
       enum:
       - email_unverified
@@ -10758,6 +11311,8 @@ components:
       - forbidden
       - email_not_verified
       - publishing_unavailable
+      - messaging_email_unverified
+      - messaging_unavailable
       - not_found
       - method_not_allowed
       - not_acceptable
@@ -10767,6 +11322,9 @@ components:
       - correction_unavailable
       - storage_cap_exceeded
       - too_many_images
+      - own_listing
+      - conversation_read_only
+      - counterpart_unavailable
       - link_used
       - link_expired
       - unsupported_media_type

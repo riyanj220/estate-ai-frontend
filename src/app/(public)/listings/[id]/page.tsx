@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AdvertiserLine } from "@/components/advertiser-line";
 import { ListingEstimatePanel } from "@/components/listing-estimate";
 import { ListingFacts } from "@/components/listing-facts";
+import { MessageSeller } from "@/components/message-seller";
 import { RetryImage } from "@/components/retry-image";
 import { SaveButton } from "@/components/save-button";
 import type { AmenityCatalogueList } from "@/lib/amenities";
@@ -73,6 +74,7 @@ export default async function ListingPage({ params }: Props) {
         <FavouritesProvider>
           <SaveButton listingId={listing.id} title={fields.title ?? "Untitled listing"} />
         </FavouritesProvider>
+        <MessageSeller listingId={listing.id} />
         {media.length === 0 ? (
           <p className="muted">{PREVIEW_NO_IMAGES}</p>
         ) : (
