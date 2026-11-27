@@ -74,7 +74,7 @@ Use `PW_CHANNEL=chrome` when the Playwright Chromium is not downloaded.
 | `BACKEND_URL` | Backend origin for the proxy and server-side client (see above) |
 | `BACKEND_OPENAPI_PATH` | Path to the backend `openapi.yaml` for `npm run api:sync` (default `../estate-ai-backend/openapi.yaml`) |
 | `BACKEND_OPENAPI_URL` | Raw URL of the backend `main` `openapi.yaml` used by the online `api:check` |
-| `AI_FEATURES` | `1` shows the AI entry points: "Create with AI" on Create listing and the assistant chat at `/account/listings/{id}/assistant` (also linked from a Draft). Every AI feature starts through `useAiNotice` (`src/components/ai-notice.tsx`, the one-time external-service notice). Replies are plain text. Off by default; the Playwright config turns it on. Playwright stub: `/__assistant-mode`, `/__assistant-requests`, `/__assistant-release`; tests `tests/e2e/assistant-chat.spec.ts` |
+| `AI_FEATURES` | `1` shows the AI entry points: "Create with AI" on Create listing and the assistant chat at `/account/listings/{id}/assistant` (also linked from a Draft). Every AI feature starts through `useAiNotice` (`src/components/ai-notice.tsx`, the one-time external-service notice). Replies are plain text. Off by default; the Playwright config turns it on. Playwright stub: `/__assistant-mode`, `/__assistant-requests`, `/__assistant-release`; tests `tests/e2e/assistant-chat.spec.ts`. Each turn lists what it saved to the Draft and any notices, and the chat shows the next missing detail or offers review (stub modes `extract`, `review`; `tests/e2e/assistant-extraction.spec.ts`) |
 | `PW_CHANNEL` | e.g. `chrome`: run Playwright against an installed browser instead of the downloaded Chromium |
 
 ## AI Price Estimates

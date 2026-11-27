@@ -1223,7 +1223,9 @@ let detailGets = 0;
 let lastDetailId = null;
 const pending = []; // responses held open by the hang mode
 // Story 5.8: one assistant session per Draft. Modes through /__assistant-mode; "hold" keeps a turn open until /__assistant-release.
-const ASSISTANT_MODES = ["ok", "sources", "no_explanations", "error", "timeout", "budget_exhausted", "rate_limited", "conflict", "hold", "forbidden", "open_conflict"];
+// Stories 5.9 and 5.10: what the Draft still needs; "extract" saves two fields to it, "review" says nothing required is missing.
+const nextStep = (kind, question, fields_asked = [], in_form = false) => ({ kind, question, fields_asked, optional: [], in_form });
+const ASSISTANT_MODES = ["extract", "review", "ok", "sources", "no_explanations", "error", "timeout", "budget_exhausted", "rate_limited", "conflict", "hold", "forbidden", "open_conflict"];
 let assistantMode = "ok";
 let assistantSessions = new Map();
 let assistantRequests = [];
@@ -2349,7 +2351,7 @@ createServer((req, res) => {
       const created = !assistantSessions.has(draft.id);
       if (created) {
         const n = String(assistantSessions.size + 1).padStart(12, "0");
-        assistantSessions.set(draft.id, { id: `00000000-0000-4000-c000-${n}`, listing_id: draft.id, registry_version: draft.registryVersion, schema_version: 1, created_at: "2026-11-27T10:00:00Z", knowledge_notice: "General information only.", turns: [] });
+        assistantSessions.set(draft.id, { id: `00000000-0000-4000-c000-${n}`, listing_id: draft.id, registry_version: draft.registryVersion, schema_version: 1, created_at: "2026-11-27T10:00:00Z", knowledge_notice: "General information only.", turns: [], next_step: nextStep("required", "What is the area of the property, with its unit?", ["area_value", "area_unit"]) });
       }
       return json(created ? 201 : 200, assistantSessions.get(draft.id));
     });
@@ -2363,13 +2365,24 @@ createServer((req, res) => {
       if (!session) return json(404, envelope("not_found", "Not found."));
       if (assistantMode === "rate_limited") return throttled();
       if (assistantMode === "conflict") return json(409, envelope("conflict", "Raw server text."));
-      if (["error", "timeout", "budget_exhausted"].includes(assistantMode)) return json(200, { outcome: assistantMode, message: "Raw server text.", turn: null });
+      if (["error", "timeout", "budget_exhausted"].includes(assistantMode)) return json(200, { outcome: assistantMode, message: "Raw server text.", turn: null, next_step: null });
       const answer = () => {
         const sources = assistantMode === "sources" ? [{ title: "Marla", source: "Measures", version: 1 }] : [];
         // Markup in a reply must stay text.
-        const turn = { id: `00000000-0000-4000-d000-${String(session.turns.length + 1).padStart(12, "0")}`, sequence: session.turns.length + 1, client_turn_id: body.client_turn_id, message: body.message, reply: "Stub reply <b>not bold</b>\nSecond line.", sources, created_at: "2026-11-27T10:00:00Z" };
+        const turn = { id: `00000000-0000-4000-d000-${String(session.turns.length + 1).padStart(12, "0")}`, sequence: session.turns.length + 1, client_turn_id: body.client_turn_id, message: body.message, reply: "Stub reply <b>not bold</b>\nSecond line.", sources, created_at: "2026-11-27T10:00:00Z", applied: [], rejected: [], conflicts: [], notices: [] };
+        if (assistantMode === "extract") {
+          const draft = listings.find((item) => item.id === session.listing_id);
+          Object.assign(draft.fields, { bedrooms: 5, asking_price: "60000000.00" });
+          for (const key of ["bedrooms", "asking_price"]) draft.provenance[key] = { origin: "ai", confirmed: false };
+          draft.revision += 1;
+          turn.applied = [{ field: "bedrooms", value: 5 }, { field: "asking_price", value: "60000000.00" }];
+          turn.rejected = [{ field: "bathrooms", code: "out_of_range" }];
+          turn.notices = ["I removed a phone number, email address or street address from your message.", "I could not save: bathrooms. <i>Please check</i> and tell me again."];
+          session.next_step = nextStep("required", "Please choose the city in the form.", ["city"], true);
+        }
+        if (assistantMode === "review") session.next_step = nextStep("review", "All required details are filled in. You can review your listing now.");
         session.turns.push(turn);
-        json(200, { outcome: "success", message: assistantMode === "no_explanations" ? "Raw server text." : "", turn });
+        json(200, { outcome: "success", message: assistantMode === "no_explanations" ? "Raw server text." : "", turn, next_step: session.next_step });
       };
       if (assistantMode === "hold") return void assistantHeld.push(answer);
       return answer();
