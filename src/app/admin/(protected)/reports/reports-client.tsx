@@ -10,6 +10,7 @@ import { withTimeout } from "@/lib/forms";
 import { formatResetDate as formatDate } from "@/lib/publication-allowance";
 import { REPORT_REASONS, type ReportReason } from "@/lib/reports";
 import { failureMessage, thrownMessage } from "@/lib/request-errors";
+import { AccountAction } from "../accounts/account-action";
 import { shown, useAdminWrite, useSessionGone, words } from "../moderation-shared";
 
 type Queue = components["schemas"]["ReportQueue"];
@@ -24,7 +25,11 @@ type List =
   | { kind: "error"; message: string }
   | { kind: "ready"; rows: Row[]; next: string | null; unresolved: Queue["unresolved"] };
 
-/** The Report queue (Story 9.2). Nothing here changes a Listing. */
+const SENDERS = { reporter: "Reporter", reported: "Reported account", deleted_user: "Deleted user" } as const;
+
+const rowTitle = (row: Row) => (row.target_type === "conversation" ? "Conversation messages" : (row.title ?? "Untitled listing"));
+
+/** The Report queue (Stories 9.2 and 9.5). Nothing here changes a Listing or a Message. */
 export function ReportsReview() {
   const router = useRouter();
   const gone = useSessionGone("/admin/reports");
@@ -116,14 +121,14 @@ export function ReportsReview() {
           <ul className="listing-list" aria-label="Reports">
             {list.rows.map((row) => (
               <li key={row.id} className="listing-item" data-testid="report-row">
-                <p className="account-text">{row.title ?? "Untitled listing"}</p>
+                <p className="account-text">{rowTitle(row)}</p>
                 <p className="muted">
                   {REPORT_REASONS[row.reason]} · Sent {formatDate(row.created_at)}
                 </p>
                 <button
                   type="button"
                   className="secondary-button"
-                  aria-label={`Review report on ${row.title ?? "Untitled listing"}`}
+                  aria-label={`Review report on ${rowTitle(row)}`}
                   onClick={() => {
                     setNotice("");
                     setSelected(row.id);
@@ -205,7 +210,8 @@ function ReportPanel({ reportId, gone, onNotice, onMoved }: { reportId: string; 
       },
       {
         done: (data) => {
-          setDetail(data);
+          // A move answers without the private content; keep what was already read.
+          setDetail((before) => (before?.messages ? { ...data, messages: before.messages, description: before.description } : data));
           setNotes("");
           onMoved({ start: "The report is being reviewed.", resolve: "The report was resolved.", dismiss: "The report was dismissed." }[action]);
         },
@@ -221,11 +227,12 @@ function ReportPanel({ reportId, gone, onNotice, onMoved }: { reportId: string; 
 
   if (!detail) return <p className="muted">Loading the report…</p>;
   const { snapshot } = detail;
+  const conversation = detail.target_type === "conversation";
   const busy = working || undefined;
   return (
     <section className="card" aria-labelledby="report-title" data-testid="report-detail">
       <h2 id="report-title" ref={heading} tabIndex={-1} className="section-title account-text">
-        {snapshot.title ?? "Untitled listing"}
+        {snapshot ? (snapshot.title ?? "Untitled listing") : "Conversation messages"}
       </h2>
       <dl className="account-details">
         <dt>Status</dt>
@@ -233,36 +240,41 @@ function ReportPanel({ reportId, gone, onNotice, onMoved }: { reportId: string; 
         <dt>Reason</dt>
         <dd>{REPORT_REASONS[detail.reason]}</dd>
         <dt>Description</dt>
-        <dd className="account-text">{detail.description || "None"}</dd>
+        <dd className="account-text">{conversation && !detail.messages ? "Shown with the messages" : detail.description || "None"}</dd>
         <dt>Reported by</dt>
         <dd className="account-text">{detail.reporter?.masked_email ?? "Account removed"}</dd>
-        <dt>Listing owner</dt>
+        <dt>{conversation ? "Reported account" : "Listing owner"}</dt>
         <dd className="account-text">{detail.owner?.masked_email ?? "Account removed"}</dd>
-        <dt>Open reports on this listing</dt>
+        <dt>{conversation ? "Open reports on this conversation" : "Open reports on this listing"}</dt>
         <dd>{detail.open_for_listing}</dd>
       </dl>
-      <h3>Content when reported</h3>
-      <dl className="account-details" data-testid="report-snapshot">
-        <dt>Type</dt>
-        <dd>{[snapshot.purpose, snapshot.category, snapshot.subtype].map(words).join(" · ")}</dd>
-        <dt>Location</dt>
-        <dd className="account-text">{[snapshot.locality, snapshot.city].filter(Boolean).join(", ") || "Not given"}</dd>
-        <dt>Description</dt>
-        <dd className="account-text">{snapshot.description ?? "None"}</dd>
-        <dt>Images</dt>
-        <dd>{snapshot.image_count}</dd>
-        {Object.entries(snapshot.fields ?? {}).map(([key, value]) => (
-          <div key={key}>
-            <dt>{words(key)}</dt>
-            <dd className="account-text">{shown(value)}</dd>
-          </div>
-        ))}
-      </dl>
-      <p>
-        <Link href={`/admin/listings/${detail.listing_id}`} className="text-link">
-          Open this listing
-        </Link>
-      </p>
+      {snapshot && (
+        <>
+          <h3>Content when reported</h3>
+          <dl className="account-details" data-testid="report-snapshot">
+            <dt>Type</dt>
+            <dd>{[snapshot.purpose, snapshot.category, snapshot.subtype].map(words).join(" · ")}</dd>
+            <dt>Location</dt>
+            <dd className="account-text">{[snapshot.locality, snapshot.city].filter(Boolean).join(", ") || "Not given"}</dd>
+            <dt>Description</dt>
+            <dd className="account-text">{snapshot.description ?? "None"}</dd>
+            <dt>Images</dt>
+            <dd>{snapshot.image_count}</dd>
+            {Object.entries(snapshot.fields ?? {}).map(([key, value]) => (
+              <div key={key}>
+                <dt>{words(key)}</dt>
+                <dd className="account-text">{shown(value)}</dd>
+              </div>
+            ))}
+          </dl>
+          <p>
+            <Link href={`/admin/listings/${detail.listing_id}`} className="text-link">
+              Open this listing
+            </Link>
+          </p>
+        </>
+      )}
+      {conversation && <ReportedMessages detail={detail} gone={gone} onNotice={onNotice} onRead={setDetail} />}
       {detail.history.length > 0 && (
         <>
           <h3>Review history</h3>
@@ -299,6 +311,73 @@ function ReportPanel({ reportId, gone, onNotice, onMoved }: { reportId: string; 
           </div>
         </>
       )}
+      {conversation && (detail.status === "reviewing" || detail.status === "resolved") && (
+        <>
+          <h3>Suspend the reported account (optional)</h3>
+          <AccountAction
+            account={{ id: detail.owner_account_id, state: "active", email: detail.owner?.masked_email ?? "This account" }}
+            onStart={() => onNotice("")}
+            onChanged={() => onNotice("The account is now suspended.")}
+            onSessionGone={gone}
+            onUnavailable={onNotice}
+          />
+        </>
+      )}
     </section>
+  );
+}
+
+/** The reported Messages (Story 9.5): shown only after a reason, which is recorded with every view. */
+function ReportedMessages({ detail, gone, onNotice, onRead }: { detail: Detail; gone: () => Promise<void>; onNotice: (message: string) => void; onRead: (detail: Detail) => void }) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const { working, write } = useAdminWrite(gone, onNotice);
+
+  if (detail.messages) {
+    return (
+      <>
+        <h3>Reported messages and those just before</h3>
+        <ol aria-label="Reported messages" className="chat-list">
+          {detail.messages.map((message) => (
+            <li key={message.seq}>
+              <p className="muted">
+                {SENDERS[message.sender]} · {formatDate(message.sent_at)}
+                {message.selected ? " · Reported" : ""}
+              </p>
+              <p className="chat-text">{message.body}</p>
+            </li>
+          ))}
+        </ol>
+      </>
+    );
+  }
+
+  function open(event: React.FormEvent) {
+    event.preventDefault();
+    const text = reason.trim();
+    if (text.length < 10) {
+      setError("Give a reason of at least 10 characters.");
+      document.getElementById("read-reason")?.focus();
+      return;
+    }
+    setError("");
+    void write<Detail>(
+      async (csrf, signal) => {
+        const api = await getApi();
+        return api.POST("/api/v1/admin/reports/{report_id}/read", { params: { path: { report_id: detail.id } }, body: { reason: text }, headers: { "X-CSRFToken": csrf }, cache: "no-store", signal });
+      },
+      { done: onRead, field: "reason", invalid: () => setError("Give a reason of 10 to 300 characters, without contact details.") },
+    );
+  }
+
+  return (
+    <form noValidate onSubmit={open} aria-label="Show reported messages">
+      <Field name="read-reason" label="Reason for viewing" hint="Every view is recorded with this reason." errors={error ? [error] : undefined}>
+        {(props) => <input {...props} type="text" autoComplete="off" value={reason} onChange={(event) => setReason(event.target.value)} />}
+      </Field>
+      <button type="submit" className="secondary-button" aria-disabled={working || undefined}>
+        Show messages
+      </button>
+    </form>
   );
 }

@@ -84,6 +84,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Advisory duplicate and suspicious Listing flags, newest first
+         * @description 20 per page; `next` is a link, `previous` is always null. Flags change nothing. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["list_admin_flags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/listings": {
         parameters: {
             query?: never;
@@ -332,7 +352,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Listing Reports in one status, oldest first, with unresolved counts
+         * Reports in one status, oldest first, with unresolved counts
          * @description 20 per page; `next` is a link, `previous` is always null. `status` defaults to `pending`. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
          */
         get: operations["list_admin_reports"];
@@ -378,6 +398,26 @@ export interface paths {
          * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; a Report in another status is `409 conflict`. The Listing is not changed. The reporter is notified. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
          */
         post: operations["dismiss_admin_report"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/{report_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read the reported Messages of a Conversation Report, with a recorded reason
+         * @description Needs `X-CSRFToken`. Every read is audited with its reason. Returns the reported Messages and the few before them, never the rest of the Conversation. A Listing Report or an unknown id is `404 not_found`. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["read_admin_report_messages"];
         delete?: never;
         options?: never;
         head?: never;
@@ -706,6 +746,26 @@ export interface paths {
          * @description Needs `X-CSRFToken`. Participants only. The mark never goes back, nor past the newest Message. A suspended participant may mark too.
          */
         post: operations["mark_conversation_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{conversation_id}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report Messages of a Conversation the caller takes part in
+         * @description Needs `X-CSRFToken`. The Report keeps the selected Messages and up to 5 sent just before them. A Visitor is `401`; a Suspended account or an administrator `403 forbidden`; a Conversation the caller is not in `404 not_found`; an id that is not a Message of the other participant is a `message_ids` error; one of yours already open `409 conflict`; at most 10 Reports a day (`429 throttled`). Never cached.
+         */
+        post: operations["report_conversation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2538,6 +2598,12 @@ export interface components {
             /** @description Only while the Listing is publicly visible. */
             title: string | null;
         };
+        ConversationReportCreateRequest: {
+            reason: components["schemas"]["ReportReasonEnum"];
+            description?: string;
+            /** @description Messages of the other participant in this Conversation. */
+            message_ids: string[];
+        };
         /** @description `409`: the error envelope plus, for `stale_revision`, the Listing as it is now. */
         CorrectionConflict: {
             error: components["schemas"]["ErrorBody"];
@@ -2752,6 +2818,15 @@ export interface components {
          * @enum {string}
          */
         FieldRequirementEnum: "required_for_publication" | "recommended" | "optional";
+        FlaggedListing: {
+            /** Format: uuid */
+            id: string;
+            /** @description Null for a Draft. */
+            title: string | null;
+            status: string;
+            /** Format: uuid */
+            owner_account_id: string;
+        };
         /**
          * @description * `unfurnished` - unfurnished
          *     * `semi_furnished` - semi_furnished
@@ -3356,6 +3431,31 @@ export interface components {
                 [key: string]: string;
             } | null;
         };
+        ListingFlag: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["ListingFlagKindEnum"];
+            /** Format: date-time */
+            flagged_at: string;
+            listing: components["schemas"]["FlaggedListing"];
+            /** @description The older Listing of a duplicate pair. */
+            other_listing: components["schemas"]["FlaggedListing"] | null;
+            /** @description Duplicate: what is near-identical. */
+            matched: components["schemas"]["MatchedEnum"][];
+            /** @description Suspicious: different reporters. */
+            reporter_count: number;
+        };
+        /**
+         * @description * `duplicate` - duplicate
+         *     * `suspicious` - suspicious
+         * @enum {string}
+         */
+        ListingFlagKindEnum: "duplicate" | "suspicious";
+        ListingFlagPage: {
+            next: string | null;
+            previous: string | null;
+            results: components["schemas"]["ListingFlag"][];
+        };
         ListingPage: {
             next: string | null;
             previous: string | null;
@@ -3429,6 +3529,12 @@ export interface components {
          * @enum {string}
          */
         MatchEnum: "choice" | "range" | "boolean" | "amenities";
+        /**
+         * @description * `price` - price
+         *     * `title` - title
+         * @enum {string}
+         */
+        MatchedEnum: "price" | "title";
         Message: {
             /** Format: uuid */
             id: string;
@@ -3539,8 +3645,11 @@ export interface components {
         OwnReport: {
             /** Format: uuid */
             id: string;
+            target_type: components["schemas"]["TargetTypeEnum"];
             /** Format: uuid */
             listing_id: string;
+            /** Format: uuid */
+            conversation_id: string | null;
             /** @description As it was when reported. */
             title: string | null;
             reason: components["schemas"]["ReportReasonEnum"];
@@ -4272,22 +4381,30 @@ export interface components {
         ReportDetail: {
             /** Format: uuid */
             id: string;
+            target_type: components["schemas"]["TargetTypeEnum"];
             /** Format: uuid */
             listing_id: string;
+            /** Format: uuid */
+            conversation_id: string | null;
             reason: components["schemas"]["ReportReasonEnum"];
             status: components["schemas"]["ReportStatusEnum"];
+            /** @description Empty for a Conversation Report until it is read. */
             description: string;
-            snapshot: components["schemas"]["ReportSnapshot"];
+            /** @description Listing Reports only. */
+            snapshot: components["schemas"]["ReportSnapshot"] | null;
+            /** @description Conversation Reports, and only from the reasoned read. */
+            messages: components["schemas"]["ReportedMessage"][] | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             closed_at: string | null;
             reporter: components["schemas"]["AccountRef"] | null;
+            /** @description The reported account. */
             owner: components["schemas"]["AccountRef"] | null;
             /** Format: uuid */
             owner_account_id: string;
             history: components["schemas"]["ReportMove"][];
-            /** @description Open Reports on this Listing. */
+            /** @description Open Reports on this target. */
             open_for_listing: number;
         };
         ReportMove: {
@@ -4351,6 +4468,15 @@ export interface components {
          * @enum {string}
          */
         ReportStatusEnum: "pending" | "reviewing" | "resolved" | "dismissed";
+        ReportedMessage: {
+            seq: number;
+            sender: components["schemas"]["SenderEnum"];
+            /** @description Reported; the others are context. */
+            selected: boolean;
+            body: string;
+            /** Format: date-time */
+            sent_at: string;
+        };
         /** @description The owner Listing plus how the republication was recorded (Story 2.18). */
         RepublishedListing: {
             /** Format: uuid */
@@ -4429,6 +4555,13 @@ export interface components {
          * @enum {string}
          */
         SectionEnum: "details" | "terms" | "location" | "amenities";
+        /**
+         * @description * `reporter` - reporter
+         *     * `reported` - reported
+         *     * `deleted_user` - deleted_user
+         * @enum {string}
+         */
+        SenderEnum: "reporter" | "reported" | "deleted_user";
         Sent: {
             conversation: components["schemas"]["Conversation"];
             /** @description Null: the existing thread is read-only; nothing was saved. */
@@ -4484,6 +4617,12 @@ export interface components {
          * @enum {string}
          */
         SubtypeEnum: "house" | "apartment" | "residential_plot" | "commercial_plot" | "plot_file" | "shop" | "office";
+        /**
+         * @description * `listing` - listing
+         *     * `conversation` - conversation
+         * @enum {string}
+         */
+        TargetTypeEnum: "listing" | "conversation";
         Taxonomy: {
             categories: components["schemas"]["TaxonomyCategory"][];
             purposes: string[];
@@ -4656,6 +4795,7 @@ export interface components {
         _Row: {
             /** Format: uuid */
             id: string;
+            target_type: components["schemas"]["TargetTypeEnum"];
             /** Format: uuid */
             listing_id: string;
             /** @description As it was when reported. */
@@ -4950,6 +5090,85 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminAccount"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_admin_flags: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                kind?: "duplicate" | "suspicious";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingFlagPage"];
                 };
             };
             /** @description Bad request or validation error */
@@ -6150,6 +6369,88 @@ export interface operations {
         };
         responses: {
             /** @description Dismissed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetail"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    read_admin_report_messages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonedReadRequest"];
+            };
+        };
+        responses: {
+            /** @description With Messages */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7719,6 +8020,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    report_conversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConversationReportCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Reported */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnReport"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Too many requests */

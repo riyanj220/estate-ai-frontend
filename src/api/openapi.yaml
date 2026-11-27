@@ -285,6 +285,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/flags:
+    get:
+      operationId: list_admin_flags
+      description: 20 per page; `next` is a link, `previous` is always null. Flags
+        change nothing. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Advisory duplicate and suspicious Listing flags, newest first
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: kind
+        schema:
+          type: string
+          enum:
+          - duplicate
+          - suspicious
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingFlagPage'
+          description: One page
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/admin/listings:
     get:
       operationId: list_admin_listings
@@ -1149,7 +1220,7 @@ paths:
       description: 20 per page; `next` is a link, `previous` is always null. `status`
         defaults to `pending`. Visitors get `401 unauthenticated`; signed-in non-administrators
         get `404 not_found`. Never cached.
-      summary: Listing Reports in one status, oldest first, with unresolved counts
+      summary: Reports in one status, oldest first, with unresolved counts
       parameters:
       - in: query
         name: cursor
@@ -1322,6 +1393,79 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReportDetail'
           description: Dismissed
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reports/{report_id}/read:
+    post:
+      operationId: read_admin_report_messages
+      description: Needs `X-CSRFToken`. Every read is audited with its reason. Returns
+        the reported Messages and the few before them, never the rest of the Conversation.
+        A Listing Report or an unknown id is `404 not_found`. Visitors get `401 unauthenticated`;
+        signed-in non-administrators get `404 not_found`. Never cached.
+      summary: Read the reported Messages of a Conversation Report, with a recorded
+        reason
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonedReadRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDetail'
+          description: With Messages
         '400':
           description: Bad request or validation error
           content:
@@ -2663,6 +2807,80 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
           description: '`not_found`'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/conversations/{conversation_id}/reports:
+    post:
+      operationId: report_conversation
+      description: Needs `X-CSRFToken`. The Report keeps the selected Messages and
+        up to 5 sent just before them. A Visitor is `401`; a Suspended account or
+        an administrator `403 forbidden`; a Conversation the caller is not in `404
+        not_found`; an id that is not a Message of the other participant is a `message_ids`
+        error; one of yours already open `409 conflict`; at most 10 Reports a day
+        (`429 throttled`). Never cached.
+      summary: Report Messages of a Conversation the caller takes part in
+      parameters:
+      - in: path
+        name: conversation_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - conversations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationReportCreateRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnReport'
+          description: Reported
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
         '429':
           description: Too many requests
           content:
@@ -9325,6 +9543,25 @@ components:
       required:
       - availability
       - title
+    ConversationReportCreateRequest:
+      type: object
+      properties:
+        reason:
+          $ref: '#/components/schemas/ReportReasonEnum'
+        description:
+          type: string
+          maxLength: 1000
+        message_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Messages of the other participant in this Conversation.
+          maxItems: 10
+          minItems: 1
+      required:
+      - message_ids
+      - reason
     CorrectionConflict:
       type: object
       description: '`409`: the error envelope plus, for `stale_revision`, the Listing
@@ -9767,6 +10004,26 @@ components:
         * `required_for_publication` - required_for_publication
         * `recommended` - recommended
         * `optional` - optional
+    FlaggedListing:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          nullable: true
+          description: Null for a Draft.
+        status:
+          type: string
+        owner_account_id:
+          type: string
+          format: uuid
+      required:
+      - id
+      - owner_account_id
+      - status
+      - title
     FurnishingEnum:
       enum:
       - unfurnished
@@ -11298,6 +11555,65 @@ components:
             never `none`. `nearby` entries are the seller''s own declaration: show
             them as seller-declared; there is no distance and no verification. Returned
             as the answered codes only, or `null` when none is answered.'
+    ListingFlag:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/ListingFlagKindEnum'
+        flagged_at:
+          type: string
+          format: date-time
+        listing:
+          $ref: '#/components/schemas/FlaggedListing'
+        other_listing:
+          allOf:
+          - $ref: '#/components/schemas/FlaggedListing'
+          nullable: true
+          description: The older Listing of a duplicate pair.
+        matched:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchedEnum'
+          description: 'Duplicate: what is near-identical.'
+        reporter_count:
+          type: integer
+          description: 'Suspicious: different reporters.'
+      required:
+      - flagged_at
+      - id
+      - kind
+      - listing
+      - matched
+      - other_listing
+      - reporter_count
+    ListingFlagKindEnum:
+      enum:
+      - duplicate
+      - suspicious
+      type: string
+      description: |-
+        * `duplicate` - duplicate
+        * `suspicious` - suspicious
+    ListingFlagPage:
+      type: object
+      properties:
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ListingFlag'
+      required:
+      - next
+      - previous
+      - results
     ListingPage:
       type: object
       properties:
@@ -11454,6 +11770,14 @@ components:
         * `range` - range
         * `boolean` - boolean
         * `amenities` - amenities
+    MatchedEnum:
+      enum:
+      - price
+      - title
+      type: string
+      description: |-
+        * `price` - price
+        * `title` - title
     Message:
       type: object
       properties:
@@ -11671,9 +11995,15 @@ components:
         id:
           type: string
           format: uuid
+        target_type:
+          $ref: '#/components/schemas/TargetTypeEnum'
         listing_id:
           type: string
           format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+          nullable: true
         title:
           type: string
           nullable: true
@@ -11693,12 +12023,14 @@ components:
           nullable: true
       required:
       - closed_at
+      - conversation_id
       - created_at
       - description
       - id
       - listing_id
       - reason
       - status
+      - target_type
       - title
     OwnVerification:
       type: object
@@ -13359,17 +13691,33 @@ components:
         id:
           type: string
           format: uuid
+        target_type:
+          $ref: '#/components/schemas/TargetTypeEnum'
         listing_id:
           type: string
           format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+          nullable: true
         reason:
           $ref: '#/components/schemas/ReportReasonEnum'
         status:
           $ref: '#/components/schemas/ReportStatusEnum'
         description:
           type: string
+          description: Empty for a Conversation Report until it is read.
         snapshot:
-          $ref: '#/components/schemas/ReportSnapshot'
+          allOf:
+          - $ref: '#/components/schemas/ReportSnapshot'
+          nullable: true
+          description: Listing Reports only.
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportedMessage'
+          nullable: true
+          description: Conversation Reports, and only from the reasoned read.
         created_at:
           type: string
           format: date-time
@@ -13385,6 +13733,7 @@ components:
           allOf:
           - $ref: '#/components/schemas/AccountRef'
           nullable: true
+          description: The reported account.
         owner_account_id:
           type: string
           format: uuid
@@ -13394,14 +13743,16 @@ components:
             $ref: '#/components/schemas/ReportMove'
         open_for_listing:
           type: integer
-          description: Open Reports on this Listing.
+          description: Open Reports on this target.
       required:
       - closed_at
+      - conversation_id
       - created_at
       - description
       - history
       - id
       - listing_id
+      - messages
       - open_for_listing
       - owner
       - owner_account_id
@@ -13409,6 +13760,7 @@ components:
       - reporter
       - snapshot
       - status
+      - target_type
     ReportMove:
       type: object
       properties:
@@ -13539,6 +13891,27 @@ components:
         * `reviewing` - reviewing
         * `resolved` - resolved
         * `dismissed` - dismissed
+    ReportedMessage:
+      type: object
+      properties:
+        seq:
+          type: integer
+        sender:
+          $ref: '#/components/schemas/SenderEnum'
+        selected:
+          type: boolean
+          description: Reported; the others are context.
+        body:
+          type: string
+        sent_at:
+          type: string
+          format: date-time
+      required:
+      - body
+      - selected
+      - sender
+      - sent_at
+      - seq
     RepublishedListing:
       type: object
       description: The owner Listing plus how the republication was recorded (Story
@@ -13689,6 +14062,16 @@ components:
         * `terms` - terms
         * `location` - location
         * `amenities` - amenities
+    SenderEnum:
+      enum:
+      - reporter
+      - reported
+      - deleted_user
+      type: string
+      description: |-
+        * `reporter` - reporter
+        * `reported` - reported
+        * `deleted_user` - deleted_user
     Sent:
       type: object
       properties:
@@ -13789,6 +14172,14 @@ components:
         * `plot_file` - plot_file
         * `shop` - shop
         * `office` - office
+    TargetTypeEnum:
+      enum:
+      - listing
+      - conversation
+      type: string
+      description: |-
+        * `listing` - listing
+        * `conversation` - conversation
     Taxonomy:
       type: object
       properties:
@@ -14131,6 +14522,8 @@ components:
         id:
           type: string
           format: uuid
+        target_type:
+          $ref: '#/components/schemas/TargetTypeEnum'
         listing_id:
           type: string
           format: uuid
@@ -14151,6 +14544,7 @@ components:
       - listing_id
       - reason
       - status
+      - target_type
       - title
     _Unresolved:
       type: object

@@ -16,7 +16,7 @@ export function AccountAction({
   onSessionGone,
   onUnavailable,
 }: {
-  account: AdminAccount;
+  account: Pick<AdminAccount, "id" | "state" | "email">;
   onStart: () => void;
   onChanged: (next: AccountStatus) => void;
   onSessionGone: () => Promise<void>;

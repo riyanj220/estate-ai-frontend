@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { MessageForm } from "@/components/message-form";
+import { ReportConversation } from "@/components/report-conversation";
 import { useLiveEvents } from "@/lib/live";
 import { INBOX_PATH, READ_ONLY_NOTES, conversationPath, fetchThread, listingHeading, markRead, mergeMessages, resumeSeq, sendReply, type Message, type Thread } from "@/lib/messaging";
 import { BROWSE_PATH } from "@/lib/public-listings";
@@ -174,6 +175,7 @@ export function ConversationClient({ id }: { id: string }) {
           )}
         </section>
       )}
+      {thread && conversation && <ReportConversation conversationId={id} messages={thread.messages} who={who} gone={sessionGone} />}
     </>
   );
 }

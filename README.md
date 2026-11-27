@@ -1377,3 +1377,6 @@ none); `/__correction-mode` (`ok`, `hold`, `read_error`, `stale`, `conflict`, `u
 - The owner's pages show "Under review" from `under_review`; moderation notifications carry the reason.
 - Stub: the report and moderation routes under `// ---- Reports and moderation`; `/__moderation-stats`, and
   `/__listing-lifecycle?under_review=1`. Spec: `tests/e2e/moderation.spec.ts`.
+- "Report conversation" on `/messages/{id}` (Story 9.5) sends the other side's chosen messages. In `/admin/reports` a
+  Conversation report shows no message text until the administrator gives a reason (recorded on every view), and offers
+  the existing suspension. `/admin/flags` (Story 9.6) lists the advisory duplicate and suspicious flags.
