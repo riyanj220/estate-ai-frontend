@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdvertiserLine } from "@/components/advertiser-line";
 import { ListingEstimatePanel } from "@/components/listing-estimate";
+import { FloorPlanView } from "@/components/floor-plan-view";
 import { ListingFacts } from "@/components/listing-facts";
 import { MessageSeller } from "@/components/message-seller";
 import { ReportListing } from "@/components/report-listing";
@@ -96,6 +97,7 @@ export default async function ListingPage({ params }: Props) {
             ))}
           </ul>
         )}
+        {listing.floorPlan && <FloorPlanView url={listing.floorPlan.url} testId="listing-floor-plan" />}
         <ListingEstimatePanel listingId={listing.id} initial={insight} />
         <ListingFacts listing={listing} registry={registry} catalogue={catalogue} cityName={result.cityName} localityName={result.localityName} testId="listing" />
         {registry === null && <p className="state-note">{PREVIEW_DETAILS_FAILED}</p>}

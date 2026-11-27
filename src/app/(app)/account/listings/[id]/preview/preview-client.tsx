@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { EstimateFigure } from "@/components/estimate-figure";
+import { FloorPlanView } from "@/components/floor-plan-view";
 import { ListingFacts } from "@/components/listing-facts";
 import { RetryImage } from "@/components/retry-image";
 import { getApi } from "@/lib/api";
@@ -142,6 +143,7 @@ function PreviewBody({ listing, estimate, signInPath }: { listing: ListingView; 
             ))}
           </ul>
         )}
+        {listing.floorPlan && <FloorPlanView url={listing.floorPlan.url} testId="preview-floor-plan" />}
         <ListingFacts
           listing={listing}
           registry={registry}

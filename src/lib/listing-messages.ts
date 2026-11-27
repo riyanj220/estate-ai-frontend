@@ -150,6 +150,24 @@ export const DETAIL_MESSAGES: Record<string, Record<string, string>> = {
     not_applicable: DETAIL_NOT_APPLICABLE,
     not_editable: NOT_EDITABLE,
   },
+  // Story 11.3: approval details are lines of text in the Terms block.
+  text: {
+    invalid: "This text contains characters that are not allowed. Remove them and try again.",
+    too_long: "This text is too long. Check the limit shown above.",
+    too_short: "This text is too short.",
+    contains_contact_details: "This text cannot contain phone numbers, email addresses or street addresses.",
+    not_applicable: DETAIL_NOT_APPLICABLE,
+    not_editable: NOT_EDITABLE,
+  },
+  // Story 11.4: the video or virtual tour link.
+  url: {
+    invalid: "Enter a web link that starts with https://, without spaces.",
+    invalid_url: "Enter a web link that starts with https://, without spaces.",
+    too_long: "This link is too long. Check the limit shown above.",
+    contains_contact_details: "A link cannot contain contact details or lead to a chat.",
+    not_applicable: DETAIL_NOT_APPLICABLE,
+    not_editable: NOT_EDITABLE,
+  },
   // Story 2.8: the amenity map has one code, `invalid` (an item that is not offered, another state, too many answers).
   amenities: {
     required: "Choose your amenities.",
@@ -252,6 +270,11 @@ export const IMAGES_UNREADABLE = "We could not read the answer. Reload the page 
 export const IMAGES_REFRESH_FAILED = "We could not check your images. Reload the page to see the latest.";
 export const IMAGES_ALREADY_GONE = "That image is already gone. We loaded the latest images.";
 export const IMAGES_ONE_AT_A_TIME = "Wait for the current action to finish.";
+
+// ---- Floor plan (Story 11.4).
+export const FLOOR_PLAN_HINT = "One JPEG, PNG or WebP image of up to 5 MB. It is not counted as a photo.";
+export const FLOOR_PLAN_ADDED = "Floor plan saved.";
+export const FLOOR_PLAN_REMOVED = "Floor plan removed.";
 
 /** The codes of `error.fields.file` for an upload (a 400), by code. */
 export const UPLOAD_FILE_MESSAGES: Record<string, string> = {

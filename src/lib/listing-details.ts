@@ -22,7 +22,7 @@ const NOT_DETAILS = HAND_BUILT_KEYS;
 export const TRIMMED_DECIMALS = ["area_value", "covered_area_sqft"];
 
 /** The registry types the Details section has a control for; a field of another type gets none. */
-const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money", "date"];
+const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money", "date", "url"];
 
 /**
  * Whether a field has a control in the generic sections. The location section (Story 2.7) also has controls for plain text and for a
@@ -37,7 +37,9 @@ const claimsAmenities = (def: FieldDef): boolean => def.type === "amenities" || 
 const hasControl = (def: FieldDef): boolean =>
   claimsAmenities(def)
     ? isAmenitiesField(def)
-    : DETAIL_TYPES.includes(def.type) || (def.section === "location" && (def.type === "text" || (def.type === "reference" && def.reference !== null)));
+    : DETAIL_TYPES.includes(def.type) ||
+      (def.type === "text" && (def.section === "location" || def.section === "terms")) ||
+      (def.section === "location" && def.type === "reference" && def.reference !== null);
 
 /** Labels by registry id. The registry carries ids only; text a person reads lives here. */
 const DETAIL_LABELS: Record<string, string> = {
@@ -120,6 +122,16 @@ const DETAIL_LABELS: Record<string, string> = {
   latitude: "Latitude",
   longitude: "Longitude",
   amenities: "Amenities",
+  payment_type: "Payment type",
+  down_payment: "Down payment (PKR)",
+  total_installment_price: "Total price on installments (PKR)",
+  monthly_installment: "Monthly installment (PKR)",
+  remaining_installments: "Remaining installments",
+  title_document_type: "Title document",
+  approval_information: "Approval information",
+  approval_reference_number: "Approval or reference number",
+  mortgage_declaration: "Mortgage or dispute",
+  video_tour_url: "Video or virtual tour link",
 };
 
 /** Labels that differ by Category (so a new Subtype of the Category inherits them): commercial property is fitted out rather than furnished. */
@@ -254,6 +266,7 @@ export function sameDetail(def: FieldDef, a: string, b: string): boolean {
   if (def.type === "money") return moneyKey(a, def.scale ?? 2) === moneyKey(b, def.scale ?? 2);
   if (def.type === "amenities") return sameAmenities(a, b); // the same answers, whatever the order of the text
   if (def.type === "date") return a.trim() === b.trim(); // ISO text compared as text: no Date, no time zone
+  if (def.type === "url") return a.trim() === b.trim(); // the server trims a link and changes nothing else
   if (def.type === "text") return normalizeText(a, false) === normalizeText(b, false); // as the server normalises a line of text
   if (def.type === "reference") return a.trim() === b.trim(); // an id: exact text
   return false;
@@ -303,7 +316,7 @@ export function detailHint(def: FieldDef): string {
     if (limits) parts.push(limits);
   }
   if (def.type === "date" && limits) parts.push(limits); // the bounds are ISO text; the registry's own description names the format
-  if (def.type === "text" && def.maxLength !== null) parts.push(`Up to ${def.maxLength} characters.`);
+  if ((def.type === "text" || def.type === "url") && def.maxLength !== null) parts.push(`Up to ${def.maxLength} characters.`);
   return parts.join(" ");
 }
 
@@ -311,7 +324,7 @@ export function detailHint(def: FieldDef): string {
 export function answeredDetails(
   defs: FieldDef[],
   listing: ListingView,
-): { id: string; label: string; text: string; sellerDeclared: boolean }[] {
+): { id: string; label: string; text: string; sellerDeclared: boolean; href: string | null }[] {
   const { terms, details } = splitTerms(defs); // the summary follows the form: the terms first
   return [...terms, ...details]
     .filter((def) => def.type !== "amenities" && Object.hasOwn(listing.details, def.id))
@@ -320,6 +333,8 @@ export function answeredDetails(
       label: detailLabel(def.id, listing.fields.category),
       text: latestDetail(def, listing.details[def.id]) + (notOffered(def, listing.details[def.id], listing) ? ` ${NO_LONGER_OFFERED}` : ""),
       sellerDeclared: def.sellerDeclared,
+      // a link is only ever followed when it is plainly https (the server accepts nothing else)
+      href: def.type === "url" && listing.details[def.id].startsWith("https://") ? listing.details[def.id] : null,
     }));
 }
 

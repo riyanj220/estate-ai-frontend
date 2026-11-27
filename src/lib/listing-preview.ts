@@ -18,6 +18,7 @@ export function readPreview(data: unknown, id: string): ListingView | null {
     id,
     registry_version: body.registry_version,
     media: body.media,
+    floor_plan: body.floor_plan,
     fields: { ...fields, purpose: body.purpose, category: body.category, subtype: body.subtype, title: body.title, description: body.description },
   });
 }

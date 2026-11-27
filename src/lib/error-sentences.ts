@@ -64,6 +64,7 @@ export const SENTENCE_CODES: Record<string, string> = {
   "The image has too many pixels. Use at most 10,000 pixels on a side and 40 megapixels.": "too_large_dimensions",
   "The image is too small. Use at least 200 by 200 pixels.": "too_small",
   "The file is not a usable image.": "invalid_image",
+  "Enter a web link that starts with https://, without spaces.": "invalid_url",
   "The floor cannot be above the number of floors in the building.": "invalid_floor",
   "Enter a number within the allowed range, using digits and a decimal point.": "out_of_range",
   "Choose a locality that belongs to the selected city.": "locality_not_in_city",

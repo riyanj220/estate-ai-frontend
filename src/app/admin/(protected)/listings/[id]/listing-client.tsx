@@ -165,6 +165,11 @@ export function ListingReview({ listingId, draft }: { listingId: string; draft: 
               ))}
             </ul>
           )}
+          {detail.floor_plan && (
+            <p>
+              <RetryImage url={detail.floor_plan.url} alt="Floor plan" label="floor plan" className="image-thumb" failedClassName="image-thumb image-failed" />
+            </p>
+          )}
           <PrivateAddress listingId={listingId} onSessionGone={gone} />
           <h2 className="section-title">Actions</h2>
           {detail.actions.length === 0 ? (

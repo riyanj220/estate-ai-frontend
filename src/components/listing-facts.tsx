@@ -81,7 +81,14 @@ export function ListingFacts({
         <div key={item.id}>
           <dt>{item.label}</dt>
           <dd data-testid={`${testId}-detail-${item.id}`}>
-            {item.text}
+            {item.href ? (
+              // a link only, never an embed: nothing is loaded from the other site until it is followed
+              <a href={item.href} className="text-link account-text" target="_blank" rel="noopener noreferrer nofollow ugc">
+                {item.text}
+              </a>
+            ) : (
+              item.text
+            )}
             {item.sellerDeclared && <Declared />}
           </dd>
         </div>

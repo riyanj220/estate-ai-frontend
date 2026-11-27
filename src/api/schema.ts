@@ -1447,7 +1447,7 @@ export interface paths {
         head?: never;
         /**
          * Edit one of the signed-in account's own Listings
-         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`) and the sale and rent terms (`price_negotiable` for both; sale only `possession_availability`; rent only `security_deposit` and `advance_rent` as decimal strings in PKR with at most two decimals, `availability_date` as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`, `notice_period_days`, the four `utility_*_included` answers, `pets_allowed` and `occupant_restrictions`; the rent terms are `not_applicable` on a sale Draft and the other way round; a rental period is never assumed) and the location: `city` and `locality` as uuid text of an active city and one of its localities (`/api/v1/reference/cities` and `/api/v1/reference/cities/{city_id}/localities`; a locality of another city is `locality_not_in_city`, a locality without a city `invalid`; changing or clearing `city` clears the stored `locality` in the same write), the public location text `society`, `phase`, `sector` and `block` (up to 60 characters, no phone numbers or email addresses) and the PRIVATE address `street` (up to 120 characters), `house_number` (up to 30) and `latitude` and `longitude` (decimal strings with at most six decimals, -90 to 90 and -180 to 180, both or neither; `out_of_range` otherwise): the private fields are returned only to the owner and never appear in any public response. `amenities` is the map `{code: "present" | "none"}` of catalogue codes (`/api/v1/reference/amenities`): the sent map replaces the whole stored one, `null` or `{}` clears it, a code that is left out is unanswered (never `none`), an unknown or inactive code, another state, a non-object or more than 40 entries is `invalid`; nearby facilities are seller-declared (no distance, no verification). Installment, payment type, down payment and title or approval document terms are not supported yet (`unknown_field`). Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define (for example installment, down payment, title document or mortgage attributes) are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`, `contains_contact_details`, `not_editable` (also an identity field of a `published` Listing: `city`, `locality`, `area_value` and `area_unit` are locked while it is published, editable as a Draft or Archived; `locality` and the area may be corrected once, see `/correction`; `marla_basis` stays editable); unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`, and so is a `sold`, `rented` or `removed` Listing or a restricted one (view only). A `draft`, `published` and `archived` Listing may be edited. An edit of a `published` Listing must leave it complete (the same rules as publication): otherwise `400 validation_error` names every missing or invalid item at once (clearing the title or a price, a locality outside the city) and nothing is written; an edit of an `archived` one is judged like a Draft edit. These edits use no publication and write no event. Never cached.
+         * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`) and the sale and rent terms (`price_negotiable` for both; sale only `possession_availability`; rent only `security_deposit` and `advance_rent` as decimal strings in PKR with at most two decimals, `availability_date` as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`, `notice_period_days`, the four `utility_*_included` answers, `pets_allowed` and `occupant_restrictions`; the rent terms are `not_applicable` on a sale Draft and the other way round; a rental period is never assumed) and the location: `city` and `locality` as uuid text of an active city and one of its localities (`/api/v1/reference/cities` and `/api/v1/reference/cities/{city_id}/localities`; a locality of another city is `locality_not_in_city`, a locality without a city `invalid`; changing or clearing `city` clears the stored `locality` in the same write), the public location text `society`, `phase`, `sector` and `block` (up to 60 characters, no phone numbers or email addresses) and the PRIVATE address `street` (up to 120 characters), `house_number` (up to 30) and `latitude` and `longitude` (decimal strings with at most six decimals, -90 to 90 and -180 to 180, both or neither; `out_of_range` otherwise): the private fields are returned only to the owner and never appear in any public response. `amenities` is the map `{code: "present" | "none"}` of catalogue codes (`/api/v1/reference/amenities`): the sent map replaces the whole stored one, `null` or `{}` clears it, a code that is left out is unanswered (never `none`), an unknown or inactive code, another state, a non-object or more than 40 entries is `invalid`; nearby facilities are seller-declared (no distance, no verification). The sale-only payment, installment, title, approval and mortgage declarations and the `https://` `video_tour_url` (`invalid_url`, or `contains_contact_details`) are accepted too. Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_url`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`, `contains_contact_details`, `not_editable` (also an identity field of a `published` Listing: `city`, `locality`, `area_value` and `area_unit` are locked while it is published, editable as a Draft or Archived; `locality` and the area may be corrected once, see `/correction`; `marla_basis` stays editable); unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`, and so is a `sold`, `rented` or `removed` Listing or a restricted one (view only). A `draft`, `published` and `archived` Listing may be edited. An edit of a `published` Listing must leave it complete (the same rules as publication): otherwise `400 validation_error` names every missing or invalid item at once (clearing the title or a price, a locality outside the city) and nothing is written; an edit of an `archived` one is judged like a Draft edit. These edits use no publication and write no event. Never cached.
          */
         patch: operations["update_listing"];
         trace?: never;
@@ -1511,6 +1511,30 @@ export interface paths {
          */
         post: operations["request_listing_estimate"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/listings/{listing_id}/floor-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Add or replace the floor plan of one of the own editable Listings
+         * @description Needs `X-CSRFToken` and the same `multipart/form-data` body as an image upload (one part, `file`), with the same checks, re-encoding, refusals, storage cap and upload limit. A Listing has at most one floor plan: a new one replaces it. It is not one of `media`: never a photo, a cover or part of the image limit. The Listing `revision` rises by one. Never cached.
+         */
+        put: operations["set_listing_floor_plan"];
+        post?: never;
+        /**
+         * Remove the floor plan of one of the own editable Listings
+         * @description Needs `X-CSRFToken`. Deletes the floor plan and its file, gives its bytes back and raises the Listing `revision` by one. `404 not_found` when there is none, and the same refusals as removing an image. Never cached.
+         */
+        delete: operations["delete_listing_floor_plan"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2852,6 +2876,8 @@ export interface components {
             /** @description Empty for a Draft. */
             media: components["schemas"]["PublicImage"][];
             image_count: number;
+            /** @description Null for a Draft. */
+            floor_plan: components["schemas"]["PublicFloorPlan"] | null;
             moderation_reason: string | null;
             /** @description What can be done now. */
             actions: components["schemas"]["ModerationActionEnum"][];
@@ -3695,6 +3721,17 @@ export interface components {
             /** Format: uuid */
             owner_account_id: string;
         };
+        /** @description The floor plan (never one of `media`): `url` is the media endpoint, as for an image. */
+        FloorPlan: {
+            /** Format: uuid */
+            id: string;
+            content_type: components["schemas"]["ContentTypeEnum"];
+            width: number;
+            height: number;
+            /** @description Size of the stored (re-encoded) file. */
+            bytes: number;
+            url: string;
+        };
         /**
          * @description * `unfurnished` - unfurnished
          *     * `semi_furnished` - semi_furnished
@@ -3784,6 +3821,8 @@ export interface components {
             };
             /** @description The images in `position` order; empty when there are none. */
             media: components["schemas"]["Image"][];
+            /** @description Not counted as a photo; null when there is none. */
+            floor_plan: components["schemas"]["FloorPlan"] | null;
             /** @description A Report on this Listing is being reviewed. Derived; it changes nothing and never names the reporter. */
             under_review: boolean;
             /** @description Set by moderation: a restricted Listing is never public and the owner cannot edit it (it may still be archived). Owner resource only, never in a public shape. */
@@ -4074,6 +4113,40 @@ export interface components {
             amenities: {
                 [key: string]: string;
             } | null;
+            payment_type: (components["schemas"]["PaymentTypeEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            down_payment: string | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            total_installment_price: string | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            monthly_installment: string | null;
+            /** @description Whole number from 0 to 600, a JSON integer (never text). Null clears it. */
+            remaining_installments: number | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `sale_deed` - sale_deed
+             *     * `allotment_letter` - allotment_letter
+             *     * `transfer_letter` - transfer_letter
+             *     * `lease_deed` - lease_deed
+             *     * `power_of_attorney` - power_of_attorney
+             *     * `other` - other
+             */
+            title_document_type: (components["schemas"]["TitleDocumentTypeEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Up to 200 characters. Seller-declared: the owner's own claim, never verified by EstateAI. */
+            approval_information: string | null;
+            /** @description Up to 60 characters. Seller-declared: the owner's own claim, never verified by EstateAI. */
+            approval_reference_number: string | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `none` - none
+             *     * `mortgaged` - mortgaged
+             *     * `disputed` - disputed
+             *     * `mortgaged_and_disputed` - mortgaged_and_disputed
+             */
+            mortgage_declaration: (components["schemas"]["MortgageDeclarationEnum"] | components["schemas"]["NullEnum"]) | null;
+            video_tour_url: string | null;
             /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. Computed by the server; read-only. */
             area_sqft: string | null;
         };
@@ -4298,6 +4371,40 @@ export interface components {
             amenities?: {
                 [key: string]: string;
             } | null;
+            payment_type?: (components["schemas"]["PaymentTypeEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            down_payment?: string | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            total_installment_price?: string | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            monthly_installment?: string | null;
+            /** @description Whole number from 0 to 600, a JSON integer (never text). Null clears it. */
+            remaining_installments?: number | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `sale_deed` - sale_deed
+             *     * `allotment_letter` - allotment_letter
+             *     * `transfer_letter` - transfer_letter
+             *     * `lease_deed` - lease_deed
+             *     * `power_of_attorney` - power_of_attorney
+             *     * `other` - other
+             */
+            title_document_type?: (components["schemas"]["TitleDocumentTypeEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Up to 200 characters. Seller-declared: the owner's own claim, never verified by EstateAI. */
+            approval_information?: string | null;
+            /** @description Up to 60 characters. Seller-declared: the owner's own claim, never verified by EstateAI. */
+            approval_reference_number?: string | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `none` - none
+             *     * `mortgaged` - mortgaged
+             *     * `disputed` - disputed
+             *     * `mortgaged_and_disputed` - mortgaged_and_disputed
+             */
+            mortgage_declaration?: (components["schemas"]["MortgageDeclarationEnum"] | components["schemas"]["NullEnum"]) | null;
+            video_tour_url?: string | null;
         };
         ListingFlag: {
             /** Format: uuid */
@@ -4341,6 +4448,8 @@ export interface components {
             fields: components["schemas"]["PublicFields"];
             /** @description The images in `position` order. */
             media: components["schemas"]["PublicImage"][];
+            /** @description Never a photo. */
+            floor_plan: components["schemas"]["PublicFloorPlan"] | null;
             registry_version: number;
             /** @description The latest estimate requested for this Listing; null when there is none or the saved details it was computed from have changed since. */
             estimate: components["schemas"]["PreviewEstimate"] | null;
@@ -4457,6 +4566,14 @@ export interface components {
             /** Format: uuid */
             by_account_id: string;
         };
+        /**
+         * @description * `none` - none
+         *     * `mortgaged` - mortgaged
+         *     * `disputed` - disputed
+         *     * `mortgaged_and_disputed` - mortgaged_and_disputed
+         * @enum {string}
+         */
+        MortgageDeclarationEnum: "none" | "mortgaged" | "disputed" | "mortgaged_and_disputed";
         NewAmenityRequest: {
             /** @description snake_case; never changes. */
             code: string;
@@ -4653,6 +4770,13 @@ export interface components {
             /** @description Pakistani mobile or international number. Mandatory: blank or null is refused. */
             phone?: string;
         };
+        /**
+         * @description * `cash` - cash
+         *     * `installments` - installments
+         *     * `cash_or_installments` - cash_or_installments
+         * @enum {string}
+         */
+        PaymentTypeEnum: "cash" | "installments" | "cash_or_installments";
         Place: {
             /** Format: uuid */
             id: string;
@@ -4979,6 +5103,40 @@ export interface components {
             amenities: {
                 [key: string]: string;
             } | null;
+            payment_type: (components["schemas"]["PaymentTypeEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            down_payment: string | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            total_installment_price: string | null;
+            /** @description Decimal string in PKR with two decimals, e.g. `1500000.00`. */
+            monthly_installment: string | null;
+            /** @description Whole number from 0 to 600, a JSON integer (never text). Null clears it. */
+            remaining_installments: number | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `sale_deed` - sale_deed
+             *     * `allotment_letter` - allotment_letter
+             *     * `transfer_letter` - transfer_letter
+             *     * `lease_deed` - lease_deed
+             *     * `power_of_attorney` - power_of_attorney
+             *     * `other` - other
+             */
+            title_document_type: (components["schemas"]["TitleDocumentTypeEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Up to 200 characters. Seller-declared: the owner's own claim, never verified by EstateAI. */
+            approval_information: string | null;
+            /** @description Up to 60 characters. Seller-declared: the owner's own claim, never verified by EstateAI. */
+            approval_reference_number: string | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `none` - none
+             *     * `mortgaged` - mortgaged
+             *     * `disputed` - disputed
+             *     * `mortgaged_and_disputed` - mortgaged_and_disputed
+             */
+            mortgage_declaration: (components["schemas"]["MortgageDeclarationEnum"] | components["schemas"]["NullEnum"]) | null;
+            video_tour_url: string | null;
             /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. Computed by the server; read-only. */
             area_sqft: string | null;
         };
@@ -5020,6 +5178,14 @@ export interface components {
             /** @description Put before any filter parameter to make it a preference. */
             preference_prefix: string;
             filters: components["schemas"]["PublicFilter"][];
+        };
+        PublicFloorPlan: {
+            /** Format: uuid */
+            id: string;
+            content_type: components["schemas"]["ContentTypeEnum"];
+            width: number;
+            height: number;
+            url: string;
         };
         /** @description An image as the public sees it: no asset id, storage key, owner or stored size. */
         PublicImage: {
@@ -5067,6 +5233,8 @@ export interface components {
             fields: components["schemas"]["PublicFields"];
             /** @description The images in `position` order. */
             media: components["schemas"]["PublicImage"][];
+            /** @description Never a photo. */
+            floor_plan: components["schemas"]["PublicFloorPlan"] | null;
             registry_version: number;
             city: components["schemas"]["Place"] | null;
             locality: components["schemas"]["Place"] | null;
@@ -5402,6 +5570,8 @@ export interface components {
             };
             /** @description The images in `position` order; empty when there are none. */
             media: components["schemas"]["Image"][];
+            /** @description Not counted as a photo; null when there is none. */
+            floor_plan: components["schemas"]["FloorPlan"] | null;
             /** @description A Report on this Listing is being reviewed. Derived; it changes nothing and never names the reporter. */
             under_review: boolean;
             /** @description Set by moderation: a restricted Listing is never public and the owner cannot edit it (it may still be archived). Owner resource only, never in a public shape. */
@@ -5592,6 +5762,16 @@ export interface components {
          * @enum {string}
          */
         TimezoneEnum: "Asia/Karachi";
+        /**
+         * @description * `sale_deed` - sale_deed
+         *     * `allotment_letter` - allotment_letter
+         *     * `transfer_letter` - transfer_letter
+         *     * `lease_deed` - lease_deed
+         *     * `power_of_attorney` - power_of_attorney
+         *     * `other` - other
+         * @enum {string}
+         */
+        TitleDocumentTypeEnum: "sale_deed" | "allotment_letter" | "transfer_letter" | "lease_deed" | "power_of_attorney" | "other";
         Transcription: {
             /**
              * @description `fallback`: there is no transcript; offer the text box.
@@ -5621,9 +5801,10 @@ export interface components {
          *     * `date` - date
          *     * `reference` - reference
          *     * `amenities` - amenities
+         *     * `url` - url
          * @enum {string}
          */
-        TypeEnum: "enum" | "text" | "money" | "integer" | "decimal" | "boolean" | "date" | "reference" | "amenities";
+        TypeEnum: "enum" | "text" | "money" | "integer" | "decimal" | "boolean" | "date" | "reference" | "amenities" | "url";
         UnreadConversations: {
             unread: number;
         };
@@ -12464,6 +12645,184 @@ export interface operations {
             };
         };
     };
+    set_listing_floor_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["ImageUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description The stored floor plan */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FloorPlan"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `storage_cap_exceeded` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `busy`: image processing is at capacity; retry */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete_listing_floor_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     upload_listing_image: {
         parameters: {
             query?: never;
@@ -16377,10 +16736,14 @@ export interface operations {
                 limit?: number;
                 /** @description Filter (choice). */
                 locality?: string;
+                /** @description Filter (choice). */
+                mortgage_declaration?: string;
                 /** @description Filter (range). */
                 parking_spaces_max?: number;
                 /** @description Filter (range). */
                 parking_spaces_min?: number;
+                /** @description Filter (choice). */
+                payment_type?: string;
                 /** @description Preference: ranks, never excludes. */
                 prefer_amenities?: string;
                 /** @description Preference: ranks, never excludes. */
@@ -16408,9 +16771,13 @@ export interface operations {
                 /** @description Preference: ranks, never excludes. */
                 prefer_locality?: string;
                 /** @description Preference: ranks, never excludes. */
+                prefer_mortgage_declaration?: string;
+                /** @description Preference: ranks, never excludes. */
                 prefer_parking_spaces_max?: number;
                 /** @description Preference: ranks, never excludes. */
                 prefer_parking_spaces_min?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_payment_type?: string;
                 /** @description Preference: ranks, never excludes. */
                 prefer_price_basis?: string;
                 /** @description Preference: ranks, never excludes. */
@@ -16419,6 +16786,8 @@ export interface operations {
                 prefer_rental_period?: string;
                 /** @description Preference: ranks, never excludes. */
                 prefer_subtype?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_title_document_type?: string;
                 /** @description Filter (choice). */
                 price_basis?: string;
                 /** @description Filter (choice). */
@@ -16428,6 +16797,8 @@ export interface operations {
                 sort?: "newest" | "price_asc" | "price_desc" | "relevance";
                 /** @description Filter (choice). */
                 subtype?: string;
+                /** @description Filter (choice). */
+                title_document_type?: string;
             };
             header?: never;
             path: {
@@ -16611,10 +16982,14 @@ export interface operations {
                 limit?: number;
                 /** @description Filter (choice). */
                 locality?: string;
+                /** @description Filter (choice). */
+                mortgage_declaration?: string;
                 /** @description Filter (range). */
                 parking_spaces_max?: number;
                 /** @description Filter (range). */
                 parking_spaces_min?: number;
+                /** @description Filter (choice). */
+                payment_type?: string;
                 /** @description Preference: ranks, never excludes. */
                 prefer_amenities?: string;
                 /** @description Preference: ranks, never excludes. */
@@ -16642,9 +17017,13 @@ export interface operations {
                 /** @description Preference: ranks, never excludes. */
                 prefer_locality?: string;
                 /** @description Preference: ranks, never excludes. */
+                prefer_mortgage_declaration?: string;
+                /** @description Preference: ranks, never excludes. */
                 prefer_parking_spaces_max?: number;
                 /** @description Preference: ranks, never excludes. */
                 prefer_parking_spaces_min?: number;
+                /** @description Preference: ranks, never excludes. */
+                prefer_payment_type?: string;
                 /** @description Preference: ranks, never excludes. */
                 prefer_price_basis?: string;
                 /** @description Preference: ranks, never excludes. */
@@ -16653,6 +17032,8 @@ export interface operations {
                 prefer_rental_period?: string;
                 /** @description Preference: ranks, never excludes. */
                 prefer_subtype?: string;
+                /** @description Preference: ranks, never excludes. */
+                prefer_title_document_type?: string;
                 /** @description Filter (choice). */
                 price_basis?: string;
                 /** @description Filter (choice). */
@@ -16662,6 +17043,8 @@ export interface operations {
                 sort?: "newest" | "price_asc" | "price_desc" | "relevance";
                 /** @description Filter (choice). */
                 subtype?: string;
+                /** @description Filter (choice). */
+                title_document_type?: string;
             };
             header?: never;
             path?: never;

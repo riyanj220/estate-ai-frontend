@@ -51,6 +51,8 @@ export type ListingView = {
   details: Record<string, string>;
   /** The images in position order (Story 2.10). Always checked: see `readMedia`. */
   media: MediaItem[];
+  /** The floor plan (Story 11.4), never one of `media`; null when there is none or the answer cannot be trusted. */
+  floorPlan: FloorPlan | null;
   /** Set by moderation (Story 2.17): a restricted Listing is view only for its owner, who may still archive it. */
   restricted: boolean;
   /** A short plain-text reason for a restricted or removed Listing, shown to the owner only; null otherwise. */
@@ -58,6 +60,16 @@ export type ListingView = {
   /** Derived by the server from a report being reviewed (Story 9.2): information only, it changes nothing the owner may do. */
   underReview: boolean;
 };
+
+export type FloorPlan = { id: string; url: string };
+
+/** The floor plan of the Listing `listingId`: its url must be exactly the media endpoint of that id. Anything else is no floor plan. */
+export function readFloorPlan(value: unknown, listingId: string): FloorPlan | null {
+  if (typeof value !== "object" || value === null) return null;
+  const { id, url } = value as Record<string, unknown>;
+  if (typeof id !== "string" || !isListingId(id) || url !== `/api/v1/listings/${listingId}/images/${id}/file`) return null;
+  return { id, url };
+}
 
 /** One image of a Draft as the page needs it. The `url` is the relative path of the media endpoint, never anything else. */
 export type MediaItem = { id: string; position: number; isCover: boolean; url: string };
@@ -145,6 +157,7 @@ export function readListing(value: unknown): ListingView | null {
     },
     details,
     media,
+    floorPlan: readFloorPlan((value as Record<string, unknown>).floor_plan, id),
     restricted: (value as Record<string, unknown>).restricted === true,
     restrictionReason: text((value as Record<string, unknown>).restriction_reason),
     underReview: (value as Record<string, unknown>).under_review === true,
@@ -235,6 +248,16 @@ const CHOICE_LABELS: Record<string, Record<string, string>> = {
     within_three_months: "Within three months",
     after_three_months: "After three months",
   },
+  payment_type: { cash: "Cash", installments: "Installments", cash_or_installments: "Cash or installments" },
+  title_document_type: {
+    sale_deed: "Registered sale deed",
+    allotment_letter: "Allotment letter",
+    transfer_letter: "Transfer letter",
+    lease_deed: "Lease deed",
+    power_of_attorney: "Power of attorney",
+    other: "Other",
+  },
+  mortgage_declaration: { none: "No mortgage or dispute", mortgaged: "Mortgaged", disputed: "Disputed", mortgaged_and_disputed: "Mortgaged and disputed" },
   occupant_restrictions: { no_restriction: "No restriction", families_only: "Families only", bachelors_only: "Bachelors only" },
   possession_status: { possession_ready: "Possession ready", possession_pending: "Possession pending", file_only: "File only (no possession)" },
 };

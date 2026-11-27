@@ -107,6 +107,7 @@ import { isEditableListing, targetsFor, type StatusTarget } from "@/lib/listing-
 import { CorrectionSection } from "./correction-section";
 import { DeleteDraft } from "./delete-draft";
 import { DetailsSection, IDENTITY_NOTE_ID } from "./details-section";
+import { FloorPlanSection } from "./floor-plan-section";
 import { ImagesSection } from "./images-section";
 import { EstimateSection } from "./estimate-section";
 import { PublishSection, PublishedAllowance, type PublicationKind, type PublishMode } from "./publish-section";
@@ -383,7 +384,7 @@ export function DraftEditor({
       keysOf(before, after).every((name) => at(before, name) === at(after, name)) &&
       JSON.stringify(current.fields) === JSON.stringify(next.fields);
     if (unchanged) {
-      setListing((now) => ({ ...now, revision: next.revision, media: next.media }));
+      setListing((now) => ({ ...now, revision: next.revision, media: next.media, floorPlan: next.floorPlan }));
       return;
     }
     // Without the registry nothing can be compared: only the revision and the images move, typed values are never touched.
@@ -391,7 +392,7 @@ export function DraftEditor({
       applyConflict(next);
       return;
     }
-    setListing((now) => (now.revision !== null && next.revision < now.revision ? now : { ...now, revision: next.revision, media: next.media }));
+    setListing((now) => (now.revision !== null && next.revision < now.revision ? now : { ...now, revision: next.revision, media: next.media, floorPlan: next.floorPlan }));
   }
 
   /** A date input says whether it is incomplete: a finished or cleared one drops its flag (the flag is only ever raised by Save). */
@@ -464,7 +465,7 @@ export function DraftEditor({
     // An answer older than what the page already holds (an image change landed after the request left) never moves the revision or
     // the images back: it brings its fields and keeps the newer revision and media.
     const held = listingRef.current;
-    const next = held.revision !== null && answer.revision !== null && answer.revision < held.revision ? { ...answer, revision: held.revision, media: held.media } : answer;
+    const next = held.revision !== null && answer.revision !== null && answer.revision < held.revision ? { ...answer, revision: held.revision, media: held.media, floorPlan: held.floorPlan } : answer;
     const fresh = toValues(next);
     setListing(next);
     setValues((current) => {
@@ -1031,7 +1032,7 @@ export function DraftEditor({
       return;
     }
     const held = listingRef.current;
-    setListing((now) => ({ ...now, status: next.status, revision: next.revision, media: next.media, restricted: next.restricted, restrictionReason: next.restrictionReason, underReview: next.underReview }));
+    setListing((now) => ({ ...now, status: next.status, revision: next.revision, media: next.media, floorPlan: next.floorPlan, restricted: next.restricted, restrictionReason: next.restrictionReason, underReview: next.underReview }));
     // The identity fields lock once published: whatever was typed there goes back to the saved value.
     if (registry && next.status === "published") {
       const saved = toValues(held);
@@ -1484,6 +1485,16 @@ export function DraftEditor({
         protectLast={listing.status === "published"}
         locked={pending || deleting || publishing || changingStatus}
         publishError={shownPublish.images?.join(" ")}
+        onBusyChange={setImagesBusy}
+        refresh={fetchLatest}
+        onSessionGone={onSessionGone}
+        onNotFound={onNotFound}
+      />
+      <FloorPlanSection
+        listingId={listing.id}
+        floorPlan={listing.floorPlan}
+        locked={pending || deleting || publishing || changingStatus}
+        onListing={applyImages}
         onBusyChange={setImagesBusy}
         refresh={fetchLatest}
         onSessionGone={onSessionGone}

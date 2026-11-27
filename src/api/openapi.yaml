@@ -5320,39 +5320,38 @@ paths:
         one, `null` or `{}` clears it, a code that is left out is unanswered (never
         `none`), an unknown or inactive code, another state, a non-object or more
         than 40 entries is `invalid`; nearby facilities are seller-declared (no distance,
-        no verification). Installment, payment type, down payment and title or approval
-        document terms are not supported yet (`unknown_field`). Possession, balloting,
-        development, approval and plot file status are seller-declared (registry flag
-        `seller_declared`): the owner''s claim, never verified by EstateAI. A Plot
-        File allows only `file_only` for `possession_status` and the other Subtypes
-        refuse it (`invalid_choice`). Ids the registry does not define (for example
-        installment, down payment, title document or mortgage attributes) are `unknown_field`.
-        Counts are JSON integers and yes/no answers are JSON `true`/`false`, never
-        text; unanswered is `null`, never 0 or false. The registry says which apply
-        to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft`
-        is computed by the server and is `not_editable` as input. Saving never needs
-        complete data. Every saved field is recorded as `manual` and confirmed; the
-        client never chooses provenance. A `base_revision` that is not the current
-        `revision` is `409 stale_revision` with the current Listing under `current`
-        and nothing written (a retried PATCH after it succeeded is also a 409: reload).
-        An edit that changes nothing is `200` and keeps the revision. `400` carries
-        codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`,
-        `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`,
-        `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`,
-        `contains_contact_details`, `not_editable` (also an identity field of a `published`
-        Listing: `city`, `locality`, `area_value` and `area_unit` are locked while
-        it is published, editable as a Draft or Archived; `locality` and the area
-        may be corrected once, see `/correction`; `marla_basis` stays editable); unknown
-        ids are `unknown_field` under `non_field_errors`) and never echoes a value.
-        Another account''s, an unknown or a malformed id is `404 not_found`; an account
-        that may not edit (Suspended, Deactivated) is `403 forbidden`, and so is a
-        `sold`, `rented` or `removed` Listing or a restricted one (view only). A `draft`,
-        `published` and `archived` Listing may be edited. An edit of a `published`
-        Listing must leave it complete (the same rules as publication): otherwise
-        `400 validation_error` names every missing or invalid item at once (clearing
-        the title or a price, a locality outside the city) and nothing is written;
-        an edit of an `archived` one is judged like a Draft edit. These edits use
-        no publication and write no event. Never cached.'
+        no verification). The sale-only payment, installment, title, approval and
+        mortgage declarations and the `https://` `video_tour_url` (`invalid_url`,
+        or `contains_contact_details`) are accepted too. Possession, balloting, development,
+        approval and plot file status are seller-declared (registry flag `seller_declared`):
+        the owner''s claim, never verified by EstateAI. A Plot File allows only `file_only`
+        for `possession_status` and the other Subtypes refuse it (`invalid_choice`).
+        Ids the registry does not define are `unknown_field`. Counts are JSON integers
+        and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`,
+        never 0 or false. The registry says which apply to which Subtype (`not_applicable`
+        otherwise); `null` clears a field. `area_sqft` is computed by the server and
+        is `not_editable` as input. Saving never needs complete data. Every saved
+        field is recorded as `manual` and confirmed; the client never chooses provenance.
+        A `base_revision` that is not the current `revision` is `409 stale_revision`
+        with the current Listing under `current` and nothing written (a retried PATCH
+        after it succeeded is also a 409: reload). An edit that changes nothing is
+        `200` and keeps the revision. `400` carries codes keyed by registry field
+        id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`,
+        `invalid_floor`, `invalid_url`, `invalid_date`, `invalid_choice`, `not_applicable`,
+        `invalid_measure`, `out_of_range`, `locality_not_in_city`, `contains_contact_details`,
+        `not_editable` (also an identity field of a `published` Listing: `city`, `locality`,
+        `area_value` and `area_unit` are locked while it is published, editable as
+        a Draft or Archived; `locality` and the area may be corrected once, see `/correction`;
+        `marla_basis` stays editable); unknown ids are `unknown_field` under `non_field_errors`)
+        and never echoes a value. Another account''s, an unknown or a malformed id
+        is `404 not_found`; an account that may not edit (Suspended, Deactivated)
+        is `403 forbidden`, and so is a `sold`, `rented` or `removed` Listing or a
+        restricted one (view only). A `draft`, `published` and `archived` Listing
+        may be edited. An edit of a `published` Listing must leave it complete (the
+        same rules as publication): otherwise `400 validation_error` names every missing
+        or invalid item at once (clearing the title or a price, a locality outside
+        the city) and nothing is written; an edit of an `archived` one is judged like
+        a Draft edit. These edits use no publication and write no event. Never cached.'
       summary: Edit one of the signed-in account's own Listings
       parameters:
       - in: path
@@ -5795,6 +5794,156 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/listings/{listing_id}/floor-plan:
+    put:
+      operationId: set_listing_floor_plan
+      description: 'Needs `X-CSRFToken` and the same `multipart/form-data` body as
+        an image upload (one part, `file`), with the same checks, re-encoding, refusals,
+        storage cap and upload limit. A Listing has at most one floor plan: a new
+        one replaces it. It is not one of `media`: never a photo, a cover or part
+        of the image limit. The Listing `revision` rises by one. Never cached.'
+      summary: Add or replace the floor plan of one of the own editable Listings
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ImageUploadRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FloorPlan'
+          description: The stored floor plan
+        '409':
+          description: '`storage_cap_exceeded`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: '`busy`: image processing is at capacity; retry'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      operationId: delete_listing_floor_plan
+      description: Needs `X-CSRFToken`. Deletes the floor plan and its file, gives
+        its bytes back and raises the Listing `revision` by one. `404 not_found` when
+        there is none, and the same refusals as removing an image. Never cached.
+      summary: Remove the floor plan of one of the own editable Listings
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Removed
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
         '500':
           description: Server error
           content:
@@ -9283,6 +9432,11 @@ paths:
           type: string
         description: Filter (choice).
       - in: query
+        name: mortgage_declaration
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
         name: parking_spaces_max
         schema:
           type: integer
@@ -9292,6 +9446,11 @@ paths:
         schema:
           type: integer
         description: Filter (range).
+      - in: query
+        name: payment_type
+        schema:
+          type: string
+        description: Filter (choice).
       - in: query
         name: prefer_amenities
         schema:
@@ -9358,6 +9517,11 @@ paths:
           type: string
         description: 'Preference: ranks, never excludes.'
       - in: query
+        name: prefer_mortgage_declaration
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
         name: prefer_parking_spaces_max
         schema:
           type: integer
@@ -9366,6 +9530,11 @@ paths:
         name: prefer_parking_spaces_min
         schema:
           type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_payment_type
+        schema:
+          type: string
         description: 'Preference: ranks, never excludes.'
       - in: query
         name: prefer_price_basis
@@ -9384,6 +9553,11 @@ paths:
         description: 'Preference: ranks, never excludes.'
       - in: query
         name: prefer_subtype
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_title_document_type
         schema:
           type: string
         description: 'Preference: ranks, never excludes.'
@@ -9413,6 +9587,11 @@ paths:
           - relevance
       - in: query
         name: subtype
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: title_document_type
         schema:
           type: string
         description: Filter (choice).
@@ -9613,6 +9792,11 @@ paths:
           type: string
         description: Filter (choice).
       - in: query
+        name: mortgage_declaration
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
         name: parking_spaces_max
         schema:
           type: integer
@@ -9622,6 +9806,11 @@ paths:
         schema:
           type: integer
         description: Filter (range).
+      - in: query
+        name: payment_type
+        schema:
+          type: string
+        description: Filter (choice).
       - in: query
         name: prefer_amenities
         schema:
@@ -9688,6 +9877,11 @@ paths:
           type: string
         description: 'Preference: ranks, never excludes.'
       - in: query
+        name: prefer_mortgage_declaration
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
         name: prefer_parking_spaces_max
         schema:
           type: integer
@@ -9696,6 +9890,11 @@ paths:
         name: prefer_parking_spaces_min
         schema:
           type: integer
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_payment_type
+        schema:
+          type: string
         description: 'Preference: ranks, never excludes.'
       - in: query
         name: prefer_price_basis
@@ -9714,6 +9913,11 @@ paths:
         description: 'Preference: ranks, never excludes.'
       - in: query
         name: prefer_subtype
+        schema:
+          type: string
+        description: 'Preference: ranks, never excludes.'
+      - in: query
+        name: prefer_title_document_type
         schema:
           type: string
         description: 'Preference: ranks, never excludes.'
@@ -9743,6 +9947,11 @@ paths:
           - relevance
       - in: query
         name: subtype
+        schema:
+          type: string
+        description: Filter (choice).
+      - in: query
+        name: title_document_type
         schema:
           type: string
         description: Filter (choice).
@@ -11087,6 +11296,11 @@ components:
           description: Empty for a Draft.
         image_count:
           type: integer
+        floor_plan:
+          allOf:
+          - $ref: '#/components/schemas/PublicFloorPlan'
+          nullable: true
+          description: Null for a Draft.
         moderation_reason:
           type: string
           nullable: true
@@ -11113,6 +11327,7 @@ components:
       - created_at
       - description
       - first_published_at
+      - floor_plan
       - history
       - id
       - image_count
@@ -12941,6 +13156,32 @@ components:
       - owner_account_id
       - status
       - title
+    FloorPlan:
+      type: object
+      description: 'The floor plan (never one of `media`): `url` is the media endpoint,
+        as for an image.'
+      properties:
+        id:
+          type: string
+          format: uuid
+        content_type:
+          $ref: '#/components/schemas/ContentTypeEnum'
+        width:
+          type: integer
+        height:
+          type: integer
+        bytes:
+          type: integer
+          description: Size of the stored (re-encoded) file.
+        url:
+          type: string
+      required:
+      - bytes
+      - content_type
+      - height
+      - id
+      - url
+      - width
     FurnishingEnum:
       enum:
       - unfurnished
@@ -13103,6 +13344,11 @@ components:
           items:
             $ref: '#/components/schemas/Image'
           description: The images in `position` order; empty when there are none.
+        floor_plan:
+          allOf:
+          - $ref: '#/components/schemas/FloorPlan'
+          nullable: true
+          description: Not counted as a photo; null when there is none.
         under_review:
           type: boolean
           description: A Report on this Listing is being reviewed. Derived; it changes
@@ -13120,6 +13366,7 @@ components:
           maxLength: 200
       required:
       - fields
+      - floor_plan
       - id
       - media
       - provenance
@@ -13826,6 +14073,69 @@ components:
             never `none`. `nearby` entries are the seller''s own declaration: show
             them as seller-declared; there is no distance and no verification. Returned
             as the answered codes only, or `null` when none is answered.'
+        payment_type:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PaymentTypeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        down_payment:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        total_installment_price:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        monthly_installment:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        remaining_installments:
+          type: integer
+          maximum: 600
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 600, a JSON integer (never text). Null
+            clears it.
+        title_document_type:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `sale_deed` - sale_deed
+            * `allotment_letter` - allotment_letter
+            * `transfer_letter` - transfer_letter
+            * `lease_deed` - lease_deed
+            * `power_of_attorney` - power_of_attorney
+            * `other` - other
+          oneOf:
+          - $ref: '#/components/schemas/TitleDocumentTypeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        approval_information:
+          type: string
+          nullable: true
+          description: 'Up to 200 characters. Seller-declared: the owner''s own claim,
+            never verified by EstateAI.'
+        approval_reference_number:
+          type: string
+          nullable: true
+          description: 'Up to 60 characters. Seller-declared: the owner''s own claim,
+            never verified by EstateAI.'
+        mortgage_declaration:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `none` - none
+            * `mortgaged` - mortgaged
+            * `disputed` - disputed
+            * `mortgaged_and_disputed` - mortgaged_and_disputed
+          oneOf:
+          - $ref: '#/components/schemas/MortgageDeclarationEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        video_tour_url:
+          type: string
+          nullable: true
         area_sqft:
           type: string
           nullable: true
@@ -13836,6 +14146,8 @@ components:
       - advance_rent
       - amenities
       - approval_authority
+      - approval_information
+      - approval_reference_number
       - area_sqft
       - area_unit
       - area_value
@@ -13866,6 +14178,7 @@ components:
       - description
       - development_status
       - dining_rooms
+      - down_payment
       - drawing_rooms
       - electricity
       - floor_number
@@ -13884,12 +14197,15 @@ components:
       - maintenance_charges
       - marla_basis
       - minimum_lease_months
+      - monthly_installment
+      - mortgage_declaration
       - notice_period_days
       - occupancy_status
       - occupant_restrictions
       - orientation
       - park_facing
       - parking_spaces
+      - payment_type
       - pets_allowed
       - phase
       - plot_depth
@@ -13903,6 +14219,7 @@ components:
       - price_basis
       - price_negotiable
       - purpose
+      - remaining_installments
       - rental_period
       - road_access
       - road_width_ft
@@ -13917,12 +14234,15 @@ components:
       - subtype
       - three_phase_electricity
       - title
+      - title_document_type
       - total_floors
+      - total_installment_price
       - tv_lounges
       - utility_electricity_included
       - utility_gas_included
       - utility_internet_included
       - utility_water_included
+      - video_tour_url
       - water
     ListingFieldsUpdateRequest:
       type: object
@@ -14472,6 +14792,75 @@ components:
             never `none`. `nearby` entries are the seller''s own declaration: show
             them as seller-declared; there is no distance and no verification. Returned
             as the answered codes only, or `null` when none is answered.'
+        payment_type:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PaymentTypeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        down_payment:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        total_installment_price:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        monthly_installment:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        remaining_installments:
+          type: integer
+          maximum: 600
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 600, a JSON integer (never text). Null
+            clears it.
+        title_document_type:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `sale_deed` - sale_deed
+            * `allotment_letter` - allotment_letter
+            * `transfer_letter` - transfer_letter
+            * `lease_deed` - lease_deed
+            * `power_of_attorney` - power_of_attorney
+            * `other` - other
+          oneOf:
+          - $ref: '#/components/schemas/TitleDocumentTypeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        approval_information:
+          type: string
+          nullable: true
+          minLength: 1
+          description: 'Up to 200 characters. Seller-declared: the owner''s own claim,
+            never verified by EstateAI.'
+        approval_reference_number:
+          type: string
+          nullable: true
+          minLength: 1
+          description: 'Up to 60 characters. Seller-declared: the owner''s own claim,
+            never verified by EstateAI.'
+        mortgage_declaration:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `none` - none
+            * `mortgaged` - mortgaged
+            * `disputed` - disputed
+            * `mortgaged_and_disputed` - mortgaged_and_disputed
+          oneOf:
+          - $ref: '#/components/schemas/MortgageDeclarationEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        video_tour_url:
+          type: string
+          nullable: true
+          minLength: 1
     ListingFlag:
       type: object
       properties:
@@ -14575,6 +14964,11 @@ components:
           items:
             $ref: '#/components/schemas/PublicImage'
           description: The images in `position` order.
+        floor_plan:
+          allOf:
+          - $ref: '#/components/schemas/PublicFloorPlan'
+          nullable: true
+          description: Never a photo.
         registry_version:
           type: integer
           minimum: 1
@@ -14589,6 +14983,7 @@ components:
       - description
       - estimate
       - fields
+      - floor_plan
       - id
       - media
       - purpose
@@ -14822,6 +15217,18 @@ components:
       - restriction_after
       - status_after
       - status_before
+    MortgageDeclarationEnum:
+      enum:
+      - none
+      - mortgaged
+      - disputed
+      - mortgaged_and_disputed
+      type: string
+      description: |-
+        * `none` - none
+        * `mortgaged` - mortgaged
+        * `disputed` - disputed
+        * `mortgaged_and_disputed` - mortgaged_and_disputed
     NewAmenityRequest:
       type: object
       properties:
@@ -15211,6 +15618,16 @@ components:
           minLength: 1
           description: 'Pakistani mobile or international number. Mandatory: blank
             or null is refused.'
+    PaymentTypeEnum:
+      enum:
+      - cash
+      - installments
+      - cash_or_installments
+      type: string
+      description: |-
+        * `cash` - cash
+        * `installments` - installments
+        * `cash_or_installments` - cash_or_installments
     Place:
       type: object
       properties:
@@ -15966,6 +16383,69 @@ components:
             never `none`. `nearby` entries are the seller''s own declaration: show
             them as seller-declared; there is no distance and no verification. Returned
             as the answered codes only, or `null` when none is answered.'
+        payment_type:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PaymentTypeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        down_payment:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        total_installment_price:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        monthly_installment:
+          type: string
+          nullable: true
+          description: Decimal string in PKR with two decimals, e.g. `1500000.00`.
+        remaining_installments:
+          type: integer
+          maximum: 600
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 600, a JSON integer (never text). Null
+            clears it.
+        title_document_type:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `sale_deed` - sale_deed
+            * `allotment_letter` - allotment_letter
+            * `transfer_letter` - transfer_letter
+            * `lease_deed` - lease_deed
+            * `power_of_attorney` - power_of_attorney
+            * `other` - other
+          oneOf:
+          - $ref: '#/components/schemas/TitleDocumentTypeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        approval_information:
+          type: string
+          nullable: true
+          description: 'Up to 200 characters. Seller-declared: the owner''s own claim,
+            never verified by EstateAI.'
+        approval_reference_number:
+          type: string
+          nullable: true
+          description: 'Up to 60 characters. Seller-declared: the owner''s own claim,
+            never verified by EstateAI.'
+        mortgage_declaration:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `none` - none
+            * `mortgaged` - mortgaged
+            * `disputed` - disputed
+            * `mortgaged_and_disputed` - mortgaged_and_disputed
+          oneOf:
+          - $ref: '#/components/schemas/MortgageDeclarationEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        video_tour_url:
+          type: string
+          nullable: true
         area_sqft:
           type: string
           nullable: true
@@ -15976,6 +16456,8 @@ components:
       - advance_rent
       - amenities
       - approval_authority
+      - approval_information
+      - approval_reference_number
       - area_sqft
       - area_unit
       - area_value
@@ -16004,6 +16486,7 @@ components:
       - covered_area_sqft
       - development_status
       - dining_rooms
+      - down_payment
       - drawing_rooms
       - electricity
       - floor_number
@@ -16019,12 +16502,15 @@ components:
       - maintenance_charges
       - marla_basis
       - minimum_lease_months
+      - monthly_installment
+      - mortgage_declaration
       - notice_period_days
       - occupancy_status
       - occupant_restrictions
       - orientation
       - park_facing
       - parking_spaces
+      - payment_type
       - pets_allowed
       - phase
       - plot_depth
@@ -16037,6 +16523,7 @@ components:
       - prayer_rooms
       - price_basis
       - price_negotiable
+      - remaining_installments
       - rental_period
       - road_access
       - road_width_ft
@@ -16048,12 +16535,15 @@ components:
       - store_rooms
       - study_rooms
       - three_phase_electricity
+      - title_document_type
       - total_floors
+      - total_installment_price
       - tv_lounges
       - utility_electricity_included
       - utility_gas_included
       - utility_internet_included
       - utility_water_included
+      - video_tour_url
       - water
     PublicFilter:
       type: object
@@ -16154,6 +16644,26 @@ components:
       - preference_prefix
       - registry_version
       - sorts
+    PublicFloorPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        content_type:
+          $ref: '#/components/schemas/ContentTypeEnum'
+        width:
+          type: integer
+        height:
+          type: integer
+        url:
+          type: string
+      required:
+      - content_type
+      - height
+      - id
+      - url
+      - width
     PublicImage:
       type: object
       description: 'An image as the public sees it: no asset id, storage key, owner
@@ -16259,6 +16769,11 @@ components:
           items:
             $ref: '#/components/schemas/PublicImage'
           description: The images in `position` order.
+        floor_plan:
+          allOf:
+          - $ref: '#/components/schemas/PublicFloorPlan'
+          nullable: true
+          description: Never a photo.
         registry_version:
           type: integer
           minimum: 1
@@ -16282,6 +16797,7 @@ components:
       - city
       - description
       - fields
+      - floor_plan
       - id
       - locality
       - media
@@ -16965,6 +17481,11 @@ components:
           items:
             $ref: '#/components/schemas/Image'
           description: The images in `position` order; empty when there are none.
+        floor_plan:
+          allOf:
+          - $ref: '#/components/schemas/FloorPlan'
+          nullable: true
+          description: Not counted as a photo; null when there is none.
         under_review:
           type: boolean
           description: A Report on this Listing is being reviewed. Derived; it changes
@@ -16990,6 +17511,7 @@ components:
             * `republish_free` - republish_free
       required:
       - fields
+      - floor_plan
       - id
       - media
       - provenance
@@ -17328,6 +17850,22 @@ components:
       - Asia/Karachi
       type: string
       description: '* `Asia/Karachi` - Asia/Karachi'
+    TitleDocumentTypeEnum:
+      enum:
+      - sale_deed
+      - allotment_letter
+      - transfer_letter
+      - lease_deed
+      - power_of_attorney
+      - other
+      type: string
+      description: |-
+        * `sale_deed` - sale_deed
+        * `allotment_letter` - allotment_letter
+        * `transfer_letter` - transfer_letter
+        * `lease_deed` - lease_deed
+        * `power_of_attorney` - power_of_attorney
+        * `other` - other
     Transcription:
       type: object
       properties:
@@ -17368,6 +17906,7 @@ components:
       - date
       - reference
       - amenities
+      - url
       type: string
       description: |-
         * `enum` - enum
@@ -17379,6 +17918,7 @@ components:
         * `date` - date
         * `reference` - reference
         * `amenities` - amenities
+        * `url` - url
     UnreadConversations:
       type: object
       properties:
