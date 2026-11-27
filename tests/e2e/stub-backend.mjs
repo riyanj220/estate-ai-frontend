@@ -1814,7 +1814,21 @@ const server = createServer((req, res) => {
     cutLive(Number(url.searchParams.get("code") ?? 0));
     return json(200, {});
   }
-  if (url.pathname === "/api/v1/conversations" || url.pathname.startsWith("/api/v1/conversations/")) {
+  // Story 9.6: two fixed advisory flags.
+  if (url.pathname === "/api/v1/admin/flags") {
+    res.setHeader("cache-control", "no-store");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication required."));
+    if (!sessionAdmin) return json(404, envelope("not_found", "Not found."));
+    const flagged = (id, title) => ({ id, title, status: "published", owner_account_id: ADMIN_ID });
+    const flags = [
+      { id: "00000000-0000-4000-d100-000000000001", kind: "duplicate", flagged_at: "2026-11-27T10:00:00+05:00", listing: flagged(publicId(2), "Second copy of the house"), other_listing: flagged(publicId(1), "Corner house with garden"), matched: ["price", "title"], reporter_count: 0 },
+      { id: "00000000-0000-4000-d100-000000000002", kind: "suspicious", flagged_at: "2026-11-27T09:00:00+05:00", listing: flagged(publicId(1), "Corner house with garden"), other_listing: null, matched: [], reporter_count: 2 },
+    ];
+    const kind = url.searchParams.get("kind");
+    return json(200, { next: null, previous: null, results: flags.filter((flag) => !kind || flag.kind === kind) });
+  }
+  const threadReport = /^\/api\/v1\/conversations\/([^/]+)\/reports$/.exec(url.pathname);
+  if (!threadReport && (url.pathname === "/api/v1/conversations" || url.pathname.startsWith("/api/v1/conversations/"))) {
     res.setHeader("cache-control", "no-store");
     if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
     const [conversationId, tail] = url.pathname.slice("/api/v1/conversations/".length).split("/");
@@ -2410,6 +2424,22 @@ const server = createServer((req, res) => {
       return json(200, { id: VERIFICATION_ID, status, decided_at: verification.decided_at });
     });
   }
+  // Story 9.5: reporting Messages of a Conversation; the Report joins the moderation state.
+  if (threadReport && req.method === "POST") {
+    res.setHeader("cache-control", "no-store");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
+    const thread = conversations.find((entry) => entry.id === threadReport[1]);
+    return readBody((body) => {
+      moderation.posts.push({ path: url.pathname, body, token: req.headers["x-csrftoken"] ?? null });
+      if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
+      if (!thread) return json(404, envelope("not_found", "Not found."));
+      if (moderation.report && !["resolved", "dismissed"].includes(moderation.report.status)) return json(409, envelope("conflict", "Conflict."));
+      const at = "2026-11-27T10:00:00+05:00";
+      const messages = thread.messages.map((message, index) => ({ seq: index + 1, sender: message.mine ? "reporter" : "reported", selected: body.message_ids.includes(`00000000-0000-4000-e000-${String(index + 1).padStart(12, "0")}`), body: message.body, sent_at: at }));
+      moderation.report = { reason: body.reason, description: body.description ?? "", status: "pending", history: [], conversationId: thread.id, messages };
+      return json(201, { id: REPORT_ID, target_type: "conversation", listing_id: thread.listingId, conversation_id: thread.id, title: null, reason: body.reason, description: body.description ?? "", status: "pending", created_at: at, closed_at: null });
+    });
+  }
   // ---- Reports and moderation (Epic 9)
   if (url.pathname === "/__moderation-stats") return json(200, { posts: moderation.posts });
   const reportRoute = /^\/api\/v1\/listings\/([^/]+)\/reports$/.exec(url.pathname);
@@ -2422,13 +2452,17 @@ const server = createServer((req, res) => {
     const report = moderation.report;
     const underReview = report?.status === "reviewing";
     const snapshot = { purpose: "sale", category: "house", subtype: "house", title: "Corner house with garden", description: "Near the park.", fields: { bedrooms: 4 }, city: "Karachi", locality: "Clifton", image_count: 1 };
-    const detail = () => ({
+    const threadId = report?.conversationId ?? null;
+    const detail = (withMessages = false) => ({
       id: REPORT_ID,
+      target_type: threadId ? "conversation" : "listing",
       listing_id: publicId(1),
+      conversation_id: threadId,
       reason: report.reason,
       status: report.status,
-      description: report.description,
-      snapshot,
+      description: threadId && !withMessages ? "" : report.description,
+      snapshot: threadId ? null : snapshot,
+      messages: withMessages ? report.messages : null,
       created_at: at,
       closed_at: ["resolved", "dismissed"].includes(report.status) ? at : null,
       reporter: { type: "individual", masked_email: "r***@example.com" },
@@ -2475,7 +2509,7 @@ const server = createServer((req, res) => {
       if (url.pathname === "/api/v1/admin/reports") {
         const wanted = url.searchParams.get("status") ?? "pending";
         const why = url.searchParams.get("reason");
-        const shownRows = report && report.status === wanted && (!why || why === report.reason) ? [{ id: REPORT_ID, listing_id: publicId(1), title: snapshot.title, reason: report.reason, status: report.status, created_at: at }] : [];
+        const shownRows = report && report.status === wanted && (!why || why === report.reason) ? [{ id: REPORT_ID, target_type: threadId ? "conversation" : "listing", listing_id: publicId(1), title: threadId ? null : snapshot.title, reason: report.reason, status: report.status, created_at: at }] : [];
         return json(200, { next: null, previous: null, results: shownRows, unresolved: { pending: report?.status === "pending" ? 1 : 0, reviewing: underReview ? 1 : 0 } });
       }
       if (url.pathname === `/api/v1/admin/reports/${REPORT_ID}` && report) return json(200, detail());
@@ -2495,9 +2529,10 @@ const server = createServer((req, res) => {
         if (sessionAdmin) return json(403, envelope("forbidden", "Forbidden."));
         if (report && !["resolved", "dismissed"].includes(report.status)) return conflict();
         moderation.report = { reason: body.reason, description: body.description ?? "", status: "pending", history: [] };
-        return json(201, { id: REPORT_ID, listing_id: reportRoute[1], title: snapshot.title, reason: body.reason, description: body.description ?? "", status: "pending", created_at: at, closed_at: null });
+        return json(201, { id: REPORT_ID, target_type: "listing", listing_id: reportRoute[1], conversation_id: null, title: snapshot.title, reason: body.reason, description: body.description ?? "", status: "pending", created_at: at, closed_at: null });
       }
       if (url.pathname.startsWith("/api/v1/admin/reports/")) {
+        if (action === "read") return threadId ? json(200, detail(true)) : json(404, envelope("not_found", "Not found."));
         const to = { start: "reviewing", resolve: "resolved", dismiss: "dismissed" }[action];
         if (!report || report.status !== (action === "start" ? "pending" : "reviewing")) return conflict();
         report.status = to;

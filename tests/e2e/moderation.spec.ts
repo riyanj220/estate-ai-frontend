@@ -2,7 +2,8 @@ import AxeBuilder from "@axe-core/playwright";
 import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-// Epic 9, frontend: report a listing (9.1), review reports (9.2), browse listings (9.3) and moderate them (9.4).
+// Epic 9, frontend: report a listing (9.1), review reports (9.2), browse listings (9.3), moderate them (9.4), report
+// messages (9.5) and read the advisory flags (9.6).
 test.describe.configure({ mode: "serial" });
 
 const id = "00000000-0000-4000-b000-000000000001";
@@ -117,4 +118,56 @@ test("the owner sees the under review note; a non-administrator has no review pa
   await expect(page.getByTestId("under-review")).toContainText("Under review");
   await page.goto("/admin/reports");
   await expect(page.getByRole("heading", { name: "Reports", exact: true })).toHaveCount(0);
+});
+
+test("messages are reported, and an administrator reads them only with a reason", async ({ page, request }) => {
+  await signInAs(page, request, "user");
+  await page.goto(`/listings/${id}`);
+  await page.getByRole("button", { name: "Message seller" }).click();
+  await page.getByLabel("Your message to the seller").fill("Is it still available?");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByTestId("messages").getByRole("listitem")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Report conversation" })).toHaveCount(0);
+  await request.get(`${STUB_URL}/__messaging-reply?body=Pay%20me%20first`);
+  await page.getByRole("button", { name: "Check for new messages" }).click();
+  await page.getByRole("button", { name: "Report conversation" }).click();
+  const form = page.getByRole("form", { name: "Report conversation" });
+  await form.getByRole("button", { name: "Send report" }).click();
+  await expect(form.getByText("Choose at least one message.")).toBeVisible();
+  await expectNoViolations(page, "conversation report form");
+  await form.getByRole("checkbox", { name: "Pay me first" }).check();
+  await form.getByLabel("Reason").selectOption("abusive");
+  await form.getByRole("button", { name: "Send report" }).click();
+  await expect(page.getByTestId("conversation-report-status")).toContainText("Your report was recorded");
+
+  await signInAs(page, request, "admin");
+  await page.goto("/admin/reports");
+  await page.getByRole("button", { name: "Review report on Conversation messages" }).click();
+  const detail = page.getByTestId("report-detail");
+  await expect(detail.getByRole("heading", { level: 2, name: "Conversation messages" })).toBeVisible();
+  await expect(detail.getByText("Pay me first")).toHaveCount(0);
+  const read = detail.getByRole("form", { name: "Show reported messages" });
+  await read.getByRole("button", { name: "Show messages" }).click();
+  await expect(read.getByLabel("Reason for viewing")).toHaveAttribute("aria-invalid", "true");
+  await read.getByLabel("Reason for viewing").fill("Checking the abuse report");
+  await read.getByRole("button", { name: "Show messages" }).click();
+  const messages = detail.getByRole("list", { name: "Reported messages" });
+  await expect(messages.getByRole("listitem")).toHaveCount(2);
+  await expect(messages.getByRole("listitem").last()).toContainText("Reported");
+  await detail.getByRole("button", { name: "Start review" }).click();
+  await expect(page.getByTestId("report-notice")).toHaveText("The report is being reviewed.");
+  await expect(messages).toContainText("Pay me first");
+  await expect(detail.getByRole("form", { name: "Suspend account" })).toBeVisible();
+  await expectNoViolations(page, "conversation report detail");
+});
+
+test("the advisory flags are listed and filtered", async ({ page, request }) => {
+  await signInAs(page, request, "admin");
+  await page.goto("/admin/flags");
+  await expect(page.getByTestId("flag-row")).toHaveCount(2);
+  await expect(page.getByTestId("flag-row").first()).toContainText("near-identical price and title");
+  await expectNoViolations(page, "flags");
+  await page.getByLabel("Kind").selectOption("suspicious");
+  await expect(page.getByTestId("flag-row")).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Corner house with garden" })).toHaveAttribute("href", `/admin/listings/${id}`);
 });
