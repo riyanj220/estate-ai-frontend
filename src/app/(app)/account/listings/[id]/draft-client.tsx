@@ -121,6 +121,13 @@ export function DraftClient({ id, admin, ai }: { id: string; admin: boolean; ai:
           </Link>
         </p>
       )}
+      {draft && (
+        <p>
+          <Link href={`${LISTINGS_PATH}/${id}/review`} className="text-link">
+            Review and confirm details
+          </Link>
+        </p>
+      )}
       <DraftEditor
         key={`${load.profile.listing.id}-${load.profile.load}`}
         initial={load.profile.listing}

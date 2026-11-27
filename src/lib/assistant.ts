@@ -66,6 +66,10 @@ export function readNextStep(value: unknown): AssistantNextStep | null {
   return step && typeof step.question === "string" && (step.kind === "required" || step.kind === "review") ? (step as AssistantNextStep) : null;
 }
 
+export function readSummary(value: unknown): components["schemas"]["AssistantFact"][] {
+  return Array.isArray(value) ? value.filter((fact) => typeof fact?.field === "string" && typeof fact?.value === "string") : [];
+}
+
 export function readSession(value: unknown): AssistantSession | null {
   const session = value as Partial<AssistantSession> | null;
   if (typeof session !== "object" || session === null || typeof session.id !== "string") return null;

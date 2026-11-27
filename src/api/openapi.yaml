@@ -766,6 +766,80 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/assistant/sessions/{session_id}/description:
+    post:
+      operationId: write_assistant_description
+      description: Needs `X-CSRFToken`. One model call; counts as an assistant message.
+        The text is saved to the Draft as an unconfirmed assistant value. Nothing
+        is published.
+      summary: Write the description from the confirmed details
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - assistant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssistantDescriptionBodyRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistantDescriptionResult'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingConflict'
+          description: '`stale_revision` or `conflict`'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: a Suspended or Deactivated account, or a missing
+            CSRF token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`: not the account''s own'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`: `description` is `manual_description`
+            (send `replace`) or `nothing_confirmed`'
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`throttled`: the assistant message limit; with `Retry-After`'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/assistant/sessions/{session_id}/turns:
     post:
       operationId: send_assistant_turn
@@ -1555,6 +1629,83 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/listings/{listing_id}/confirm:
+    post:
+      operationId: confirm_listing_fields
+      description: Needs `X-CSRFToken`. Marks the stored value of each named field
+        as confirmed by the owner. An unconfirmed assistant value of a sensitive field
+        blocks publication.
+      summary: Confirm values on one of the signed-in account's own Drafts
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListingConfirmRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+          description: The Draft
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingConflict'
+          description: '`stale_revision` or `conflict`'
         '429':
           description: Too many requests
           content:
@@ -5943,6 +6094,76 @@ components:
       required:
       - field
       - value
+    AssistantClaim:
+      type: object
+      properties:
+        text:
+          type: string
+          description: One sentence of the description. Plain text.
+        fields:
+          type: array
+          items:
+            type: string
+          description: The confirmed fields it rests on.
+      required:
+      - fields
+      - text
+    AssistantDescriptionBodyRequest:
+      type: object
+      properties:
+        base_revision:
+          type: integer
+          minimum: 1
+          description: The `revision` of the Draft the client last read.
+        replace:
+          type: boolean
+          description: True to overwrite a description the Seller wrote.
+      required:
+      - base_revision
+    AssistantDescriptionResult:
+      type: object
+      properties:
+        outcome:
+          $ref: '#/components/schemas/OutcomeEnum'
+        message:
+          type: string
+        listing:
+          allOf:
+          - $ref: '#/components/schemas/Listing'
+          nullable: true
+          description: With the saved description (unconfirmed); null unless `success`.
+        claims:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssistantClaim'
+          description: The per-claim checklist.
+        left_out:
+          type: array
+          items:
+            type: string
+          description: 'Fields not used: not confirmed yet.'
+      required:
+      - claims
+      - left_out
+      - listing
+      - message
+      - outcome
+    AssistantFact:
+      type: object
+      properties:
+        field:
+          type: string
+          description: A registry field id.
+        value:
+          type: string
+          description: Plain text.
+        confirmed:
+          type: boolean
+          description: False for an unconfirmed assistant value.
+      required:
+      - confirmed
+      - field
+      - value
     AssistantNextStep:
       type: object
       properties:
@@ -6018,6 +6239,11 @@ components:
           - $ref: '#/components/schemas/AssistantNextStep'
           nullable: true
           description: Null when the Listing is no longer a Draft.
+        summary:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssistantFact'
+          description: What the Listing holds now.
       required:
       - created_at
       - id
@@ -6026,6 +6252,7 @@ components:
       - next_step
       - registry_version
       - schema_version
+      - summary
       - turns
     AssistantSessionOpenRequest:
       type: object
@@ -6140,10 +6367,16 @@ components:
           - $ref: '#/components/schemas/AssistantNextStep'
           nullable: true
           description: Null unless `success`.
+        summary:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssistantFact'
+          description: Empty unless `success`.
       required:
       - message
       - next_step
       - outcome
+      - summary
       - turn
     BallotingStatusEnum:
       enum:
@@ -6885,6 +7118,22 @@ components:
       - revision
       - status
       - visibility
+    ListingConfirmRequest:
+      type: object
+      properties:
+        base_revision:
+          type: integer
+          minimum: 1
+          description: The `revision` of the Draft whose values the owner saw.
+        fields:
+          type: array
+          items:
+            type: string
+            minLength: 1
+          description: Registry field ids that hold a value.
+      required:
+      - base_revision
+      - fields
     ListingConflict:
       type: object
       description: '`409 stale_revision`: the error envelope plus the Listing as it

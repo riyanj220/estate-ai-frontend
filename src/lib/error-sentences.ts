@@ -68,6 +68,8 @@ export const SENTENCE_CODES: Record<string, string> = {
   "Add at least one image.": "images_required",
   "Nothing would change. Enter a different locality or area.": "no_change",
   "Confirm this value before publishing.": "confirm_required",
+  "You wrote this description. Choose to replace it.": "manual_description",
+  "Fill in and confirm some details first.": "nothing_confirmed",
 };
 
 /** A value of `error.fields` as its code: a known sentence becomes its code, anything else is returned as it came. */

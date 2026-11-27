@@ -224,6 +224,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assistant/sessions/{session_id}/description": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write the description from the confirmed details
+         * @description Needs `X-CSRFToken`. One model call; counts as an assistant message. The text is saved to the Draft as an unconfirmed assistant value. Nothing is published.
+         */
+        post: operations["write_assistant_description"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/assistant/sessions/{session_id}/turns": {
         parameters: {
             query?: never;
@@ -410,6 +430,26 @@ export interface paths {
          * @description Needs `X-CSRFToken`. Body: `{base_revision, fields}` and nothing else (any other key, `origin` and `confirmed` included, is `validation_error` `unknown_field`). `fields` holds registry ids: `title`, `description`, `asking_price` (a decimal string in PKR, at most two decimals), `price_basis`, `rental_period`, `area_value` (a decimal string, at most four decimals, above zero; never a JSON number), `area_unit` and `marla_basis` (`"225"`, `"250"` or `"272.25"` square feet per marla, only while the unit is marla or kanal; changing the unit away clears it) and the House and Apartment details (`bedrooms`, `bathrooms`, `construction_year`, `condition`, `furnishing`, `parking_spaces`, `occupancy_status`, `covered_area_sqft` (a decimal string in square feet), the House set `total_floors`, `kitchens`, `construction_status`, room counts and `basement`, and the Apartment set `floor_number`, `building_floors`, `lift`, `backup_electricity`, `building_security`, `balcony_or_terrace`, `building_lobby`, `intercom` and `maintenance_charges` (PKR per month)), the details Shops and Offices share with them (`condition`, `furnishing`, `parking_spaces`, `occupancy_status`, floors, `lift`, `building_security`, `building_lobby`, `maintenance_charges`), the utilities `electricity`, `water` and `gas`, the Plot and Plot File details (`plot_width`, `plot_depth` and `road_width_ft` as decimal strings in feet with at most two decimals, `possession_status`, `corner_plot`, `balloting_status`, `sewerage`, `development_status`, `approval_authority`, `park_facing`, `main_boulevard`, `boundary_wall`, `orientation`, `plot_file_status`) and the Shop and Office details (`business_use`, `frontage_ft`, `road_access`, `ceiling_height_ft`, `power_load_kw`, `three_phase_electricity`, `conference_rooms`, `business_centre_facilities`) and the sale and rent terms (`price_negotiable` for both; sale only `possession_availability`; rent only `security_deposit` and `advance_rent` as decimal strings in PKR with at most two decimals, `availability_date` as text `YYYY-MM-DD` between 2000-01-01 and 2100-12-31, `minimum_lease_months`, `notice_period_days`, the four `utility_*_included` answers, `pets_allowed` and `occupant_restrictions`; the rent terms are `not_applicable` on a sale Draft and the other way round; a rental period is never assumed) and the location: `city` and `locality` as uuid text of an active city and one of its localities (`/api/v1/reference/cities` and `/api/v1/reference/cities/{city_id}/localities`; a locality of another city is `locality_not_in_city`, a locality without a city `invalid`; changing or clearing `city` clears the stored `locality` in the same write), the public location text `society`, `phase`, `sector` and `block` (up to 60 characters, no phone numbers or email addresses) and the PRIVATE address `street` (up to 120 characters), `house_number` (up to 30) and `latitude` and `longitude` (decimal strings with at most six decimals, -90 to 90 and -180 to 180, both or neither; `out_of_range` otherwise): the private fields are returned only to the owner and never appear in any public response. `amenities` is the map `{code: "present" | "none"}` of catalogue codes (`/api/v1/reference/amenities`): the sent map replaces the whole stored one, `null` or `{}` clears it, a code that is left out is unanswered (never `none`), an unknown or inactive code, another state, a non-object or more than 40 entries is `invalid`; nearby facilities are seller-declared (no distance, no verification). Installment, payment type, down payment and title or approval document terms are not supported yet (`unknown_field`). Possession, balloting, development, approval and plot file status are seller-declared (registry flag `seller_declared`): the owner's claim, never verified by EstateAI. A Plot File allows only `file_only` for `possession_status` and the other Subtypes refuse it (`invalid_choice`). Ids the registry does not define (for example installment, down payment, title document or mortgage attributes) are `unknown_field`. Counts are JSON integers and yes/no answers are JSON `true`/`false`, never text; unanswered is `null`, never 0 or false. The registry says which apply to which Subtype (`not_applicable` otherwise); `null` clears a field. `area_sqft` is computed by the server and is `not_editable` as input. Saving never needs complete data. Every saved field is recorded as `manual` and confirmed; the client never chooses provenance. A `base_revision` that is not the current `revision` is `409 stale_revision` with the current Listing under `current` and nothing written (a retried PATCH after it succeeded is also a 409: reload). An edit that changes nothing is `200` and keeps the revision. `400` carries codes keyed by registry field id (`invalid`, `too_short`, `too_long`, `invalid_price`, `invalid_area`, `invalid_range`, `invalid_floor`, `invalid_date`, `invalid_choice`, `not_applicable`, `invalid_measure`, `out_of_range`, `locality_not_in_city`, `contains_contact_details`, `not_editable` (also an identity field of a `published` Listing: `city`, `locality`, `area_value` and `area_unit` are locked while it is published, editable as a Draft or Archived; `locality` and the area may be corrected once, see `/correction`; `marla_basis` stays editable); unknown ids are `unknown_field` under `non_field_errors`) and never echoes a value. Another account's, an unknown or a malformed id is `404 not_found`; an account that may not edit (Suspended, Deactivated) is `403 forbidden`, and so is a `sold`, `rented` or `removed` Listing or a restricted one (view only). A `draft`, `published` and `archived` Listing may be edited. An edit of a `published` Listing must leave it complete (the same rules as publication): otherwise `400 validation_error` names every missing or invalid item at once (clearing the title or a price, a locality outside the city) and nothing is written; an edit of an `archived` one is judged like a Draft edit. These edits use no publication and write no event. Never cached.
          */
         patch: operations["update_listing"];
+        trace?: never;
+    };
+    "/api/v1/listings/{listing_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm values on one of the signed-in account's own Drafts
+         * @description Needs `X-CSRFToken`. Marks the stored value of each named field as confirmed by the owner. An unconfirmed assistant value of a sensitive field blocks publication.
+         */
+        post: operations["confirm_listing_fields"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/listings/{listing_id}/correction": {
@@ -1493,6 +1533,36 @@ export interface components {
             /** @description As on the Listing: text, integer or boolean. */
             value: unknown;
         };
+        AssistantClaim: {
+            /** @description One sentence of the description. Plain text. */
+            text: string;
+            /** @description The confirmed fields it rests on. */
+            fields: string[];
+        };
+        AssistantDescriptionBodyRequest: {
+            /** @description The `revision` of the Draft the client last read. */
+            base_revision: number;
+            /** @description True to overwrite a description the Seller wrote. */
+            replace?: boolean;
+        };
+        AssistantDescriptionResult: {
+            outcome: components["schemas"]["OutcomeEnum"];
+            message: string;
+            /** @description With the saved description (unconfirmed); null unless `success`. */
+            listing: components["schemas"]["Listing"] | null;
+            /** @description The per-claim checklist. */
+            claims: components["schemas"]["AssistantClaim"][];
+            /** @description Fields not used: not confirmed yet. */
+            left_out: string[];
+        };
+        AssistantFact: {
+            /** @description A registry field id. */
+            field: string;
+            /** @description Plain text. */
+            value: string;
+            /** @description False for an unconfirmed assistant value. */
+            confirmed: boolean;
+        };
         AssistantNextStep: {
             kind: components["schemas"]["AssistantNextStepKindEnum"];
             /** @description Plain text. */
@@ -1530,6 +1600,8 @@ export interface components {
             turns: components["schemas"]["AssistantTurn"][];
             /** @description Null when the Listing is no longer a Draft. */
             next_step: components["schemas"]["AssistantNextStep"] | null;
+            /** @description What the Listing holds now. */
+            summary: components["schemas"]["AssistantFact"][];
         };
         AssistantSessionOpenRequest: {
             /**
@@ -1582,6 +1654,8 @@ export interface components {
             turn: components["schemas"]["AssistantTurn"] | null;
             /** @description Null unless `success`. */
             next_step: components["schemas"]["AssistantNextStep"] | null;
+            /** @description Empty unless `success`. */
+            summary: components["schemas"]["AssistantFact"][];
         };
         /**
          * @description * `not_applicable` - not_applicable
@@ -1967,6 +2041,12 @@ export interface components {
             restricted: boolean;
             /** @description A short plain-text reason for a restricted or removed Listing, shown to the owner only; null otherwise. */
             restriction_reason: string | null;
+        };
+        ListingConfirmRequest: {
+            /** @description The `revision` of the Draft whose values the owner saw. */
+            base_revision: number;
+            /** @description Registry field ids that hold a value. */
+            fields: string[];
         };
         /** @description `409 stale_revision`: the error envelope plus the Listing as it is now. */
         ListingConflict: {
@@ -4318,6 +4398,94 @@ export interface operations {
             };
         };
     };
+    write_assistant_description: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantDescriptionBodyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantDescriptionResult"];
+                };
+            };
+            /** @description `validation_error`: `description` is `manual_description` (send `replace`) or `nothing_confirmed` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated`: a Visitor */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: a Suspended or Deactivated account, or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found`: not the account's own */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `stale_revision` or `conflict` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingConflict"];
+                };
+            };
+            /** @description `throttled`: the assistant message limit; with `Retry-After` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     send_assistant_turn: {
         parameters: {
             query?: never;
@@ -5198,6 +5366,97 @@ export interface operations {
                 };
             };
             /** @description Stale revision: the Listing changed; `current` holds it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingConflict"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    confirm_listing_fields: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ListingConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description The Draft */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Listing"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `stale_revision` or `conflict` */
             409: {
                 headers: {
                     [name: string]: unknown;

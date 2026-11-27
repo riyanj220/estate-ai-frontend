@@ -20,6 +20,7 @@ import {
   appliedText,
   readNextStep,
   readSession,
+  readSummary,
   readTurn,
   type AssistantSession,
   type AssistantTurn,
@@ -27,6 +28,7 @@ import {
 import { withCsrf } from "@/lib/csrf";
 import { withTimeout } from "@/lib/forms";
 import { newIdempotencyKey } from "@/lib/idempotency";
+import { detailLabel } from "@/lib/listing-details";
 import { isListingId } from "@/lib/listing-labels";
 import { LISTINGS_PATH, LISTING_NOT_FOUND, signInPathFor } from "@/lib/listing-messages";
 import { failureMessage, thrownMessage } from "@/lib/request-errors";
@@ -161,6 +163,7 @@ function Chat({
   const { withNotice, notice } = useAiNotice();
   const [turns, setTurns] = useState<AssistantTurn[]>(session.turns);
   const [nextStep, setNextStep] = useState(() => readNextStep(session.next_step));
+  const [summary, setSummary] = useState(() => readSummary(session.summary));
   const [text, setText] = useState("");
   const [sending, setSending] = useState<string | null>(null);
   const [problem, setProblem] = useState("");
@@ -206,6 +209,7 @@ function Chat({
         if (data?.outcome === "success" && turn) {
           setTurns((current) => [...current.filter((item) => item.id !== turn.id), turn]);
           setNextStep(readNextStep(data.next_step));
+          setSummary(readSummary(data.summary));
           setText("");
           attempt.current = null;
           if (data.message) setInfo(NO_EXPLANATIONS);
@@ -276,11 +280,29 @@ function Chat({
           </p>
           {(nextStep.kind === "review" || nextStep.in_form) && (
             <p>
-              <Link href={manual} className="text-link">
+              <Link href={nextStep.kind === "review" ? `${manual}/review` : manual} className="text-link">
                 {nextStep.kind === "review" ? "Review your listing" : "Open the form"}
               </Link>
             </p>
           )}
+        </div>
+      )}
+      {summary.length > 0 && (
+        <div className="card" data-testid="chat-summary">
+          <p>On your listing so far:</p>
+          <ul>
+            {summary.map((fact) => (
+              <li key={fact.field} className="chat-text">
+                {detailLabel(fact.field)}: {fact.value}
+                {!fact.confirmed && " (not confirmed)"}
+              </li>
+            ))}
+          </ul>
+          <p>
+            <Link href={`${manual}/review`} className="text-link">
+              Check and confirm these
+            </Link>
+          </p>
         </div>
       )}
       <form method="post" onSubmit={onSubmit} noValidate className="card" aria-busy={sending !== null}>
