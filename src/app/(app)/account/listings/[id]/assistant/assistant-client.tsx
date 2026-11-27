@@ -168,6 +168,7 @@ function Chat({
   const [sending, setSending] = useState<string | null>(null);
   const [problem, setProblem] = useState("");
   const [info, setInfo] = useState("");
+  const [unanswered, setUnanswered] = useState(false); // a message got no answer: offer the manual form beside the reason
   const box = useRef<HTMLTextAreaElement>(null);
   const busy = useRef(false);
   const mounted = useRef(true);
@@ -186,6 +187,7 @@ function Chat({
     setSending(message);
     setProblem("");
     setInfo("");
+    setUnanswered(false);
     if (attempt.current?.text !== message) attempt.current = { text: message, id: newIdempotencyKey() };
     // The server takes a UUID; the fallback key is 32 hex digits, which is one without its hyphens.
     const key = attempt.current.id.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5");
@@ -217,6 +219,7 @@ function Chat({
         }
         const outcome = data?.outcome;
         setProblem(FAILED_OUTCOME_MESSAGES[outcome && outcome !== "success" ? outcome : "error"]);
+        setUnanswered(true);
         return;
       }
       if (response.status === 401) {
@@ -229,9 +232,15 @@ function Chat({
       else if (response.status === 403 && account?.state === "suspended") setProblem(ASSISTANT_FORBIDDEN);
       else if (response.status === 404) setProblem(LISTING_NOT_FOUND);
       else if (response.status === 409) setProblem(SEND_CONFLICT);
-      else setProblem(failureMessage(response.status, response.headers.get("Retry-After")));
+      else {
+        setProblem(failureMessage(response.status, response.headers.get("Retry-After")));
+        setUnanswered(true);
+      }
     } catch (error) {
-      if (mounted.current) setProblem(thrownMessage(error));
+      if (mounted.current) {
+        setProblem(thrownMessage(error));
+        setUnanswered(true);
+      }
     } finally {
       busy.current = false;
       if (mounted.current) setSending(null);
@@ -244,6 +253,7 @@ function Chat({
     const message = text.trim();
     box.current?.focus();
     if (!message) {
+      setUnanswered(false);
       setProblem(MESSAGE_REQUIRED);
       return;
     }
@@ -270,6 +280,14 @@ function Chat({
       {problem && (
         <p role="alert" className="notice" data-testid="chat-problem">
           {problem}
+        </p>
+      )}
+      {problem && unanswered && (
+        <p data-testid="chat-fallback">
+          Your draft is unchanged by a message that was not answered.{" "}
+          <Link href={manual} className="text-link">
+            Continue in the manual form
+          </Link>
         </p>
       )}
       {nextStep && (

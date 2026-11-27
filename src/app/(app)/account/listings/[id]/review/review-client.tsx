@@ -18,12 +18,14 @@ import {
   CONFIRM_REFUSED,
   DESCRIPTION_FAILED,
   DESCRIPTION_NOTHING,
+  DESCRIPTION_OUTCOMES,
   DESCRIPTION_OWN,
   DESCRIPTION_REFUSED,
   DESCRIPTION_SAVED,
   DESCRIPTION_WRITTEN,
   NOT_A_DRAFT_REVIEW,
   SENSITIVE_FIELDS,
+  WRITE_YOURSELF,
   readUnconfirmed,
   reviewFields,
   reviewName,
@@ -182,7 +184,7 @@ function Review({
     try {
       await action();
     } catch (error) {
-      if (mounted.current) say(thrownMessage(error));
+      if (mounted.current) say(name === "write" ? `${thrownMessage(error)} ${WRITE_YOURSELF}` : thrownMessage(error));
     } finally {
       running.current = false;
       if (mounted.current) setBusy("");
@@ -279,10 +281,11 @@ function Review({
         } else say(DESCRIPTION_NOTHING);
         return;
       }
-      if (response.status !== 200) return failed(response);
+      if (response.status === 401 || response.status === 409) return failed(response);
+      if (response.status !== 200) return say(`${failureMessage(response.status, response.headers.get("Retry-After"))} ${WRITE_YOURSELF}`);
       setLeftOut(data?.left_out ?? []);
       const next = data?.outcome === "success" ? readDraft(data.listing) : null;
-      if (!next) return say(DESCRIPTION_FAILED);
+      if (!next) return say(DESCRIPTION_OUTCOMES[data?.outcome ?? ""] ?? DESCRIPTION_FAILED);
       accept(next);
       setClaims(data?.claims ?? []);
       setAskReplace(false);

@@ -14,6 +14,13 @@ export const DESCRIPTION_REFUSED = "The description could not be saved. Use plai
 export const DESCRIPTION_WRITTEN = "A description was written from your confirmed details. Check it, then keep it or edit it.";
 export const DESCRIPTION_NOTHING = "Fill in and confirm some details first.";
 export const DESCRIPTION_FAILED = "A description could not be written right now. Confirm more details, try again later or write it yourself.";
+/** Why the assistant gave no description (Story 5.15); `error` also covers an answer that could not be used. */
+export const DESCRIPTION_OUTCOMES: Record<string, string> = {
+  fallback: "The assistant is unavailable right now. Write the description yourself or try again later.",
+  timeout: "The assistant took too long. Write the description yourself or try again.",
+  budget_exhausted: "Today's AI capacity is used up. Write the description yourself or try again tomorrow.",
+};
+export const WRITE_YOURSELF = "You can write the description yourself.";
 export const DESCRIPTION_OWN = "You have your own description. Writing a new one replaces it.";
 
 const NAMES: Record<string, string> = {

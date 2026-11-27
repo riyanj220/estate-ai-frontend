@@ -255,7 +255,7 @@ export interface paths {
         put?: never;
         /**
          * Send one message to the assistant
-         * @description Needs `X-CSRFToken`. May take up to about 30 seconds. When the assistant cannot answer it is `200` with an `outcome` other than `success`, `turn` null and a message to show; the Draft and the history are unchanged. At most 30 messages an hour.
+         * @description Needs `X-CSRFToken`. May take up to about 30 seconds. When the assistant cannot answer it is `200` with an `outcome` other than `success`, `turn` null and a message to show; the Draft and the history are unchanged, and the same `client_turn_id` may be sent again. Repeating an answered `client_turn_id` returns that turn without processing it again; `next_step` and `summary` show the Draft as it is now. At most 30 messages an hour.
          */
         post: operations["send_assistant_turn"];
         delete?: never;
