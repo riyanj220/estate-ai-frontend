@@ -1473,7 +1473,31 @@ const searchPublic = (params, cards = PUBLIC_CARDS, extra = PUBLIC_EXTRA) => {
   return { rows: rows.map((row) => row.card), tag: bound ? `page2.${createHash("sha256").update(bound).digest("hex").slice(0, 8)}` : "page2" };
 };
 
-createServer((req, res) => {
+// The fake `/ws` (Stories 7.2 and 7.3): a real WebSocket handshake and server-to-client text frames, as the backend sends them.
+// Modes through /__live-mode ("off" refuses the handshake), /__live-drop cuts the sockets, /__live-close ends them with a code.
+let liveMode = "ok";
+let liveSockets = new Set();
+let liveStats = { opened: 0, fromClient: 0 };
+const frame = (opcode, payload) => Buffer.concat([Buffer.from([0x80 | opcode, payload.length]), payload]); // for payloads under 126 bytes
+const textFrame = (value) => {
+  const payload = Buffer.from(JSON.stringify(value));
+  if (payload.length < 126) return frame(1, payload);
+  const head = Buffer.from([0x81, 126, payload.length >> 8, payload.length & 0xff]);
+  return Buffer.concat([head, payload]);
+};
+const announce = (entry, seq) =>
+  liveSockets.forEach((socket) =>
+    socket.write(textFrame({ type: "message.created", conversation_id: entry.id, message_id: `00000000-0000-4000-e000-${String(seq).padStart(12, "0")}`, seq })),
+  );
+const cutLive = (code) => {
+  for (const socket of liveSockets) {
+    if (code) socket.end(frame(8, Buffer.from([code >> 8, code & 0xff])));
+    else socket.destroy();
+  }
+  liveSockets = new Set();
+};
+
+const server = createServer((req, res) => {
   const url = new URL(req.url, "http://stub");
   const json = (status, body) => {
     res.writeHead(status, { "content-type": "application/json" });
@@ -1729,6 +1753,14 @@ createServer((req, res) => {
   if (url.pathname === "/__messaging-requests") return json(200, { requests: messagingRequests });
   if (url.pathname === "/__messaging-reply") {
     conversations[0].messages.push({ body: url.searchParams.get("body"), mine: false, key: null });
+    // `announce`: tell the open sockets, as a saved Message does; without it the event is "missed".
+    if (url.searchParams.has("announce")) announce(conversations[0], conversations[0].messages.length);
+    return json(200, {});
+  }
+  if (url.pathname === "/__live-mode") return choose("liveMode", ["ok", "off"], (v) => (liveMode = v));
+  if (url.pathname === "/__live-stats") return json(200, { ...liveStats, open: liveSockets.size });
+  if (url.pathname === "/__live-drop" || url.pathname === "/__live-close") {
+    cutLive(Number(url.searchParams.get("code") ?? 0));
     return json(200, {});
   }
   if (url.pathname === "/api/v1/conversations" || url.pathname.startsWith("/api/v1/conversations/")) {
@@ -4283,6 +4315,9 @@ createServer((req, res) => {
     conversations = [];
     messagingMode = "ok";
     messagingRequests = [];
+    cutLive(0);
+    liveMode = "ok";
+    liveStats = { opened: 0, fromClient: 0 };
     suspensionReason = SUSPENSION_REASON;
     lastCookie = "";
     registrationMode = "accepted";
@@ -4496,7 +4531,25 @@ createServer((req, res) => {
     return json(200, { status: "ok" });
   }
   json(404, { error: { code: "not_found", message: "Not found.", fields: {}, request_id: "stub" } });
-})
+});
+
+server.on("upgrade", (req, socket) => {
+  socket.on("error", () => {});
+  const signedIn = liveSession && !sessionAdmin && (req.headers.cookie ?? "").includes(SESSION_COOKIE);
+  if (req.url !== "/ws" || liveMode === "off" || !signedIn || !req.headers.origin) return socket.end("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n");
+  const accept = createHash("sha1").update(`${req.headers["sec-websocket-key"]}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
+  socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+  socket.write(textFrame({ type: "ready" }));
+  liveSockets.add(socket);
+  liveStats.opened += 1;
+  // A close frame from the browser (opcode 8) ends the socket; any data frame is counted, as the real server refuses it.
+  socket.on("data", (data) => {
+    if ((data[0] & 0x0f) === 8) socket.end(frame(8, Buffer.alloc(0)));
+    else if ((data[0] & 0x0f) < 3) liveStats.fromClient += 1;
+  });
+  socket.on("close", () => liveSockets.delete(socket));
+});
+server
   .on("close", () => {
     while (pending.length) pending.pop().end();
   })

@@ -144,3 +144,63 @@ test("an administrator has no button", async ({ page, request }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Corner house with garden" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Message seller" })).toHaveCount(0);
 });
+
+// Story 7.3: live delivery over the stub's fake `/ws`, through the Next.js proxy.
+const liveStats = async (request: APIRequestContext) => (await (await request.get(`${STUB_URL}/__live-stats`)).json()) as { opened: number; open: number; fromClient: number };
+
+async function openThread(page: Page, request: APIRequestContext) {
+  await startSession(page, request);
+  await page.goto(`/listings/${LISTING}`);
+  await open(page);
+  await page.getByLabel("Your message to the seller").fill("Hello");
+  await send(page);
+  await expect(page).toHaveURL(`${APP_URL}${THREAD}`);
+}
+
+test("a new message appears without refreshing, once, and nothing is sent on the socket @smoke", async ({ page, request }) => {
+  await openThread(page, request);
+  const messages = page.getByTestId("messages").getByRole("listitem");
+  await expect(page.getByTestId("live-status")).toHaveText("New messages appear as they arrive.");
+  await request.get(`${STUB_URL}/__messaging-reply?body=Tomorrow&announce=1`);
+  await expect(messages).toHaveCount(2);
+  await expect(messages.last()).toContainText("Tomorrow");
+  await expect(page.getByTestId("conversation-status")).toHaveText("New message.");
+  await page.getByLabel("Reply").fill("See you");
+  await send(page);
+  await expect(messages).toHaveCount(3);
+  await expectNoViolations(page, "live conversation");
+  expect((await liveStats(request)).fromClient).toBe(0);
+  // Leaving the page closes the socket.
+  await page.getByRole("link", { name: "View listing" }).click();
+  await expect.poll(async () => (await liveStats(request)).open).toBe(0);
+});
+
+test("after a drop it reconnects and reads what it missed", async ({ page, request }) => {
+  await openThread(page, request);
+  const messages = page.getByTestId("messages").getByRole("listitem");
+  const status = page.getByTestId("live-status");
+  await expect(status).toHaveText("New messages appear as they arrive.");
+  await request.get(`${STUB_URL}/__live-mode?value=off`);
+  await request.get(`${STUB_URL}/__live-drop`);
+  await expect(status).toHaveText("Live updates are paused. Check for new messages below.");
+  await request.get(`${STUB_URL}/__messaging-reply?body=One`);
+  await request.get(`${STUB_URL}/__messaging-reply?body=Two`);
+  // The button still works while there is no live connection.
+  await page.getByRole("button", { name: "Check for new messages" }).click();
+  await expect(messages).toHaveCount(3);
+  await request.get(`${STUB_URL}/__messaging-reply?body=Three`);
+  await request.get(`${STUB_URL}/__live-mode?value=ok`);
+  await expect(messages).toHaveCount(4, { timeout: 20_000 });
+  await expect(messages.last()).toContainText("Three");
+  await expect(status).toHaveText("New messages appear as they arrive.");
+  expect((await liveStats(request)).opened).toBe(2);
+});
+
+test("a socket closed because the session ended is not reopened, and the page asks to sign in", async ({ page, request }) => {
+  await openThread(page, request);
+  await expect(page.getByTestId("live-status")).toHaveText("New messages appear as they arrive.");
+  await request.get(`${STUB_URL}/__expire-session`);
+  await request.get(`${STUB_URL}/__live-close?code=4401`);
+  await expect(page).toHaveURL(new RegExp(`/sign-in\\?next=${encodeURIComponent(THREAD)}`));
+  expect((await liveStats(request)).opened).toBe(1);
+});
