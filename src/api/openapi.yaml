@@ -1513,9 +1513,11 @@ paths:
   /api/v1/listings/{listing_id}/estimate:
     post:
       operationId: request_listing_estimate
-      description: Needs `X-CSRFToken`. No body. Uses the saved Draft. The Asking
-        price is neither read nor changed. Never cached.
-      summary: AI Price Estimate for one of the signed-in account's own Drafts
+      description: Needs `X-CSRFToken`. No body. Uses the saved Listing; for a Published
+        one this is the owner's recompute. The Asking price is neither read nor changed.
+        Never cached.
+      summary: AI Price Estimate for one of the account's own Drafts or Published
+        Listings
       parameters:
       - in: path
         name: listing_id
@@ -1557,7 +1559,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
-          description: '`conflict`: the Listing is not a Draft'
+          description: '`conflict`: the Listing is not a Draft or Published'
         '429':
           content:
             application/json:
@@ -4780,6 +4782,73 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/public/listings/{listing_id}/estimate:
+    get:
+      operationId: get_listing_estimate
+      description: Public. The stored estimate of the Listing's current details with
+        the comparison and 5-year forecast. A Visitor only reads what is stored; for
+        a signed-in account a missing or outdated estimate is computed first. A Listing
+        that is not publicly visible, an unknown and a malformed id are the same `404
+        not_found`. Never cached.
+      summary: Estimated Property Value and forecast of one published Listing
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - public
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingEstimate'
+          description: The estimate
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/reference/amenities:
     get:
       operationId: list_amenities
@@ -6462,6 +6531,66 @@ components:
       - removed
       - rented
       - sold
+    ListingEstimate:
+      type: object
+      description: A published Listing's estimate beside its total Asking price.
+      properties:
+        status:
+          $ref: '#/components/schemas/EstimateStatusEnum'
+        estimated_value:
+          type: string
+          nullable: true
+          description: Estimated Property Value in PKR, a decimal string; null when
+            unavailable.
+        currency:
+          type: string
+          description: Always `PKR`.
+        model_version:
+          type: integer
+          nullable: true
+        estimated_at:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/ReasonEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        message:
+          type: string
+          nullable: true
+          description: Short text for the reason; null when available.
+        asking_total:
+          type: string
+          nullable: true
+          description: Total Asking price in PKR (a per-unit price times the area);
+            null for rent.
+        comparison:
+          allOf:
+          - $ref: '#/components/schemas/PriceComparison'
+          nullable: true
+          description: Null when unavailable.
+        forecast:
+          allOf:
+          - $ref: '#/components/schemas/PriceForecast'
+          nullable: true
+          description: Null when unavailable.
+        can_recompute:
+          type: boolean
+          description: 'True for the signed-in owner: `POST /api/v1/listings/{id}/estimate`.'
+      required:
+      - asking_total
+      - can_recompute
+      - comparison
+      - currency
+      - estimated_at
+      - estimated_value
+      - forecast
+      - message
+      - model_version
+      - reason
+      - status
     ListingFields:
       type: object
       description: Flat registry ids. Null means unknown.
@@ -8062,6 +8191,45 @@ components:
         * `total` - total
         * `per_unit` - per_unit
         * `rental_period` - rental_period
+    PriceComparison:
+      type: object
+      properties:
+        verdict:
+          allOf:
+          - $ref: '#/components/schemas/VerdictEnum'
+          description: |-
+            The Asking price against the estimate; `about_equal` is within 5%.
+
+            * `about_equal` - about_equal
+            * `above` - above
+            * `below` - below
+        percent:
+          type: string
+          description: Percent above or below the estimate, one decimal.
+      required:
+      - percent
+      - verdict
+    PriceForecast:
+      type: object
+      description: 'The 5-Year Price Forecast: assumed growth scenarios, not a guaranteed
+        return.'
+      properties:
+        horizon_years:
+          type: integer
+        low:
+          type: string
+          description: PKR, a decimal string.
+        base:
+          type: string
+          description: PKR, a decimal string.
+        high:
+          type: string
+          description: PKR, a decimal string.
+      required:
+      - base
+      - high
+      - horizon_years
+      - low
     Profile:
       type: object
       properties:
@@ -9625,6 +9793,16 @@ components:
           minimum: 0
       required:
       - unread
+    VerdictEnum:
+      enum:
+      - about_equal
+      - above
+      - below
+      type: string
+      description: |-
+        * `about_equal` - about_equal
+        * `above` - above
+        * `below` - below
     VerificationRequestRequest:
       type: object
       properties:

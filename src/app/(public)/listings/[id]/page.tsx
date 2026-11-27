@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdvertiserLine } from "@/components/advertiser-line";
+import { ListingEstimatePanel } from "@/components/listing-estimate";
 import { ListingFacts } from "@/components/listing-facts";
 import { RetryImage } from "@/components/retry-image";
 import { SaveButton } from "@/components/save-button";
@@ -9,7 +10,7 @@ import type { AmenityCatalogueList } from "@/lib/amenities";
 import { FavouritesProvider } from "@/lib/favourites";
 import { summaryOf } from "@/lib/listing-labels";
 import { PREVIEW_DETAILS_FAILED, PREVIEW_NO_IMAGES } from "@/lib/listing-messages";
-import { BROWSE_PATH, fetchDetail, fetchPublicAmenities, fetchPublicRegistry, publishedText } from "@/lib/public-listings";
+import { BROWSE_PATH, fetchDetail, fetchListingEstimate, fetchPublicAmenities, fetchPublicRegistry, publishedText } from "@/lib/public-listings";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -49,7 +50,8 @@ export default async function ListingPage({ params }: Props) {
   }
   const { listing, publishedOn } = result;
   const { fields, media } = listing;
-  const [registry, catalogue] = await Promise.all([
+  const [insight, registry, catalogue] = await Promise.all([
+    fetchListingEstimate(listing.id),
     fetchPublicRegistry(),
     listing.details.amenities ? fetchPublicAmenities() : ({ status: "idle", items: [] } satisfies AmenityCatalogueList),
   ]);
@@ -88,6 +90,7 @@ export default async function ListingPage({ params }: Props) {
             ))}
           </ul>
         )}
+        <ListingEstimatePanel listingId={listing.id} initial={insight} />
         <ListingFacts listing={listing} registry={registry} catalogue={catalogue} cityName={result.cityName} localityName={result.localityName} testId="listing" />
         {registry === null && <p className="state-note">{PREVIEW_DETAILS_FAILED}</p>}
         {fields.description !== null && (

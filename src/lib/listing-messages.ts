@@ -449,10 +449,20 @@ export const ESTIMATE_SAVE_FIRST = "Save your changes first. The estimate uses t
 export const ESTIMATE_WAIT = "Wait for the current action to finish.";
 export const ESTIMATE_READY = "The estimate is ready.";
 export const ESTIMATE_UNAVAILABLE = "Estimate unavailable.";
-export const ESTIMATE_NOT_A_DRAFT = "Estimates can only be requested for a draft. Reload the page to see the latest listing.";
+export const ESTIMATE_NOT_A_DRAFT = "Estimates can only be requested for a draft or published listing. Reload the page to see the latest listing.";
 export const ESTIMATE_FORBIDDEN = "This account cannot request an estimate right now.";
 export const ESTIMATE_VALUE_LABEL = "Estimated Property Value";
 export const ESTIMATE_INFO_LABEL = "About this estimate";
 export const ESTIMATE_INFO =
   "AI-generated approximation from the listing’s attributes. It is not a verified market valuation or a guaranteed return.";
 export const ESTIMATE_ABOUT_LINK = "About AI Price Estimates (opens in a new tab)";
+export const LISTING_ESTIMATE_TITLE = "Price insight";
+export const ASKING_TOTAL_LABEL = "Asking price (total)";
+export const ABOUT_EQUAL_TEXT = "The asking price is about equal to the estimate.";
+export const comparisonText = (verdict: "above" | "below", percent: string) => `The asking price is ${percent}% ${verdict} the estimate.`;
+export const FORECAST_TITLE = "5-Year Price Forecast";
+export const FORECAST_UNAVAILABLE = "Forecast unavailable.";
+export const RECOMPUTE_BUTTON = "Recompute estimate";
+export const RECOMPUTE_WORKING = "Recomputing…";
+export const RECOMPUTE_DONE = "The estimate was recalculated.";
+export const RECOMPUTE_SIGNED_OUT = "Your session has ended. Sign in again to recompute.";

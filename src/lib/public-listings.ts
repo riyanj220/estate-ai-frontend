@@ -3,6 +3,7 @@ import type { components } from "@/api/schema";
 import { readAmenityCatalogue, type AmenityCatalogueList } from "./amenities";
 import { getApi } from "./api";
 import { SENTENCE_CODES } from "./error-sentences";
+import { readListingEstimate, type ListingEstimate } from "./estimate";
 import { readErrorBody } from "./forms";
 import { readFilterSchema, type FilterSchema, type Places } from "./listing-filters";
 import { isIsoDate, isListingId, readListing, type ListingView } from "./listing-labels";
@@ -189,6 +190,17 @@ export const fetchDetail = cache(async (id: string): Promise<DetailResult> => {
     return { kind: "error" };
   }
 });
+
+/** The stored estimate (the cookie is forwarded, so a signed-in reader gets a missing one computed). Null when it cannot be read. */
+export async function fetchListingEstimate(id: string): Promise<ListingEstimate | null> {
+  try {
+    const api = await getApi();
+    const { data, response } = await api.GET("/api/v1/public/listings/{listing_id}/estimate", { params: { path: { listing_id: id } } });
+    return response.ok ? readListingEstimate(data) : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function fetchPublicRegistry(): Promise<Registry | null> {
   try {

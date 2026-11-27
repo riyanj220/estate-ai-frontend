@@ -24,3 +24,45 @@ export function readEstimate(data: unknown): Estimate | null {
   if (body?.status !== "unavailable") return null;
   return { kind: "unavailable", message: typeof body.message === "string" && body.message ? body.message : ESTIMATE_UNAVAILABLE };
 }
+
+export type Forecast = { years: number; low: string; base: string; high: string };
+
+/** A published Listing's estimate beside its total asking price (Stories 4.6 and 4.7). */
+export type ListingEstimate = {
+  estimate: Estimate;
+  askingTotal: string | null;
+  comparison: { verdict: "about_equal" | "above" | "below"; percent: string } | null;
+  forecast: Forecast | null;
+  canRecompute: boolean;
+};
+
+const decimal = (value: unknown): string | null => (typeof value === "string" && DECIMAL.test(value) ? value : null);
+
+function readComparison(value: unknown): ListingEstimate["comparison"] {
+  const body = record(value);
+  const verdict = body?.verdict;
+  const percent = decimal(body?.percent);
+  return (verdict === "about_equal" || verdict === "above" || verdict === "below") && percent !== null ? { verdict, percent } : null;
+}
+
+function readForecast(value: unknown): Forecast | null {
+  const body = record(value);
+  const [low, base, high] = [decimal(body?.low), decimal(body?.base), decimal(body?.high)];
+  const years = body?.horizon_years;
+  return low && base && high && years === 5 ? { years, low, base, high } : null;
+}
+
+/** Null when the body cannot be trusted. A comparison or forecast is only kept beside a value. */
+export function readListingEstimate(data: unknown): ListingEstimate | null {
+  const estimate = readEstimate(data);
+  const body = record(data);
+  if (!estimate || !body) return null;
+  const known = estimate.kind === "value";
+  return {
+    estimate,
+    askingTotal: decimal(body.asking_total),
+    comparison: known ? readComparison(body.comparison) : null,
+    forecast: known ? readForecast(body.forecast) : null,
+    canRecompute: body.can_recompute === true,
+  };
+}

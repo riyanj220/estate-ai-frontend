@@ -34,6 +34,16 @@ export default function AboutEstimatesPage() {
         </ul>
         <p>It does not use the asking price, the street or house number, map coordinates, phone numbers, the title, the description or images.</p>
       </section>
+      <section className="card" aria-labelledby="about-forecast" style={{ marginBottom: "var(--space)" }}>
+        <h2 id="about-forecast" className="section-title">
+          The 5-Year Price Forecast
+        </h2>
+        <p>
+          The forecast takes the estimate and applies an assumed yearly growth rate for the locality’s group, compounded over five years, giving
+          a low, a middle and a high scenario. The rates were chosen for this project. They are scenarios, not predictions that have been
+          tested, and not a guaranteed return.
+        </p>
+      </section>
       <section className="card" aria-labelledby="about-limits">
         <h2 id="about-limits" className="section-title">
           Limitations

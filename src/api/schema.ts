@@ -386,8 +386,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * AI Price Estimate for one of the signed-in account's own Drafts
-         * @description Needs `X-CSRFToken`. No body. Uses the saved Draft. The Asking price is neither read nor changed. Never cached.
+         * AI Price Estimate for one of the account's own Drafts or Published Listings
+         * @description Needs `X-CSRFToken`. No body. Uses the saved Listing; for a Published one this is the owner's recompute. The Asking price is neither read nor changed. Never cached.
          */
         post: operations["request_listing_estimate"];
         delete?: never;
@@ -1069,6 +1069,26 @@ export interface paths {
          * @description Public; the answer is the same for every caller, the owner included. The public projection only: never a private address, coordinates, a phone number, the owner account, the status, the revision or the provenance. Of the owner, `advertiser` gives only the type and, for an Agency, its public id, name, logo and verification. `nearby` amenities are the seller's own declaration. A Listing that is not publicly visible, an unknown and a malformed id are the same `404 not_found`. `200` has `Cache-Control: public, max-age=60` and no cookie; errors are `no-store`.
          */
         get: operations["get_public_listing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/listings/{listing_id}/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estimated Property Value and forecast of one published Listing
+         * @description Public. The stored estimate of the Listing's current details with the comparison and 5-year forecast. A Visitor only reads what is stored; for a signed-in account a missing or outdated estimate is computed first. A Listing that is not publicly visible, an unknown and a malformed id are the same `404 not_found`. Never cached.
+         */
+        get: operations["get_listing_estimate"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1823,6 +1843,28 @@ export interface components {
             rented: number;
             removed: number;
         };
+        /** @description A published Listing's estimate beside its total Asking price. */
+        ListingEstimate: {
+            status: components["schemas"]["EstimateStatusEnum"];
+            /** @description Estimated Property Value in PKR, a decimal string; null when unavailable. */
+            estimated_value: string | null;
+            /** @description Always `PKR`. */
+            currency: string;
+            model_version: number | null;
+            /** Format: date-time */
+            estimated_at: string | null;
+            reason: (components["schemas"]["ReasonEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Short text for the reason; null when available. */
+            message: string | null;
+            /** @description Total Asking price in PKR (a per-unit price times the area); null for rent. */
+            asking_total: string | null;
+            /** @description Null when unavailable. */
+            comparison: components["schemas"]["PriceComparison"] | null;
+            /** @description Null when unavailable. */
+            forecast: components["schemas"]["PriceForecast"] | null;
+            /** @description True for the signed-in owner: `POST /api/v1/listings/{id}/estimate`. */
+            can_recompute: boolean;
+        };
         /** @description Flat registry ids. Null means unknown. */
         ListingFields: {
             purpose: (components["schemas"]["PurposeEnum"] | components["schemas"]["NullEnum"]) | null;
@@ -2494,6 +2536,28 @@ export interface components {
          * @enum {string}
          */
         PriceBasisEnum: "total" | "per_unit" | "rental_period";
+        PriceComparison: {
+            /**
+             * @description The Asking price against the estimate; `about_equal` is within 5%.
+             *
+             *     * `about_equal` - about_equal
+             *     * `above` - above
+             *     * `below` - below
+             */
+            verdict: components["schemas"]["VerdictEnum"];
+            /** @description Percent above or below the estimate, one decimal. */
+            percent: string;
+        };
+        /** @description The 5-Year Price Forecast: assumed growth scenarios, not a guaranteed return. */
+        PriceForecast: {
+            horizon_years: number;
+            /** @description PKR, a decimal string. */
+            low: string;
+            /** @description PKR, a decimal string. */
+            base: string;
+            /** @description PKR, a decimal string. */
+            high: string;
+        };
         Profile: {
             full_name: string;
             /** @description The owner's own phone number in E.164. Private: returned only here. */
@@ -3160,6 +3224,13 @@ export interface components {
         UnreadCount: {
             unread: number;
         };
+        /**
+         * @description * `about_equal` - about_equal
+         *     * `above` - above
+         *     * `below` - below
+         * @enum {string}
+         */
+        VerdictEnum: "about_equal" | "above" | "below";
         VerificationRequestRequest: {
             /** @description The address to send a new link to. */
             email: string;
@@ -4945,7 +5016,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `conflict`: the Listing is not a Draft */
+            /** @description `conflict`: the Listing is not a Draft or Published */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8243,6 +8314,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicListingDetail"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_listing_estimate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The estimate */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingEstimate"];
                 };
             };
             /** @description Bad request or validation error */

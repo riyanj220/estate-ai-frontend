@@ -931,3 +931,16 @@ progress {
   font-size: 0.875rem;
   box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
 }
+
+/* Asking price beside the Estimated Property Value (Story 4.6) */
+.price-insight {
+  margin-bottom: var(--space);
+}
+.price-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space);
+}
+.price-compare .estimate-figure {
+  margin-bottom: 0;
+}
