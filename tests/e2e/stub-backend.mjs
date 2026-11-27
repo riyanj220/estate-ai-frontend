@@ -1185,6 +1185,10 @@ let heldStatusAnswers = [];
 let patchMode = "ok";
 // Story 2.13: the owner's preview and delete. Modes shape the answers; the lists keep what the page did.
 let previewMode = "ok";
+// Story 4.4: estimate requests. `estimates` keeps the last one per Listing with the revision it was computed at.
+let estimateMode = "ok";
+let estimatePosts = [];
+let estimates = new Map();
 let previewGets = 0;
 let lastPreviewId = null;
 let previewIds = [];
@@ -2077,6 +2081,27 @@ createServer((req, res) => {
   }
   if (url.pathname === "/__registry-taxonomy") return choose("taxonomyName", Object.keys(TAXONOMIES), (v) => (taxonomyName = v));
   if (url.pathname === "/__registry-fields") return choose("fieldsName", Object.keys(REGISTRY_FIELDS), (v) => (fieldsName = v));
+  if (url.pathname === "/__estimate-mode") {
+    return choose("estimateMode", ["ok", "unavailable", "rate_limited", "forbidden", "session_gone", "error"], (v) => (estimateMode = v));
+  }
+  if (url.pathname === "/__estimate-stats") return json(200, { posts: estimatePosts });
+  const estimateMatch = /^\/api\/v1\/listings\/([^/]+)\/estimate$/.exec(url.pathname);
+  if (estimateMatch && req.method === "POST") {
+    const id = decodeURIComponent(estimateMatch[1]);
+    estimatePosts.push(id);
+    res.setHeader("cache-control", "no-store");
+    if (signedInUnsafe(estimateMode, req.headers["x-csrftoken"] ?? null)) return;
+    if (estimateMode === "error") return serverFailure("error");
+    const found = listings.find((item) => item.id === id && item.owner === "mine");
+    if (!found) return json(404, envelope("not_found", "Not found."));
+    if (statusOf(found) !== "draft") return json(409, envelope("conflict", "Conflict."));
+    if (estimateMode === "unavailable") {
+      return json(200, { status: "unavailable", estimated_value: null, currency: "PKR", model_version: null, estimated_at: null, reason: "locality_not_covered", message: "This locality is not covered yet." });
+    }
+    const stored = { estimated_value: "24500000.00", currency: "PKR", model_version: 1, estimated_at: "2026-11-27T10:00:00Z" };
+    estimates.set(id, { revision: found.revision, stored });
+    return json(200, { status: "available", ...stored, reason: null, message: null });
+  }
   if (url.pathname === "/__listing-preview-mode") {
     return choose("previewMode", ["ok", "flaky", "malformed", "other_id", "leaky", "nulls", "bad_request", "unprocessable", "session_gone", "forbidden", "rate_limited", "not_found", "error", "broken", "hang"], (v) => {
       previewMode = v;
@@ -2360,7 +2385,7 @@ createServer((req, res) => {
       fields: nullFields ?? { ...fields, ...leak },
       media: found.images.map((image) => ({ id: image.id, position: image.position, is_cover: image.is_cover, content_type: image.content_type, width: image.width, height: image.height, url: `/api/v1/listings/${found.id}/images/${image.id}/file` })),
       registry_version: found.registryVersion,
-      estimate: previewMode === "leaky" ? { value: 1 } : null,
+      estimate: previewMode === "leaky" ? { value: 1 } : estimates.get(found.id)?.revision === found.revision ? estimates.get(found.id).stored : null,
     });
   }
   // Story 2.13: delete one of the owner's Drafts (204). 404 for missing, someone else's, an administrator and a repeat; 409 for a
@@ -4031,6 +4056,9 @@ createServer((req, res) => {
     allowanceMode = "ok";
     allowanceGets = 0;
     publishMode = "ok";
+    estimateMode = "ok";
+    estimatePosts = [];
+    estimates = new Map();
     publishUsed = {};
     publishRecords = new Map();
     publishAttempts = [];

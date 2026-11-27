@@ -76,6 +76,13 @@ Use `PW_CHANNEL=chrome` when the Playwright Chromium is not downloaded.
 | `BACKEND_OPENAPI_URL` | Raw URL of the backend `main` `openapi.yaml` used by the online `api:check` |
 | `PW_CHANNEL` | e.g. `chrome`: run Playwright against an installed browser instead of the downloaded Chromium |
 
+## AI Price Estimates
+
+"Get estimate" on a Draft asks the backend only when pressed, from the saved details, and never changes the asking price. Every place that
+shows an estimated figure uses `src/components/estimate-figure.tsx` (the value with its one info button and popover). `/about-estimates`
+explains the figures; keep it in step with the backend's `docs/valuation.md`. No user-facing string may say "demo" or "demonstration"
+(`tests/e2e/estimate.spec.ts` scans `src/`).
+
 ## Two-repo workflow
 
 The contract is the backend's committed `openapi.yaml`. `src/api/` holds a committed copy of it
