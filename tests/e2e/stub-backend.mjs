@@ -1332,6 +1332,7 @@ const SEARCH_PARAMS = { purpose: "sale", category: "house", prefer_parking_space
 // Favourites (Story 3.7): the saved listing ids, latest first. An id without a public card reads as no longer available.
 let favourites = [];
 // Story 7.1: one inquiry per Listing. Modes through /__messaging-mode; a reply from the seller through /__messaging-reply.
+// Stories 7.5 and 7.6: `read` is the caller's mark; /__messaging-seed fills the inbox (pages of 2 in this stub).
 let conversations = [];
 let messagingMode = "ok";
 let messagingRequests = [];
@@ -1751,6 +1752,18 @@ const server = createServer((req, res) => {
   }
   if (url.pathname === "/__messaging-mode") return choose("messagingMode", ["ok", "own", "unverified", "rate_limited", "lost", "read_only", "sold"], (v) => (messagingMode = v));
   if (url.pathname === "/__messaging-requests") return json(200, { requests: messagingRequests });
+  if (url.pathname === "/__messaging-seed") {
+    // Newest first: an unread one about a sold listing, a read one that is no longer available, and an open one.
+    conversations = ["sold", "unavailable", "available"].map((availability, index) => ({
+      id: `00000000-0000-4000-f000-00000000000${index + 1}`,
+      listingId: PUBLIC_CARDS[(index + 1) % 3].id,
+      availability,
+      read: index === 0 ? 0 : 1,
+      at: `2026-11-2${7 - index}T10:00:00Z`,
+      messages: [{ body: "Seeded message", mine: false, key: null }],
+    }));
+    return json(200, {});
+  }
   if (url.pathname === "/__messaging-reply") {
     conversations[0].messages.push({ body: url.searchParams.get("body"), mine: false, key: null });
     // `announce`: tell the open sockets, as a saved Message does; without it the event is "missed".
@@ -1768,19 +1781,22 @@ const server = createServer((req, res) => {
     if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication is required."));
     const [conversationId, tail] = url.pathname.slice("/api/v1/conversations/".length).split("/");
     const found = conversations.find((entry) => entry.id === conversationId);
-    const closed = messagingMode === "read_only" || messagingMode === "sold";
+    const unread = (entry) => entry.messages.length - (entry.read ?? 0);
+    const availabilityOf = (entry) => (messagingMode === "sold" ? "sold" : messagingMode === "read_only" ? "unavailable" : (entry.availability ?? "available"));
     const head = (entry) => ({
       id: entry.id,
       listing_id: entry.listingId,
-      listing: closed
-        ? { availability: messagingMode === "sold" ? "sold" : "unavailable", title: null }
-        : { availability: "available", title: PUBLIC_CARDS.find((card) => card.id === entry.listingId)?.title ?? "Listing" },
+      listing:
+        availabilityOf(entry) === "available"
+          ? { availability: "available", title: PUBLIC_CARDS.find((card) => card.id === entry.listingId)?.title ?? "Listing" }
+          : { availability: availabilityOf(entry), title: null },
       role: "initiator",
       counterpart_name: "Sunrise Estates",
-      writable: !closed,
-      read_only_reason: closed ? "conversation_read_only" : null,
+      writable: availabilityOf(entry) === "available",
+      read_only_reason: availabilityOf(entry) === "available" ? null : "conversation_read_only",
       last_seq: entry.messages.length,
-      last_message_at: "2026-11-27T10:00:00Z",
+      unread_count: unread(entry),
+      last_message_at: entry.at ?? "2026-11-27T10:00:00Z",
       created_at: "2026-11-27T10:00:00Z",
     });
     const wire = (entry, message, index) => ({
@@ -1795,8 +1811,11 @@ const server = createServer((req, res) => {
     if (req.method === "GET") {
       if (url.pathname === "/api/v1/conversations") {
         const listingId = url.searchParams.get("listing_id");
-        return json(200, { results: conversations.filter((entry) => entry.listingId === listingId).map(head) });
+        if (listingId) return json(200, { results: conversations.filter((entry) => entry.listingId === listingId).map(head), next: null });
+        const from = Number(url.searchParams.get("cursor") ?? 0);
+        return json(200, { results: conversations.slice(from, from + 2).map(head), next: conversations.length > from + 2 ? String(from + 2) : null });
       }
+      if (conversationId === "unread-count") return json(200, { unread: conversations.filter((entry) => unread(entry) > 0).length });
       if (!found) return json(404, envelope("not_found", "Not found."));
       if (!tail) return json(200, head(found));
       const after = Number(url.searchParams.get("after") ?? 0);
@@ -1808,6 +1827,12 @@ const server = createServer((req, res) => {
     return req.on("end", () => {
       const body = JSON.parse(raw);
       const key = req.headers["idempotency-key"];
+      if (tail === "read") {
+        if (!found) return json(404, envelope("not_found", "Not found."));
+        found.read = Math.max(found.read ?? 0, Math.min(body.seq, found.messages.length));
+        res.writeHead(204);
+        return res.end();
+      }
       messagingRequests.push({ path: url.pathname, key, body });
       if (messagingMode === "own") return json(409, envelope("own_listing", "You cannot message your own listing."));
       if (messagingMode === "unverified") return json(403, envelope("messaging_email_unverified", "Verify your email address to send messages."));
@@ -1818,6 +1843,7 @@ const server = createServer((req, res) => {
         conversations.push(entry);
       }
       if (!entry.messages.some((message) => message.key === key)) entry.messages.push({ body: body.body.trim(), mine: true, key });
+      entry.read = entry.messages.length; // one has read what one wrote
       // "lost": saved, but the answer never arrives; the retry succeeds.
       if (messagingMode === "lost") {
         messagingMode = "ok";

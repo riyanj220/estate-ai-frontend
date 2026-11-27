@@ -2,9 +2,10 @@ import AxeBuilder from "@axe-core/playwright";
 import { APP_URL, STUB_URL } from "./ports";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-// Story 7.1, frontend half: "Message seller" on a public Listing and the Conversation page.
+// Epic 7, frontend: "Message seller" on a public Listing, the Conversation page and the inbox.
 const LISTING = "00000000-0000-4000-b000-000000000001";
 const THREAD = "/messages/00000000-0000-4000-f000-000000000001";
+const INBOX = "/messages";
 
 test.describe.configure({ mode: "serial" });
 
@@ -203,4 +204,69 @@ test("a socket closed because the session ended is not reopened, and the page as
   await request.get(`${STUB_URL}/__live-close?code=4401`);
   await expect(page).toHaveURL(new RegExp(`/sign-in\\?next=${encodeURIComponent(THREAD)}`));
   expect((await liveStats(request)).opened).toBe(1);
+});
+
+// Stories 7.5 and 7.6: the inbox, unread state and what a Listing that moved on looks like.
+const messagesLink = (page: Page) => page.getByRole("banner").getByRole("link", { name: /^Messages/ });
+
+test("the inbox names each listing, shows what is unread and clears it on opening @smoke", async ({ page, request }) => {
+  await startSession(page, request);
+  await page.goto(INBOX);
+  await expect(page.getByTestId("inbox-empty")).toContainText("You have no conversations yet.");
+  await expect(messagesLink(page)).toHaveAccessibleName("Messages");
+  await expectNoViolations(page, "empty inbox");
+
+  await request.get(`${STUB_URL}/__messaging-seed`);
+  await page.reload();
+  const rows = page.getByTestId("inbox").getByRole("listitem");
+  await expect(rows).toHaveCount(2);
+  await expect(messagesLink(page)).toHaveAccessibleName("Messages, 1 unread");
+  await expect(rows.nth(0).getByRole("heading")).toHaveText("Sold");
+  await expect(rows.nth(0)).toContainText("With Sunrise Estates");
+  await expect(rows.nth(0)).toContainText("1 unread");
+  await expect(rows.nth(1).getByRole("heading")).toHaveText("Listing no longer available");
+  await expect(rows.nth(1)).not.toContainText("unread");
+  await expect(page.locator("main")).not.toContainText("Seeded message");
+  await page.getByRole("button", { name: "Load more" }).click();
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(2).getByRole("heading")).toHaveText("Corner house with garden");
+  await expect(page.getByRole("button", { name: "Load more" })).toHaveCount(0);
+  for (const size of [{ width: 1280, height: 800 }, { width: 375, height: 812 }]) {
+    await page.setViewportSize(size);
+    await expectNoViolations(page, `inbox ${size.width}`);
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  // The history of a sold listing is readable, and nothing can be sent.
+  await rows.nth(0).getByRole("link", { name: "Sold" }).click();
+  await expect(page.getByTestId("messages").getByRole("listitem")).toContainText("Seeded message");
+  await expect(page.getByTestId("conversation-read-only")).toBeVisible();
+  await expect(messagesLink(page)).toHaveAccessibleName("Messages");
+  await page.getByRole("link", { name: "All messages" }).click();
+  await expect(rows.nth(0).getByRole("heading")).toHaveText("Sold");
+  await expect(page.getByTestId("inbox")).not.toContainText("unread");
+});
+
+test("a message arriving on the inbox shows as unread, and one on the open thread does not", async ({ page, request }) => {
+  await openThread(page, request);
+  await expect(page.getByTestId("live-status")).toHaveText("New messages appear as they arrive.");
+  await request.get(`${STUB_URL}/__messaging-reply?body=Tomorrow&announce=1`);
+  await expect(page.getByTestId("messages").getByRole("listitem")).toHaveCount(2);
+  await page.getByRole("link", { name: "All messages" }).click();
+  const rows = page.getByTestId("inbox").getByRole("listitem");
+  await expect(rows).toHaveCount(1);
+  await expect(rows).not.toContainText("unread");
+  await expect.poll(async () => (await liveStats(request)).open).toBe(1);
+  await request.get(`${STUB_URL}/__messaging-reply?body=Later&announce=1`);
+  await expect(rows).toContainText("1 unread");
+  await expect(messagesLink(page)).toHaveAccessibleName("Messages, 1 unread");
+});
+
+test("a Visitor is sent to sign in from the inbox, and an administrator has no link to it", async ({ page, request }) => {
+  await page.goto(INBOX);
+  await expect(page).toHaveURL(new RegExp(`/sign-in\\?next=${encodeURIComponent(INBOX)}`));
+  await startSession(page, request, "admin");
+  await page.goto(`/listings/${LISTING}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Corner house with garden" })).toBeVisible();
+  await expect(messagesLink(page)).toHaveCount(0);
 });
