@@ -1317,6 +1317,11 @@ const adminAccountRow = () => ({
 const ACCOUNT_MODES = ["ok", "invalid", "conflict", "error", "csrf_once", "session_gone"];
 let suspensionReason = SUSPENSION_REASON;
 let adminAccount = adminAccountRow();
+// Stories 8.3 and 8.4: the one Agency Verification request (null until sent) and its decisions, newest first.
+const VERIFICATION_ID = "00000000-0000-4000-c000-000000000001";
+let verification = null;
+let verificationHistory = [];
+let verificationPosts = [];
 let accountsMode = "ok";
 let accountsPosts = [];
 // Public browse and detail (Story 3.1): no session. Three Listings in pages of two; `next` is an absolute backend URL like the real one.
@@ -2328,6 +2333,74 @@ const server = createServer((req, res) => {
       );
       const { account_type, state, suspension_reason, suspended_at } = adminAccount;
       return json(200, { id: ACCOUNT_ID, account_type, state, suspension_reason, suspended_at });
+    });
+  }
+  // ---- Agency Verification (Stories 8.3 and 8.4)
+  if (url.pathname === "/__verification-stats") return json(200, { posts: verificationPosts });
+  if (url.pathname.startsWith("/api/v1/me/agency-verification") || url.pathname.startsWith("/api/v1/admin/verification-requests")) {
+    res.setHeader("cache-control", "no-store");
+    const decide = (action, status, reason) => {
+      Object.assign(verification, { status, decided_at: "2026-11-27T11:00:00+05:00", decision_reason: reason });
+      verificationHistory.unshift({ action, at: verification.decided_at, by_account_id: "00000000-0000-4000-8000-0000000000aa", reason });
+    };
+    const own = () => ({
+      status: verification?.status ?? "unverified",
+      can_submit: !["pending", "verified"].includes(verification?.status),
+      can_withdraw: verification?.status === "pending",
+      request: verification && {
+        business_name: verification.business_name,
+        registration_number: verification.registration_number,
+        note: verification.note,
+        submitted_at: verification.submitted_at,
+        decided_at: verification.decided_at,
+        decision_reason: verification.decision_reason,
+      },
+    });
+    const summary = () => ({
+      id: VERIFICATION_ID,
+      status: verification.status,
+      business_name: verification.business_name,
+      agency_name: "Harbour Homes",
+      agency_id: VERIFICATION_ID,
+      account_state: "active",
+      submitted_at: verification.submitted_at,
+    });
+    const admin = url.pathname.startsWith("/api/v1/admin/");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication required."));
+    if (admin && !sessionAdmin) return json(404, envelope("not_found", "Not found."));
+    if (!admin && (sessionAdmin || !meMode.startsWith("agency"))) return json(403, envelope("forbidden", "Forbidden."));
+    if (req.method === "GET") {
+      if (!admin) return json(200, own());
+      const wanted = url.searchParams.get("status") ?? "pending";
+      return json(200, { next: null, previous: null, results: verification?.status === wanted ? [summary()] : [] });
+    }
+    return readBody((body) => {
+      const action = url.pathname.split("/").pop();
+      verificationPosts.push({ action, body, token: req.headers["x-csrftoken"] ?? null });
+      if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
+      const conflict = () => json(409, envelope("conflict", "Conflict."));
+      if (action === "requests") {
+        if (["pending", "verified"].includes(verification?.status)) return conflict();
+        if (!/^[A-Za-z0-9][A-Za-z0-9 ./-]{2,59}$/.test(body?.registration_number ?? "")) {
+          return json(400, envelope("validation_error", "Some fields are invalid.", { registration_number: ["invalid"] }));
+        }
+        verification = { ...body, status: "pending", submitted_at: "2026-11-27T10:00:00+05:00", decided_at: null, decision_reason: "" };
+        return json(201, own());
+      }
+      if (action === "withdraw") {
+        if (verification?.status !== "pending") return conflict();
+        decide("withdrawn", "withdrawn", "");
+        return json(200, own());
+      }
+      if (!url.pathname.includes(VERIFICATION_ID) || !verification) return json(404, envelope("not_found", "Not found."));
+      if (action === "read") {
+        const { registration_number, note, decided_at, decision_reason } = verification;
+        return json(200, { ...summary(), registration_number, note, decided_at, decision_reason, history: verificationHistory });
+      }
+      if (verification.status !== (action === "revoke" ? "verified" : "pending")) return conflict();
+      const status = { approve: "verified", reject: "rejected", revoke: "revoked" }[action];
+      decide({ approve: "approved", reject: "rejected", revoke: "revoked" }[action], status, body?.reason ?? "");
+      return json(200, { id: VERIFICATION_ID, status, decided_at: verification.decided_at });
     });
   }
   // ---- Listings and the registry (Story 2.1)
@@ -4354,6 +4427,9 @@ const server = createServer((req, res) => {
     quotaMode = "ok";
     quotaStats = { policyGets: 0, usageGets: 0, puts: [] };
     adminAccount = adminAccountRow();
+    verification = null;
+    verificationHistory = [];
+    verificationPosts = [];
     accountsMode = "ok";
     accountsPosts = [];
     publicMode = "ok";
