@@ -1331,6 +1331,13 @@ let voiceRequests = [];
 const SEARCH_PARAMS = { purpose: "sale", category: "house", prefer_parking_spaces_min: "1", prefer_amenities: "nearby_park" };
 // Favourites (Story 3.7): the saved listing ids, latest first. An id without a public card reads as no longer available.
 let favourites = [];
+// Epic 8: the Agency dashboard (two listings, filtered by status and category) and the view beacon of the public detail.
+let portfolioQueries = [];
+let viewBeacons = [];
+const PORTFOLIO_ROWS = [
+  { id: "00000000-0000-4000-b000-000000000001", title: "Corner house with garden", status: "published", purpose: "sale", category: "house", subtype: "house", city: { id: "11111111-1111-4111-8111-111111111111", name: "Karachi" }, locality: null, created_on: "2026-11-02", views: 12, inquiries: 3 },
+  { id: "00000000-0000-4000-b000-000000000002", title: null, status: "draft", purpose: "rent", category: "apartment", subtype: "apartment", city: null, locality: null, created_on: "2026-10-20", views: 0, inquiries: 0 },
+];
 // Story 7.1: one inquiry per Listing. Modes through /__messaging-mode; a reply from the seller through /__messaging-reply.
 // Stories 7.5 and 7.6: `read` is the caller's mark; /__messaging-seed fills the inbox (pages of 2 in this stub).
 let conversations = [];
@@ -1557,6 +1564,25 @@ const server = createServer((req, res) => {
         : { status: "transcribed", transcript: "house for sale near a park", message: "" };
       setTimeout(() => json(200, answer), voiceMode === "slow" ? 1500 : 0);
     });
+  }
+  const beacon = /^\/api\/v1\/public\/listings\/([^/]+)\/views$/.exec(url.pathname);
+  if (beacon && req.method === "POST") {
+    viewBeacons.push({ listing: beacon[1], token: req.headers["x-csrftoken"] ?? null });
+    res.writeHead(204, { "cache-control": "no-store" });
+    return res.end();
+  }
+  if (url.pathname === "/__portfolio-requests") return json(200, { queries: portfolioQueries, beacons: viewBeacons });
+  if (url.pathname === "/api/v1/me/agency-dashboard" || url.pathname === "/api/v1/me/agency-dashboard/listings") {
+    res.setHeader("cache-control", "no-store");
+    if (!(liveSession && (req.headers.cookie ?? "").includes(SESSION_COOKIE))) return json(401, envelope("unauthenticated", "Authentication is required."));
+    if (!meMode.startsWith("agency")) return json(403, envelope("forbidden", "Not allowed."));
+    if (url.pathname === "/api/v1/me/agency-dashboard") {
+      return json(200, { total_listings: 2, by_status: { draft: 1, published: 1, archived: 0, sold: 0, rented: 0, removed: 0 }, inquiries_total: 3, views_total: 12 });
+    }
+    portfolioQueries.push(url.search);
+    const wanted = url.searchParams;
+    const results = PORTFOLIO_ROWS.filter((row) => ["status", "category"].every((name) => !wanted.get(name) || row[name] === wanted.get(name)));
+    return json(200, { results, next: null });
   }
   if (url.pathname === "/__public-mode") {
     publicMode = url.searchParams.get("value") ?? "ok";
@@ -4338,6 +4364,8 @@ const server = createServer((req, res) => {
     voiceRequests = [];
     favourites = [];
     favouritesMode = "ok";
+    portfolioQueries = [];
+    viewBeacons = [];
     conversations = [];
     messagingMode = "ok";
     messagingRequests = [];
