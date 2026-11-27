@@ -7,7 +7,7 @@ export const PUBLIC_LOCATION_TEXT = ["society", "phase", "sector", "block"] as c
  * The owner's preview (Story 2.13) as the page shows it: the public projection of a Listing, read defensively and only by the names this
  * page renders (so a stray private key would never be shown). It reuses `readListing` (status, revision and registry details are not part
  * of the projection and stay unknown). Null when the body cannot be trusted: not an object, another id, or images that fail the media
- * check. The estimate is always empty for now: the page never renders anything from it.
+ * check. The estimate is read apart, by `readValue`.
  */
 export function readPreview(data: unknown, id: string): ListingView | null {
   if (typeof data !== "object" || data === null) return null;

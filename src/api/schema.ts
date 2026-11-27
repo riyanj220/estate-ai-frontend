@@ -264,6 +264,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/estimates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * AI Price Estimate for entered property details
+         * @description Needs `X-CSRFToken`. An unsupported property is `200` with `status: unavailable`. Shares the limit of 20 requests an hour with the Draft route. Never cached.
+         */
+        post: operations["request_estimate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -356,6 +376,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/listings/{listing_id}/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * AI Price Estimate for one of the signed-in account's own Drafts
+         * @description Needs `X-CSRFToken`. No body. Uses the saved Draft. The Asking price is neither read nor changed. Never cached.
+         */
+        post: operations["request_listing_estimate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/listings/{listing_id}/images": {
         parameters: {
             query?: never;
@@ -429,7 +469,7 @@ export interface paths {
         };
         /**
          * Preview what the public will see of one of the signed-in account's own Listings
-         * @description Owner only, for the account's own Listing in any status (draft, published, archived, sold, rented, removed). The body is the public projection (the same fields a visitor would get, built by the same function): never a private address, coordinates, a phone number, the revision, the provenance or the status. `media` lists the images in the public shape; their `url` is the media endpoint, which serves a Draft's image to its owner only. `estimate` is always `null` until the valuation feature exists. Another account's, an administrator's, an unknown and a malformed id are all `404 not_found`. A Visitor gets `401`. Opening the preview counts as opening the Draft (it postpones the idle-Draft notice). Never cached.
+         * @description Owner only, for the account's own Listing in any status (draft, published, archived, sold, rented, removed). The body is the public projection (the same fields a visitor would get, built by the same function): never a private address, coordinates, a phone number, the revision, the provenance or the status. `media` lists the images in the public shape; their `url` is the media endpoint, which serves a Draft's image to its owner only. `estimate` is the latest AI Price Estimate requested for the Listing, or `null` when there is none or the saved details changed since; reading it computes nothing. Another account's, an administrator's, an unknown and a malformed id are all `404 not_found`. A Visitor gets `401`. Opening the preview counts as opening the Draft (it postpones the idle-Draft notice). Never cached.
          */
         get: operations["preview_listing"];
         put?: never;
@@ -1563,6 +1603,69 @@ export interface components {
             };
             request_id: string;
         };
+        /** @description An AI Price Estimate, or the unavailable state with a short reason and no number. */
+        Estimate: {
+            status: components["schemas"]["EstimateStatusEnum"];
+            /** @description Estimated Property Value in PKR, a decimal string; null when unavailable. */
+            estimated_value: string | null;
+            /** @description Always `PKR`. */
+            currency: string;
+            model_version: number | null;
+            /** Format: date-time */
+            estimated_at: string | null;
+            reason: (components["schemas"]["ReasonEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Short text for the reason; null when available. */
+            message: string | null;
+        };
+        /** @description The model inputs only. Send the ones that apply to the property type; no price, address or other field is accepted. */
+        EstimateFieldsRequest: {
+            /**
+             * Format: uuid
+             * @description The uuid of an active locality from the reference lists (`/api/v1/reference/cities`), as text; never a name. Null clears it.
+             */
+            locality?: string | null;
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. */
+            area_value?: string | null;
+            area_unit?: (components["schemas"]["AreaUnitEnum"] | components["schemas"]["NullEnum"]) | null;
+            marla_basis?: (components["schemas"]["MarlaBasisEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            bedrooms?: number | null;
+            /** @description Whole number from 0 to 50, a JSON integer (never text). Null clears it. */
+            bathrooms?: number | null;
+            /** @description Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`), digits and a point only, never a JSON number. Returned with 4 decimals. */
+            covered_area_sqft?: string | null;
+            /** @description Whole number from 1900 to 2100, a JSON integer (never text). Null clears it. */
+            construction_year?: number | null;
+            condition?: (components["schemas"]["ConditionEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description `true` or `false`; null when not answered (never defaulted to either). */
+            corner_plot?: boolean | null;
+            /** @description Decimal string with up to 2 decimals (`1.00` to `999.99`), digits and a point only, never a JSON number. Returned with 2 decimals. */
+            road_width_ft?: string | null;
+            /**
+             * @description Seller-declared: the owner's own claim, never verified by EstateAI.
+             *
+             *     * `developed` - developed
+             *     * `partially_developed` - partially_developed
+             *     * `undeveloped` - undeveloped
+             */
+            development_status?: (components["schemas"]["DevelopmentStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description An object `{code: state}` with catalogue codes (`/api/v1/reference/amenities`) and the state `"present"` or `"none"`, at most 40 entries. It REPLACES the whole map; `null` or `{}` clears it. A code left out is unanswered, never `none`. `nearby` entries are the seller's own declaration: show them as seller-declared; there is no distance and no verification. Returned as the answered codes only, or `null` when none is answered. */
+            amenities?: {
+                [key: string]: string;
+            } | null;
+        };
+        EstimateRequestRequest: {
+            purpose: components["schemas"]["PurposeEnum"];
+            category: components["schemas"]["CategoryEnum"];
+            subtype: components["schemas"]["SubtypeEnum"];
+            fields: components["schemas"]["EstimateFieldsRequest"];
+        };
+        /**
+         * @description * `available` - available
+         *     * `unavailable` - unavailable
+         * @enum {string}
+         */
+        EstimateStatusEnum: "available" | "unavailable";
         Favourite: {
             /** Format: uuid */
             listing_id: string;
@@ -2174,10 +2277,7 @@ export interface components {
             previous: string | null;
             results: components["schemas"]["Listing"][];
         };
-        /**
-         * @description What the public will see of the owner's own Listing, plus an `estimate` that is always
-         *     null until the valuation feature exists.
-         */
+        /** @description What the public will see of the owner's own Listing, plus its latest AI Price Estimate. */
         ListingPreview: {
             /** Format: uuid */
             id: string;
@@ -2190,10 +2290,8 @@ export interface components {
             /** @description The images in `position` order. */
             media: components["schemas"]["PublicImage"][];
             registry_version: number;
-            /** @description Always null for now; reserved for the valuation estimate. */
-            readonly estimate: {
-                [key: string]: unknown;
-            } | null;
+            /** @description The latest estimate requested for this Listing; null when there is none or the saved details it was computed from have changed since. */
+            estimate: components["schemas"]["PreviewEstimate"] | null;
         };
         /**
          * @description * `draft` - draft
@@ -2379,6 +2477,16 @@ export interface components {
          * @enum {string}
          */
         PossessionStatusEnum: "possession_ready" | "possession_pending" | "file_only";
+        /** @description A stored AI Price Estimate of the previewed Listing. */
+        PreviewEstimate: {
+            /** @description Estimated Property Value in PKR, a decimal string. */
+            estimated_value: string;
+            /** @description Always `PKR`. */
+            currency: string;
+            model_version: number;
+            /** Format: date-time */
+            estimated_at: string;
+        };
         /**
          * @description * `total` - total
          *     * `per_unit` - per_unit
@@ -2850,6 +2958,17 @@ export interface components {
             previous: string | null;
             results: components["schemas"]["QuotaUsage"][];
         };
+        /**
+         * @description * `rent_not_supported` - rent_not_supported
+         *     * `type_not_supported` - type_not_supported
+         *     * `locality_missing` - locality_missing
+         *     * `locality_not_covered` - locality_not_covered
+         *     * `area_missing` - area_missing
+         *     * `marla_basis_unknown` - marla_basis_unknown
+         *     * `temporarily_unavailable` - temporarily_unavailable
+         * @enum {string}
+         */
+        ReasonEnum: "rent_not_supported" | "type_not_supported" | "locality_missing" | "locality_not_covered" | "area_missing" | "marla_basis_unknown" | "temporarily_unavailable";
         RegistrationAccepted: {
             status: components["schemas"]["RegistrationAcceptedStatusEnum"];
         };
@@ -4104,6 +4223,84 @@ export interface operations {
             };
         };
     };
+    request_estimate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EstimateRequestRequest"];
+            };
+        };
+        responses: {
+            /** @description The estimate, or why there is none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            /** @description `validation_error`: invalid or unaccepted values */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated`: a Visitor */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: not allowed for this account, or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `throttled`: more than 20 estimate requests in an hour; with `Retry-After` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     health: {
         parameters: {
             query?: never;
@@ -4679,6 +4876,91 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    request_listing_estimate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The estimate, or why there is none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `unauthenticated`: a Visitor */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: not allowed for this account, or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found`: not the account's own Listing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `conflict`: the Listing is not a Draft */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `throttled`: more than 20 estimate requests in an hour; with `Retry-After` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Server error */

@@ -107,6 +107,7 @@ import { CorrectionSection } from "./correction-section";
 import { DeleteDraft } from "./delete-draft";
 import { DetailsSection, IDENTITY_NOTE_ID } from "./details-section";
 import { ImagesSection } from "./images-section";
+import { EstimateSection } from "./estimate-section";
 import { PublishSection, PublishedAllowance, type PublicationKind, type PublishMode } from "./publish-section";
 import { StatusActions } from "./status-actions";
 
@@ -1623,6 +1624,16 @@ export function DraftEditor({
         )}
       </section>
         </>
+      )}
+      {listing.status === "draft" && !listing.restricted && account?.state !== "suspended" && (
+        <EstimateSection
+          listingId={listing.id}
+          stamp={JSON.stringify([listing.fields.area_value, listing.fields.area_unit, listing.fields.marla_basis, listing.details])}
+          dirty={dirty}
+          blocked={pending || deleting || publishing || changingStatus}
+          onSessionGone={onSessionGone}
+          onNotFound={onNotFound}
+        />
       )}
       {listing.status === "draft" && !listing.restricted && (
         <PublishSection

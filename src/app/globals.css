@@ -889,3 +889,45 @@ progress {
 .save-note {
   margin-top: 0.5rem;
 }
+
+/* AI Price Estimate (Story 4.4): the figure, its one info button and the popover below it. */
+.estimate-figure {
+  position: relative;
+  margin-bottom: var(--space);
+}
+.muted-label {
+  display: block;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+.estimate-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.25rem;
+}
+.info-button {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent);
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.estimate-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  width: min(22rem, 100%);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+}

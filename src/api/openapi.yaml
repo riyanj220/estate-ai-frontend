@@ -872,6 +872,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/estimates:
+    post:
+      operationId: request_estimate
+      description: 'Needs `X-CSRFToken`. An unsupported property is `200` with `status:
+        unavailable`. Shares the limit of 20 requests an hour with the Draft route.
+        Never cached.'
+      summary: AI Price Estimate for entered property details
+      tags:
+      - estimates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstimateRequestRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Estimate'
+          description: The estimate, or why there is none
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`: invalid or unaccepted values'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: not allowed for this account, or a missing CSRF
+            token'
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`throttled`: more than 20 estimate requests in an hour; with
+            `Retry-After`'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/health:
     get:
       operationId: health
@@ -1448,6 +1510,73 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/listings/{listing_id}/estimate:
+    post:
+      operationId: request_listing_estimate
+      description: Needs `X-CSRFToken`. No body. Uses the saved Draft. The Asking
+        price is neither read nor changed. Never cached.
+      summary: AI Price Estimate for one of the signed-in account's own Drafts
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - listings
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Estimate'
+          description: The estimate, or why there is none
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: not allowed for this account, or a missing CSRF
+            token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`: not the account''s own Listing'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`conflict`: the Listing is not a Draft'
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`throttled`: more than 20 estimate requests in an hour; with
+            `Retry-After`'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/listings/{listing_id}/images:
     post:
       operationId: upload_listing_image
@@ -1819,10 +1948,11 @@ paths:
         private address, coordinates, a phone number, the revision, the provenance
         or the status. `media` lists the images in the public shape; their `url` is
         the media endpoint, which serves a Draft''s image to its owner only. `estimate`
-        is always `null` until the valuation feature exists. Another account''s, an
-        administrator''s, an unknown and a malformed id are all `404 not_found`. A
-        Visitor gets `401`. Opening the preview counts as opening the Draft (it postpones
-        the idle-Draft notice). Never cached.'
+        is the latest AI Price Estimate requested for the Listing, or `null` when
+        there is none or the saved details changed since; reading it computes nothing.
+        Another account''s, an administrator''s, an unknown and a malformed id are
+        all `404 not_found`. A Visitor gets `401`. Opening the preview counts as opening
+        the Draft (it postpones the idle-Draft notice). Never cached.'
       summary: Preview what the public will see of one of the signed-in account's
         own Listings
       parameters:
@@ -5850,6 +5980,162 @@ components:
       - message
       - fields
       - request_id
+    Estimate:
+      type: object
+      description: An AI Price Estimate, or the unavailable state with a short reason
+        and no number.
+      properties:
+        status:
+          $ref: '#/components/schemas/EstimateStatusEnum'
+        estimated_value:
+          type: string
+          nullable: true
+          description: Estimated Property Value in PKR, a decimal string; null when
+            unavailable.
+        currency:
+          type: string
+          description: Always `PKR`.
+        model_version:
+          type: integer
+          nullable: true
+        estimated_at:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/ReasonEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        message:
+          type: string
+          nullable: true
+          description: Short text for the reason; null when available.
+      required:
+      - currency
+      - estimated_at
+      - estimated_value
+      - message
+      - model_version
+      - reason
+      - status
+    EstimateFieldsRequest:
+      type: object
+      description: The model inputs only. Send the ones that apply to the property
+        type; no price, address or other field is accepted.
+      properties:
+        locality:
+          type: string
+          format: uuid
+          nullable: true
+          description: The uuid of an active locality from the reference lists (`/api/v1/reference/cities`),
+            as text; never a name. Null clears it.
+        area_value:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`),
+            digits and a point only, never a JSON number. Returned with 4 decimals.
+        area_unit:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/AreaUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        marla_basis:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/MarlaBasisEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        bedrooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        bathrooms:
+          type: integer
+          maximum: 50
+          minimum: 0
+          nullable: true
+          description: Whole number from 0 to 50, a JSON integer (never text). Null
+            clears it.
+        covered_area_sqft:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string with up to 4 decimals (`0.0001` to `9999999999.9999`),
+            digits and a point only, never a JSON number. Returned with 4 decimals.
+        construction_year:
+          type: integer
+          maximum: 2100
+          minimum: 1900
+          nullable: true
+          description: Whole number from 1900 to 2100, a JSON integer (never text).
+            Null clears it.
+        condition:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/ConditionEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        corner_plot:
+          type: boolean
+          nullable: true
+          description: '`true` or `false`; null when not answered (never defaulted
+            to either).'
+        road_width_ft:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Decimal string with up to 2 decimals (`1.00` to `999.99`),
+            digits and a point only, never a JSON number. Returned with 2 decimals.
+        development_status:
+          nullable: true
+          description: |-
+            Seller-declared: the owner's own claim, never verified by EstateAI.
+
+            * `developed` - developed
+            * `partially_developed` - partially_developed
+            * `undeveloped` - undeveloped
+          oneOf:
+          - $ref: '#/components/schemas/DevelopmentStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        amenities:
+          type: object
+          additionalProperties:
+            type: string
+            minLength: 1
+          nullable: true
+          description: 'An object `{code: state}` with catalogue codes (`/api/v1/reference/amenities`)
+            and the state `"present"` or `"none"`, at most 40 entries. It REPLACES
+            the whole map; `null` or `{}` clears it. A code left out is unanswered,
+            never `none`. `nearby` entries are the seller''s own declaration: show
+            them as seller-declared; there is no distance and no verification. Returned
+            as the answered codes only, or `null` when none is answered.'
+    EstimateRequestRequest:
+      type: object
+      properties:
+        purpose:
+          $ref: '#/components/schemas/PurposeEnum'
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        subtype:
+          $ref: '#/components/schemas/SubtypeEnum'
+        fields:
+          $ref: '#/components/schemas/EstimateFieldsRequest'
+      required:
+      - category
+      - fields
+      - purpose
+      - subtype
+    EstimateStatusEnum:
+      enum:
+      - available
+      - unavailable
+      type: string
+      description: |-
+        * `available` - available
+        * `unavailable` - unavailable
     Favourite:
       type: object
       properties:
@@ -7380,9 +7666,8 @@ components:
       - results
     ListingPreview:
       type: object
-      description: |-
-        What the public will see of the owner's own Listing, plus an `estimate` that is always
-        null until the valuation feature exists.
+      description: What the public will see of the owner's own Listing, plus its latest
+        AI Price Estimate.
       properties:
         id:
           type: string
@@ -7410,11 +7695,11 @@ components:
           type: integer
           minimum: 1
         estimate:
-          type: object
-          additionalProperties: {}
-          readOnly: true
+          allOf:
+          - $ref: '#/components/schemas/PreviewEstimate'
           nullable: true
-          description: Always null for now; reserved for the valuation estimate.
+          description: The latest estimate requested for this Listing; null when there
+            is none or the saved details it was computed from have changed since.
       required:
       - category
       - description
@@ -7747,6 +8032,26 @@ components:
         * `possession_ready` - possession_ready
         * `possession_pending` - possession_pending
         * `file_only` - file_only
+    PreviewEstimate:
+      type: object
+      description: A stored AI Price Estimate of the previewed Listing.
+      properties:
+        estimated_value:
+          type: string
+          description: Estimated Property Value in PKR, a decimal string.
+        currency:
+          type: string
+          description: Always `PKR`.
+        model_version:
+          type: integer
+        estimated_at:
+          type: string
+          format: date-time
+      required:
+      - currency
+      - estimated_at
+      - estimated_value
+      - model_version
     PriceBasisEnum:
       enum:
       - total
@@ -8911,6 +9216,24 @@ components:
       - previous
       - resets_at
       - results
+    ReasonEnum:
+      enum:
+      - rent_not_supported
+      - type_not_supported
+      - locality_missing
+      - locality_not_covered
+      - area_missing
+      - marla_basis_unknown
+      - temporarily_unavailable
+      type: string
+      description: |-
+        * `rent_not_supported` - rent_not_supported
+        * `type_not_supported` - type_not_supported
+        * `locality_missing` - locality_missing
+        * `locality_not_covered` - locality_not_covered
+        * `area_missing` - area_missing
+        * `marla_basis_unknown` - marla_basis_unknown
+        * `temporarily_unavailable` - temporarily_unavailable
     RegistrationAccepted:
       type: object
       properties:

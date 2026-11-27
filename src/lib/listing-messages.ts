@@ -438,3 +438,21 @@ export const CORRECTION_CONFLICT = "This listing has changed, so it cannot be co
 export const CORRECTION_UNAVAILABLE = "The correction window is closed. Archive the listing to change these details.";
 export const CORRECTION_FORBIDDEN = "This listing cannot be corrected right now.";
 export const CORRECTION_CHECK_FAILED = "We could not check whether the locality or area can still be corrected.";
+
+// AI Price Estimate (Story 4.4).
+export const ABOUT_ESTIMATES_PATH = "/about-estimates";
+export const ESTIMATE_TITLE = "AI Price Estimate";
+export const ESTIMATE_TEXT = "A recommended baseline for your saved details. It never changes your asking price.";
+export const ESTIMATE_BUTTON = "Get estimate";
+export const ESTIMATE_WORKING = "Getting estimate…";
+export const ESTIMATE_SAVE_FIRST = "Save your changes first. The estimate uses the saved details.";
+export const ESTIMATE_WAIT = "Wait for the current action to finish.";
+export const ESTIMATE_READY = "The estimate is ready.";
+export const ESTIMATE_UNAVAILABLE = "Estimate unavailable.";
+export const ESTIMATE_NOT_A_DRAFT = "Estimates can only be requested for a draft. Reload the page to see the latest listing.";
+export const ESTIMATE_FORBIDDEN = "This account cannot request an estimate right now.";
+export const ESTIMATE_VALUE_LABEL = "Estimated Property Value";
+export const ESTIMATE_INFO_LABEL = "About this estimate";
+export const ESTIMATE_INFO =
+  "AI-generated approximation from the listing’s attributes. It is not a verified market valuation or a guaranteed return.";
+export const ESTIMATE_ABOUT_LINK = "About AI Price Estimates (opens in a new tab)";

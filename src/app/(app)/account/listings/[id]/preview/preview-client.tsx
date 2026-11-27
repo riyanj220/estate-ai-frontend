@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { EstimateFigure } from "@/components/estimate-figure";
 import { ListingFacts } from "@/components/listing-facts";
 import { RetryImage } from "@/components/retry-image";
 import { getApi } from "@/lib/api";
+import { readValue } from "@/lib/estimate";
 import { rateLimitMessage, withTimeout } from "@/lib/forms";
 import { isListingId, summaryOf, type ListingView } from "@/lib/listing-labels";
 import { readPreview } from "@/lib/listing-preview";
 import {
   ESTIMATE_NOT_AVAILABLE,
+  ESTIMATE_TITLE,
   LISTINGS_PATH,
   LISTING_NOT_FOUND,
   PREVIEW_BANNER,
@@ -22,7 +25,7 @@ import { useAmenityCatalogue, useLocationLists } from "@/lib/use-reference";
 import { useRegistry } from "@/lib/use-registry";
 
 const HEADING_ID = "preview-title";
-type Preview = { found: true; listing: ListingView } | { found: false };
+type Preview = { found: true; listing: ListingView; estimate: string | null } | { found: false };
 
 /** Reads the owner's preview of a Listing. One "not found" answer for every cause, like the Draft page. */
 async function fetchPreview(id: string): Promise<ProfileFetch<Preview>> {
@@ -34,7 +37,7 @@ async function fetchPreview(id: string): Promise<ProfileFetch<Preview>> {
     );
     if (response.ok) {
       const listing = readPreview(data, id);
-      return listing ? { kind: "ready", profile: { found: true, listing } } : { kind: "error" };
+      return listing ? { kind: "ready", profile: { found: true, listing, estimate: readValue(data?.estimate) } } : { kind: "error" };
     }
     if (response.status === 401) return "gone";
     if ([400, 403, 404, 422].includes(response.status)) return { kind: "ready", profile: { found: false } };
@@ -91,13 +94,13 @@ export function PreviewClient({ id, admin }: { id: string; admin: boolean }) {
   return (
     <>
       {heading}
-      <PreviewBody listing={load.profile.listing} signInPath={signInPath} />
+      <PreviewBody listing={load.profile.listing} estimate={load.profile.estimate} signInPath={signInPath} />
       {links}
     </>
   );
 }
 
-function PreviewBody({ listing, signInPath }: { listing: ListingView; signInPath: string }) {
+function PreviewBody({ listing, estimate, signInPath }: { listing: ListingView; estimate: string | null; signInPath: string }) {
   const { status, registry, retry, retrying } = useRegistry(signInPath);
   const cityId = listing.details.city ?? "";
   const lists = useLocationLists(cityId, cityId !== "");
@@ -169,7 +172,14 @@ function PreviewBody({ listing, signInPath }: { listing: ListingView; signInPath
           <h3 id="preview-estimate-title" className="section-title">
             Estimate
           </h3>
-          <p data-testid="preview-estimate">{ESTIMATE_NOT_AVAILABLE}</p>
+          {estimate === null ? (
+            <p data-testid="preview-estimate">{ESTIMATE_NOT_AVAILABLE}</p>
+          ) : (
+            <>
+              <p className="muted">{ESTIMATE_TITLE}</p>
+              <EstimateFigure value={estimate} testId="preview-estimate" />
+            </>
+          )}
         </section>
       </article>
     </>
