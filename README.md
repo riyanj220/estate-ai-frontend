@@ -1367,3 +1367,13 @@ as the main form shows the same fields read only.
 Stub: the window is 24 hours after the last counted publication (`published_counted` is inside it, one hour old; `published_one` has
 none); `/__correction-mode` (`ok`, `hold`, `read_error`, `stale`, `conflict`, `unavailable`, `restricted_race`, `invalid`, `session_gone`,
 `error`, `broken`), `/__correction-release`, `/__correction-stats`. Tests: `tests/e2e/listing-correction.spec.ts`.
+
+## Reports and moderation (Epic 9)
+
+- `/listings/[id]` has "Report listing" (`components/report-listing.tsx`); the backend refuses your own listing, a
+  suspended account and an eleventh report in a day.
+- `/admin/reports` reviews reports (start, resolve or dismiss with notes). `/admin/listings` and `/admin/listings/[id]`
+  browse and moderate listings; a draft is opened only with a recorded reason.
+- The owner's pages show "Under review" from `under_review`; moderation notifications carry the reason.
+- Stub: the report and moderation routes under `// ---- Reports and moderation`; `/__moderation-stats`, and
+  `/__listing-lifecycle?under_review=1`. Spec: `tests/e2e/moderation.spec.ts`.

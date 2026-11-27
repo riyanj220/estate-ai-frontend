@@ -867,6 +867,7 @@ const publicListing = (item) => ({
   media: spoilMedia(item.images.map((image) => publicImage(item, image))),
   restricted: item.restricted === true,
   restriction_reason: item.restrictionReason ?? null,
+  under_review: item.underReview === true,
 });
 const statusOf = (item) => item.status ?? "draft";
 /** Story 2.17: only a Draft, Published or Archived Listing that is not restricted can be edited; the rest is view only. */
@@ -1324,6 +1325,12 @@ let verificationHistory = [];
 let verificationPosts = [];
 let accountsMode = "ok";
 let accountsPosts = [];
+// Epic 9: the one Report (null until sent) and the moderation state of one published listing and one draft.
+const REPORT_ID = "00000000-0000-4000-d000-000000000001";
+const ADMIN_ID = "00000000-0000-4000-8000-0000000000aa";
+const DRAFT_ID = "00000000-0000-4000-b000-000000000099";
+const newModeration = () => ({ report: null, status: "published", restricted: false, reason: null, history: [], posts: [] });
+let moderation = newModeration();
 // Public browse and detail (Story 3.1): no session. Three Listings in pages of two; `next` is an absolute backend URL like the real one.
 let publicMode = "ok";
 let publicRequests = [];
@@ -2403,6 +2410,114 @@ const server = createServer((req, res) => {
       return json(200, { id: VERIFICATION_ID, status, decided_at: verification.decided_at });
     });
   }
+  // ---- Reports and moderation (Epic 9)
+  if (url.pathname === "/__moderation-stats") return json(200, { posts: moderation.posts });
+  const reportRoute = /^\/api\/v1\/listings\/([^/]+)\/reports$/.exec(url.pathname);
+  if (reportRoute || url.pathname.startsWith("/api/v1/admin/reports") || url.pathname.startsWith("/api/v1/admin/listings")) {
+    res.setHeader("cache-control", "no-store");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication required."));
+    if (!reportRoute && !sessionAdmin) return json(404, envelope("not_found", "Not found."));
+    const at = "2026-11-27T10:00:00+05:00";
+    const owner = { type: "individual", masked_email: "o***@example.com" };
+    const report = moderation.report;
+    const underReview = report?.status === "reviewing";
+    const snapshot = { purpose: "sale", category: "house", subtype: "house", title: "Corner house with garden", description: "Near the park.", fields: { bedrooms: 4 }, city: "Karachi", locality: "Clifton", image_count: 1 };
+    const detail = () => ({
+      id: REPORT_ID,
+      listing_id: publicId(1),
+      reason: report.reason,
+      status: report.status,
+      description: report.description,
+      snapshot,
+      created_at: at,
+      closed_at: ["resolved", "dismissed"].includes(report.status) ? at : null,
+      reporter: { type: "individual", masked_email: "r***@example.com" },
+      owner,
+      owner_account_id: ADMIN_ID,
+      history: report.history,
+      open_for_listing: 1,
+    });
+    const row = (draft = false) => ({
+      id: draft ? DRAFT_ID : publicId(1),
+      owner_account_id: ADMIN_ID,
+      owner,
+      status: draft ? "draft" : moderation.status,
+      restricted: !draft && moderation.restricted,
+      under_review: !draft && underReview,
+      purpose: "sale",
+      category: "house",
+      subtype: "house",
+      title: draft ? null : "Corner house with garden",
+      created_at: at,
+    });
+    const actions = () => {
+      const flag = moderation.restricted ? "lift_restriction" : "restrict";
+      if (moderation.status === "published") return [flag, "remove"];
+      if (moderation.status === "archived") return [flag];
+      return moderation.status === "removed" ? ["restore", "archive_removed", ...(moderation.restricted ? ["lift_restriction"] : [])] : [];
+    };
+    const listing = (draft = false) => ({
+      ...row(draft),
+      title: draft ? "Half written draft" : "Corner house with garden",
+      description: "Near the park.",
+      attributes: { bedrooms: 4 },
+      city: "Karachi",
+      locality: "Clifton",
+      media: [],
+      image_count: draft ? 1 : 0,
+      moderation_reason: draft ? null : moderation.reason,
+      actions: draft ? [] : actions(),
+      first_published_at: draft ? null : at,
+      open_reports: report && !["resolved", "dismissed"].includes(report.status) ? 1 : 0,
+      history: draft ? [] : moderation.history,
+    });
+    if (req.method === "GET") {
+      if (url.pathname === "/api/v1/admin/reports") {
+        const wanted = url.searchParams.get("status") ?? "pending";
+        const why = url.searchParams.get("reason");
+        const shownRows = report && report.status === wanted && (!why || why === report.reason) ? [{ id: REPORT_ID, listing_id: publicId(1), title: snapshot.title, reason: report.reason, status: report.status, created_at: at }] : [];
+        return json(200, { next: null, previous: null, results: shownRows, unresolved: { pending: report?.status === "pending" ? 1 : 0, reviewing: underReview ? 1 : 0 } });
+      }
+      if (url.pathname === `/api/v1/admin/reports/${REPORT_ID}` && report) return json(200, detail());
+      if (url.pathname === "/api/v1/admin/listings") {
+        const wanted = url.searchParams.get("status");
+        return json(200, { next: null, previous: null, results: wanted === "draft" ? [row(true)] : !wanted || wanted === moderation.status ? [row()] : [] });
+      }
+      if (url.pathname === `/api/v1/admin/listings/${publicId(1)}`) return json(200, listing());
+      return json(404, envelope("not_found", "Not found."));
+    }
+    return readBody((body) => {
+      const action = url.pathname.split("/").pop();
+      moderation.posts.push({ path: url.pathname, body, token: req.headers["x-csrftoken"] ?? null });
+      if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
+      const conflict = () => json(409, envelope("conflict", "Conflict."));
+      if (reportRoute) {
+        if (sessionAdmin) return json(403, envelope("forbidden", "Forbidden."));
+        if (report && !["resolved", "dismissed"].includes(report.status)) return conflict();
+        moderation.report = { reason: body.reason, description: body.description ?? "", status: "pending", history: [] };
+        return json(201, { id: REPORT_ID, listing_id: reportRoute[1], title: snapshot.title, reason: body.reason, description: body.description ?? "", status: "pending", created_at: at, closed_at: null });
+      }
+      if (url.pathname.startsWith("/api/v1/admin/reports/")) {
+        const to = { start: "reviewing", resolve: "resolved", dismiss: "dismissed" }[action];
+        if (!report || report.status !== (action === "start" ? "pending" : "reviewing")) return conflict();
+        report.status = to;
+        report.history.push({ to_status: to, notes: body?.notes ?? "", at: `${at.slice(0, 17)}0${report.history.length}+05:00`, by_account_id: ADMIN_ID });
+        return json(200, detail());
+      }
+      if (action === "read") return json(200, listing(true));
+      const name = { restrict: "restrict", "lift-restriction": "lift_restriction", remove: "remove", restore: "restore", archive: "archive_removed" }[action];
+      if (!actions().includes(name)) return conflict();
+      const before = moderation.status;
+      if (name === "restrict") Object.assign(moderation, { restricted: true, reason: body.reason });
+      if (name === "lift_restriction") Object.assign(moderation, { restricted: false, reason: null });
+      if (name === "remove") Object.assign(moderation, { status: "removed", reason: body.reason });
+      if (name === "restore") Object.assign(moderation, { status: "published", reason: null });
+      if (name === "archive_removed") moderation.status = "archived";
+      const record = { action: name, reason: body.reason, status_before: before, status_after: moderation.status, restriction_after: moderation.restricted, at: `${at.slice(0, 17)}${10 + moderation.history.length}+05:00`, by_account_id: ADMIN_ID };
+      moderation.history.unshift(record);
+      return json(200, record);
+    });
+  }
   // ---- Listings and the registry (Story 2.1)
   if (url.pathname === "/__registry-mode") {
     return choose("registryMode", ["ok", "flaky", "flaky_slow", "gone", "error", "broken", "hang", "malformed", "empty_choices", "bad_subtypes", "odd_ids"], (v) => {
@@ -2534,6 +2649,7 @@ const server = createServer((req, res) => {
     if (url.searchParams.has("status")) target.status = url.searchParams.get("status");
     if (url.searchParams.has("restricted")) target.restricted = url.searchParams.get("restricted") === "1";
     if (url.searchParams.has("reason")) target.restrictionReason = url.searchParams.get("reason") || null;
+    if (url.searchParams.has("under_review")) target.underReview = url.searchParams.get("under_review") === "1";
     target.revision += 1; // the real service always bumps it
     return json(200, { revision: target.revision, status: statusOf(target) });
   }
@@ -4432,6 +4548,7 @@ const server = createServer((req, res) => {
     verificationPosts = [];
     accountsMode = "ok";
     accountsPosts = [];
+    moderation = newModeration();
     publicMode = "ok";
     publicRequests = [];
     searchMode = "ok";
