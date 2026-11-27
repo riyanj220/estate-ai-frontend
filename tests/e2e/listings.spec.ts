@@ -140,8 +140,8 @@ test("registry: purposes, Categories and the Subtypes of the chosen Category com
   await expect(subtype(page)).toHaveAttribute("aria-disabled", "true");
   await expect(subtype(page).locator("option")).toHaveText(["Select a subtype"]);
   await expect(page.locator("form")).toHaveAttribute("method", "post");
-  await expect(page.getByTestId("create-note")).toHaveText("You are starting a listing manually. An AI-assisted way to start will be added later.");
-  await expect(page.locator("form").getByRole("button")).toHaveCount(1); // the manual form has no AI control (the flagged entry is outside it)
+  await expect(page.getByTestId("create-note")).toHaveText("Choose what you are listing, then create the draft yourself or start with AI.");
+  await expect(page.locator("form").getByRole("button")).toHaveText(["Create draft", "Create with AI"]); // the AI one only with AI_FEATURES
   expect((await stats(request)).registryGets).toBe(1);
 });
 

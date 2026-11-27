@@ -12,7 +12,8 @@ const nextConfig: NextConfig = {
   // Next.js buffers a request body for a proxied path up to this size (default 10 MB) and answers 500 beyond it, even with `/api/` excluded
   // from the page proxy's matcher. Uploads are at most 6 MiB (the backend's cap, which refuses a bigger body itself with a 400), and the
   // Images section never sends more, so this only makes sure a bigger body reaches the backend's own answer. `check:prod-listings` proves it.
-  experimental: { proxyClientMaxBodySize: "32mb" },
+  // `proxyTimeout`: an assistant turn may take about 32 seconds (retrieval, then the model), longer than the 30-second default.
+  experimental: { proxyClientMaxBodySize: "32mb", proxyTimeout: 45_000 },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${target}/api/:path*` }];
   },

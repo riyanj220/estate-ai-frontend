@@ -1222,6 +1222,12 @@ let patchLostSpent = false;
 let detailGets = 0;
 let lastDetailId = null;
 const pending = []; // responses held open by the hang mode
+// Story 5.8: one assistant session per Draft. Modes through /__assistant-mode; "hold" keeps a turn open until /__assistant-release.
+const ASSISTANT_MODES = ["ok", "sources", "no_explanations", "error", "timeout", "budget_exhausted", "rate_limited", "conflict", "hold", "forbidden", "open_conflict"];
+let assistantMode = "ok";
+let assistantSessions = new Map();
+let assistantRequests = [];
+let assistantHeld = [];
 // Story 2.10 image stand-ins: three modes (upload, order, delete) plus the media endpoint, with counters for the tests.
 let imageMode = "ok";
 let imageOrderMode = "ok";
@@ -2322,6 +2328,52 @@ createServer((req, res) => {
     };
     if (registryMode === "flaky_slow") return void setTimeout(send, 1500);
     return send();
+  }
+  if (url.pathname === "/__assistant-mode") {
+    const value = url.searchParams.get("value") ?? "ok";
+    if (!ASSISTANT_MODES.includes(value)) return json(400, { error: "unknown mode" });
+    assistantMode = value;
+    return json(200, { assistantMode });
+  }
+  if (url.pathname === "/__assistant-requests") return json(200, { requests: assistantRequests });
+  if (url.pathname === "/__assistant-release") {
+    while (assistantHeld.length) assistantHeld.shift()();
+    return json(200, {});
+  }
+  if (url.pathname === "/api/v1/assistant/sessions" && req.method === "POST") {
+    return readBody((body) => {
+      if (signedInUnsafe(assistantMode === "forbidden" ? "forbidden" : "ok", req.headers["x-csrftoken"] ?? null)) return;
+      const draft = sessionAdmin ? undefined : listings.find((item) => item.id === body?.listing_id && item.owner === "mine");
+      if (!draft) return json(404, envelope("not_found", "Not found."));
+      if (assistantMode === "open_conflict" || statusOf(draft) !== "draft") return json(409, envelope("conflict", "Not now."));
+      const created = !assistantSessions.has(draft.id);
+      if (created) {
+        const n = String(assistantSessions.size + 1).padStart(12, "0");
+        assistantSessions.set(draft.id, { id: `00000000-0000-4000-c000-${n}`, listing_id: draft.id, registry_version: draft.registryVersion, schema_version: 1, created_at: "2026-11-27T10:00:00Z", knowledge_notice: "General information only.", turns: [] });
+      }
+      return json(created ? 201 : 200, assistantSessions.get(draft.id));
+    });
+  }
+  const turnRoute = /^\/api\/v1\/assistant\/sessions\/([^/]+)\/turns$/.exec(url.pathname);
+  if (turnRoute && req.method === "POST") {
+    return readBody((body) => {
+      if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
+      assistantRequests.push(body);
+      const session = [...assistantSessions.values()].find((item) => item.id === turnRoute[1]);
+      if (!session) return json(404, envelope("not_found", "Not found."));
+      if (assistantMode === "rate_limited") return throttled();
+      if (assistantMode === "conflict") return json(409, envelope("conflict", "Raw server text."));
+      if (["error", "timeout", "budget_exhausted"].includes(assistantMode)) return json(200, { outcome: assistantMode, message: "Raw server text.", turn: null });
+      const answer = () => {
+        const sources = assistantMode === "sources" ? [{ title: "Marla", source: "Measures", version: 1 }] : [];
+        // Markup in a reply must stay text.
+        const turn = { id: `00000000-0000-4000-d000-${String(session.turns.length + 1).padStart(12, "0")}`, sequence: session.turns.length + 1, client_turn_id: body.client_turn_id, message: body.message, reply: "Stub reply <b>not bold</b>\nSecond line.", sources, created_at: "2026-11-27T10:00:00Z" };
+        session.turns.push(turn);
+        json(200, { outcome: "success", message: assistantMode === "no_explanations" ? "Raw server text." : "", turn });
+      };
+      if (assistantMode === "hold") return void assistantHeld.push(answer);
+      return answer();
+    });
   }
   if (url.pathname === "/api/v1/listings" && req.method === "POST") {
     return readBody((parsed) => {
@@ -4020,6 +4072,10 @@ createServer((req, res) => {
     return json(200, { mode });
   }
   if (url.pathname === "/__reset") {
+    assistantMode = "ok";
+    assistantSessions = new Map();
+    assistantRequests = [];
+    assistantHeld = [];
     mode = "up";
     quotaPolicy = quotaRows();
     quotaMode = "ok";
