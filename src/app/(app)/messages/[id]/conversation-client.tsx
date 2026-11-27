@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { MessageForm } from "@/components/message-form";
 import { useLiveEvents } from "@/lib/live";
-import { READ_ONLY_NOTES, conversationPath, fetchThread, listingHeading, mergeMessages, resumeSeq, sendReply, type Message, type Thread } from "@/lib/messaging";
+import { INBOX_PATH, READ_ONLY_NOTES, conversationPath, fetchThread, listingHeading, markRead, mergeMessages, resumeSeq, sendReply, type Message, type Thread } from "@/lib/messaging";
 import { BROWSE_PATH } from "@/lib/public-listings";
 import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
 
@@ -40,6 +40,28 @@ export function ConversationClient({ id }: { id: string }) {
   useEffect(() => {
     held.current = thread?.messages ?? [];
   });
+  // Opening the thread reads it (Story 7.5): the other side's newest Message is marked once it is on a visible page.
+  const incoming = thread?.messages.reduce((last, message) => (message.mine ? last : Math.max(last, message.seq)), 0) ?? 0;
+  const readOnServer = thread ? thread.conversation.last_seq - thread.conversation.unread_count : 0;
+  const marked = useRef(0);
+  useEffect(() => {
+    const mark = () => {
+      if (document.visibilityState !== "visible" || incoming <= Math.max(readOnServer, marked.current)) return;
+      const before = marked.current;
+      marked.current = incoming;
+      void markRead(id, incoming).then((saved) => {
+        if (!saved) marked.current = before; // tried again on the next change or return to the tab
+      });
+    };
+    mark();
+    document.addEventListener("visibilitychange", mark);
+    window.addEventListener("focus", mark);
+    return () => {
+      document.removeEventListener("visibilitychange", mark);
+      window.removeEventListener("focus", mark);
+    };
+  }, [id, incoming, readOnServer]);
+
   // Live reads run one after another, so each starts from what the one before it brought.
   const queue = useRef<Promise<void>>(Promise.resolve());
   const catchUp = () => {
@@ -105,6 +127,11 @@ export function ConversationClient({ id }: { id: string }) {
         </p>
       )}
       <ProfileLoadState load={state} onRetry={retry} noun="conversation" determiner="the" />
+      <p>
+        <Link href={INBOX_PATH} className="text-link">
+          All messages
+        </Link>
+      </p>
       {thread && conversation && (
         <section className="card" aria-label="Messages">
           <p className="muted" data-testid="conversation-with">

@@ -926,15 +926,21 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/conversations:
     get:
-      operationId: find_conversation
-      description: '`results` holds at most one Conversation. Never cached.'
-      summary: The caller's own inquiry about a Listing
+      operationId: list_conversations
+      description: 'Without `listing_id`: every Conversation the caller takes part
+        in, latest activity first, 20 a page (`cursor` = the previous `next`). With
+        `listing_id`: `results` holds at most the one Conversation the caller started
+        about that Listing. No Message text. Never cached.'
+      summary: The caller's inbox, or its own inquiry about a Listing
       parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
       - in: query
         name: listing_id
         schema:
           type: string
-        required: true
       tags:
       - conversations
       security:
@@ -1285,6 +1291,129 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
           description: '`throttled`'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/conversations/{conversation_id}/read:
+    post:
+      operationId: mark_conversation_read
+      description: Needs `X-CSRFToken`. Participants only. The mark never goes back,
+        nor past the newest Message. A suspended participant may mark too.
+      summary: The caller has read a Conversation up to a Message
+      parameters:
+      - in: path
+        name: conversation_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - conversations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadBodyRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: No response body
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: a missing CSRF token
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/conversations/unread-count:
+    get:
+      operationId: get_unread_conversation_count
+      description: Every answer of the view, errors included, is `no-store`.
+      summary: How many of the caller's Conversations have unread Messages
+      tags:
+      - conversations
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadConversations'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
         '500':
           description: Server error
           content:
@@ -7125,6 +7254,10 @@ components:
         created_at:
           type: string
           format: date-time
+        unread_count:
+          type: integer
+          minimum: 0
+          description: Messages of the other participant that the caller has not read.
       required:
       - counterpart_name
       - created_at
@@ -7135,6 +7268,7 @@ components:
       - listing_id
       - read_only_reason
       - role
+      - unread_count
       - writable
     ConversationList:
       type: object
@@ -7143,7 +7277,12 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Conversation'
+        next:
+          type: string
+          nullable: true
+          description: The `cursor` of the following inbox page.
       required:
+      - next
       - results
     ConversationListing:
       type: object
@@ -10718,6 +10857,15 @@ components:
       - previous
       - resets_at
       - results
+    ReadBodyRequest:
+      type: object
+      properties:
+        seq:
+          type: integer
+          minimum: 0
+          description: The newest Message seen.
+      required:
+      - seq
     ReadOnlyReasonEnum:
       enum:
       - messaging_email_unverified
@@ -11247,6 +11395,14 @@ components:
         * `date` - date
         * `reference` - reference
         * `amenities` - amenities
+    UnreadConversations:
+      type: object
+      properties:
+        unread:
+          type: integer
+          minimum: 0
+      required:
+      - unread
     UnreadCount:
       type: object
       properties:

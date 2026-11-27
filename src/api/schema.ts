@@ -272,10 +272,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The caller's own inquiry about a Listing
-         * @description `results` holds at most one Conversation. Never cached.
+         * The caller's inbox, or its own inquiry about a Listing
+         * @description Without `listing_id`: every Conversation the caller takes part in, latest activity first, 20 a page (`cursor` = the previous `next`). With `listing_id`: `results` holds at most the one Conversation the caller started about that Listing. No Message text. Never cached.
          */
-        get: operations["find_conversation"];
+        get: operations["list_conversations"];
         put?: never;
         /**
          * Send an inquiry about a Listing
@@ -326,6 +326,46 @@ export interface paths {
          * @description Needs `X-CSRFToken` and an `Idempotency-Key` header, which is the client message id: the same key and body again answers with the Message already saved, another body is `422 idempotency_key_reused`. `body` is 1 to 2,000 characters. A Message in a response is saved. 60 Messages a minute per account.
          */
         post: operations["send_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{conversation_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The caller has read a Conversation up to a Message
+         * @description Needs `X-CSRFToken`. Participants only. The mark never goes back, nor past the newest Message. A suspended participant may mark too.
+         */
+        post: operations["mark_conversation_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How many of the caller's Conversations have unread Messages
+         * @description Every answer of the view, errors included, is `no-store`.
+         */
+        get: operations["get_unread_conversation_count"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1905,9 +1945,13 @@ export interface components {
             last_message_at: string;
             /** Format: date-time */
             created_at: string;
+            /** @description Messages of the other participant that the caller has not read. */
+            unread_count: number;
         };
         ConversationList: {
             results: components["schemas"]["Conversation"][];
+            /** @description The `cursor` of the following inbox page. */
+            next: string | null;
         };
         ConversationListing: {
             availability: components["schemas"]["AvailabilityEnum"];
@@ -3436,6 +3480,10 @@ export interface components {
             previous: string | null;
             results: components["schemas"]["QuotaUsage"][];
         };
+        ReadBodyRequest: {
+            /** @description The newest Message seen. */
+            seq: number;
+        };
         /**
          * @description * `messaging_email_unverified` - messaging_email_unverified
          *     * `messaging_unavailable` - messaging_unavailable
@@ -3706,6 +3754,9 @@ export interface components {
          * @enum {string}
          */
         TypeEnum: "enum" | "text" | "money" | "integer" | "decimal" | "boolean" | "date" | "reference" | "amenities";
+        UnreadConversations: {
+            unread: number;
+        };
         UnreadCount: {
             unread: number;
         };
@@ -4831,10 +4882,11 @@ export interface operations {
             };
         };
     };
-    find_conversation: {
+    list_conversations: {
         parameters: {
-            query: {
-                listing_id: string;
+            query?: {
+                cursor?: string;
+                listing_id?: string;
             };
             header?: never;
             path?: never;
@@ -5257,6 +5309,161 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    mark_conversation_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadBodyRequest"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_unread_conversation_count: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadConversations"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `unauthenticated` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Server error */

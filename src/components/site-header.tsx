@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { STATE_NOTES, canOwnListings, displayName, profileLinkLabel } from "@/lib/account";
+import { MessagesLink } from "@/components/messages-link";
 import { NotificationsLink } from "@/components/notifications-link";
 import { FAVOURITES_PATH, keepsFavourites } from "@/lib/favourites";
 import { LISTINGS_PATH } from "@/lib/listing-messages";
@@ -85,6 +86,7 @@ export function SiteHeader() {
                   Favourites
                 </Link>
               )}
+              {account.account_type !== "admin" && <MessagesLink accountId={account.id} />}
               <NotificationsLink />
               <Link href="/account/password" className="text-link">
                 Change password
