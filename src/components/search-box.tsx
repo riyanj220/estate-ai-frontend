@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAiNotice } from "@/components/ai-notice";
+import { VoiceSearch } from "@/components/voice-search";
 import { getApi } from "@/lib/api";
 import { withCsrf } from "@/lib/csrf";
 import { REJECTED_ERROR, withTimeout } from "@/lib/forms";
@@ -19,7 +20,7 @@ type Outcome = { kind: "idle" } | { kind: "failed"; message: string; unsupported
 /**
  * Search in plain words (Stories 6.1 and 6.2). One AI call turns the request into filters, which become the page address: the results,
  * the removable filter entries and every later change are the ordinary filters, with no AI. The input has no `name`, so even a native
- * submit before the page is ready sends no text.
+ * submit before the page is ready sends no text. A spoken request (Story 6.3) only fills the box.
  */
 export function SearchBox({ path }: { path: string }) {
   const router = useRouter();
@@ -45,6 +46,16 @@ export function SearchBox({ path }: { path: string }) {
     } catch {
       // storage is a convenience only
     }
+  }
+
+  /** A spoken request lands in the box, to be read and edited: nothing is searched until Search is pressed. */
+  function heard(text: string) {
+    if (!input.current) return;
+    input.current.value = text.slice(0, SEARCH_MAX_CHARS);
+    keep(input.current.value);
+    setEmpty(false);
+    setOutcome({ kind: "idle" });
+    input.current.focus();
   }
 
   const fail = (message: string, unsupported: string[] = []) => setOutcome({ kind: "failed", message, unsupported });
@@ -114,6 +125,7 @@ export function SearchBox({ path }: { path: string }) {
           Search
         </button>
       </form>
+      <VoiceSearch withNotice={withNotice} onTranscript={heard} />
       <div role="status">
         {working && (
           <p data-testid="search-progress">

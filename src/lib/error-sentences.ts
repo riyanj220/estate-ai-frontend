@@ -52,6 +52,8 @@ export const SENTENCE_CODES: Record<string, string> = {
   "This field does not apply to this listing.": "not_applicable",
   "This text is too short.": "too_short",
   "This text is too long.": "too_long",
+  "The recording is too large. Record a shorter one.": "audio_too_large",
+  "Record WebM, Ogg, MP4 or WAV audio.": "audio_type",
   "Enter an amount within the allowed range with at most two decimals.": "invalid_price",
   "Enter an area above zero with at most four decimals, using digits only.": "invalid_area",
   "Enter a number above zero within the allowed range, using digits and an optional decimal point.": "invalid_measure",

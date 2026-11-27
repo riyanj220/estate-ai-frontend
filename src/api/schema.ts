@@ -1217,6 +1217,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/search/transcription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn a spoken search into text
+         * @description Public; needs `X-CSRFToken` and a `multipart/form-data` body with exactly one part, `audio`. The type is decided from the bytes (WebM, Ogg, MP4 or WAV). The recording is sent to the AI provider with no account data and is not stored or logged. The transcript is not searched: send it, as the buyer confirms it, to `interpret_search`, which is what counts as a search. `200` with `status: fallback` when the AI is off, unavailable, too slow, out of budget or heard nothing. `400 validation_error` carries a code under `fields.audio`. Limits: 10 a minute per Visitor, 30 an hour per account (`429` with `Retry-After`). Never cached.
+         */
+        post: operations["transcribe_search"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reference/amenities": {
         parameters: {
             query?: never;
@@ -3501,6 +3521,25 @@ export interface components {
          * @enum {string}
          */
         TimezoneEnum: "Asia/Karachi";
+        Transcription: {
+            /**
+             * @description `fallback`: there is no transcript; offer the text box.
+             *
+             *     * `transcribed` - transcribed
+             *     * `fallback` - fallback
+             */
+            status: components["schemas"]["TranscriptionStatusEnum"];
+            /** @description To be shown, edited and then sent to `interpret_search`. */
+            transcript: string;
+            /** @description Why, on a fallback. */
+            message: string;
+        };
+        /**
+         * @description * `transcribed` - transcribed
+         *     * `fallback` - fallback
+         * @enum {string}
+         */
+        TranscriptionStatusEnum: "transcribed" | "fallback";
         /**
          * @description * `enum` - enum
          *     * `text` - text
@@ -3537,6 +3576,14 @@ export interface components {
          * @enum {string}
          */
         VisibilityEnum: "private" | "public";
+        /** @description Documentation of the multipart body: exactly one part, named `audio`. */
+        VoiceUploadRequest: {
+            /**
+             * Format: binary
+             * @description A WebM, Ogg, MP4 (M4A) or WAV recording of up to 2 MB (2,097,152 bytes).
+             */
+            audio: string;
+        };
         /**
          * @description Stable error code catalogue.
          * @enum {string}
@@ -9216,6 +9263,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SearchInterpretation"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `throttled` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    transcribe_search: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["VoiceUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description The words heard */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transcription"];
                 };
             };
             /** @description `validation_error` */

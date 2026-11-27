@@ -5285,6 +5285,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/public/search/transcription:
+    post:
+      operationId: transcribe_search
+      description: 'Public; needs `X-CSRFToken` and a `multipart/form-data` body with
+        exactly one part, `audio`. The type is decided from the bytes (WebM, Ogg,
+        MP4 or WAV). The recording is sent to the AI provider with no account data
+        and is not stored or logged. The transcript is not searched: send it, as the
+        buyer confirms it, to `interpret_search`, which is what counts as a search.
+        `200` with `status: fallback` when the AI is off, unavailable, too slow, out
+        of budget or heard nothing. `400 validation_error` carries a code under `fields.audio`.
+        Limits: 10 a minute per Visitor, 30 an hour per account (`429` with `Retry-After`).
+        Never cached.'
+      summary: Turn a spoken search into text
+      tags:
+      - public
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VoiceUploadRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transcription'
+          description: The words heard
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: CSRF token'
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`throttled`'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/reference/amenities:
     get:
       operationId: list_amenities
@@ -10577,6 +10643,35 @@ components:
       - Asia/Karachi
       type: string
       description: '* `Asia/Karachi` - Asia/Karachi'
+    Transcription:
+      type: object
+      properties:
+        status:
+          allOf:
+          - $ref: '#/components/schemas/TranscriptionStatusEnum'
+          description: |-
+            `fallback`: there is no transcript; offer the text box.
+
+            * `transcribed` - transcribed
+            * `fallback` - fallback
+        transcript:
+          type: string
+          description: To be shown, edited and then sent to `interpret_search`.
+        message:
+          type: string
+          description: Why, on a fallback.
+      required:
+      - message
+      - status
+      - transcript
+    TranscriptionStatusEnum:
+      enum:
+      - transcribed
+      - fallback
+      type: string
+      description: |-
+        * `transcribed` - transcribed
+        * `fallback` - fallback
     TypeEnum:
       enum:
       - enum
@@ -10641,6 +10736,17 @@ components:
       description: |-
         * `private` - PRIVATE
         * `public` - PUBLIC
+    VoiceUploadRequest:
+      type: object
+      description: 'Documentation of the multipart body: exactly one part, named `audio`.'
+      properties:
+        audio:
+          type: string
+          format: binary
+          description: A WebM, Ogg, MP4 (M4A) or WAV recording of up to 2 MB (2,097,152
+            bytes).
+      required:
+      - audio
     ErrorCode:
       type: string
       enum:
