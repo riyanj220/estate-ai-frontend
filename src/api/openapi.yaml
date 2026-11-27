@@ -626,6 +626,228 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/assistant/sessions:
+    post:
+      operationId: open_assistant_session
+      description: Needs `X-CSRFToken`. One open session per Draft.
+      summary: Create or open the assistant session of a Draft
+      tags:
+      - assistant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssistantSessionOpenRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistantSession'
+          description: The Draft's open session
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistantSession'
+          description: A new session
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: a Suspended or Deactivated account, or a missing
+            CSRF token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`: not the account''s own'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`conflict`: not a Draft'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/assistant/sessions/{session_id}:
+    get:
+      operationId: get_assistant_session
+      description: Every answer of the view, errors included, is `no-store`.
+      summary: An assistant session and its history
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - assistant
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistantSession'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: a Suspended or Deactivated account, or a missing
+            CSRF token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`: not the account''s own'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/assistant/sessions/{session_id}/turns:
+    post:
+      operationId: send_assistant_turn
+      description: Needs `X-CSRFToken`. May take up to about 30 seconds. When the
+        assistant cannot answer it is `200` with an `outcome` other than `success`,
+        `turn` null and a message to show; the Draft and the history are unchanged.
+        At most 30 messages an hour.
+      summary: Send one message to the assistant
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - assistant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssistantTurnBodyRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistantTurnResult'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: a Suspended or Deactivated account, or a missing
+            CSRF token'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`: not the account''s own'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`: `message` (1 to 2000 characters) or `client_turn_id`'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`conflict`: not a Draft, another message in progress, or a
+            full session'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`idempotency_key_reused`: the `client_turn_id` had another
+            message'
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`throttled`: more than 30 messages in an hour; with `Retry-After`'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/csrf:
     get:
       operationId: get_csrf_token
@@ -5710,6 +5932,125 @@ components:
         * `marla` - marla
         * `kanal` - kanal
         * `acre` - acre
+    AssistantSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        listing_id:
+          type: string
+          format: uuid
+        registry_version:
+          type: integer
+        schema_version:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        knowledge_notice:
+          type: string
+          description: Show it beside any source.
+        turns:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssistantTurn'
+          description: Oldest first.
+      required:
+      - created_at
+      - id
+      - knowledge_notice
+      - listing_id
+      - registry_version
+      - schema_version
+      - turns
+    AssistantSessionOpenRequest:
+      type: object
+      properties:
+        listing_id:
+          type: string
+          format: uuid
+          description: The caller's own Draft.
+      required:
+      - listing_id
+    AssistantSource:
+      type: object
+      properties:
+        title:
+          type: string
+        source:
+          type: string
+        version:
+          type: integer
+      required:
+      - source
+      - title
+      - version
+    AssistantTurn:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+        client_turn_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+          description: The caller's message after redaction. Plain text.
+        reply:
+          type: string
+          description: The assistant's reply. Plain text.
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssistantSource'
+          description: Knowledge base passages given to the assistant for this reply.
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - client_turn_id
+      - created_at
+      - id
+      - message
+      - reply
+      - sequence
+      - sources
+    AssistantTurnBodyRequest:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        client_turn_id:
+          type: string
+          format: uuid
+          description: A new UUID for each message; send the same one to repeat a
+            request.
+      required:
+      - client_turn_id
+      - message
+    AssistantTurnResult:
+      type: object
+      properties:
+        outcome:
+          $ref: '#/components/schemas/OutcomeEnum'
+        message:
+          type: string
+          description: A notice to show; empty when there is nothing to say.
+        turn:
+          allOf:
+          - $ref: '#/components/schemas/AssistantTurn'
+          nullable: true
+          description: 'Null unless `success`: nothing was stored.'
+      required:
+      - message
+      - outcome
+      - turn
     BallotingStatusEnum:
       enum:
       - not_applicable
@@ -8024,6 +8365,20 @@ components:
       description: |-
         * `manual` - manual
         * `ai` - ai
+    OutcomeEnum:
+      enum:
+      - success
+      - fallback
+      - error
+      - timeout
+      - budget_exhausted
+      type: string
+      description: |-
+        * `success` - success
+        * `fallback` - fallback
+        * `error` - error
+        * `timeout` - timeout
+        * `budget_exhausted` - budget_exhausted
     OwnerAccountTypeEnum:
       enum:
       - individual

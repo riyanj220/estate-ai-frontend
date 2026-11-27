@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
+import { useAiNotice } from "@/components/ai-notice";
 import { ErrorSummary } from "@/components/error-summary";
 import { Field } from "@/components/form-field";
 import { getApi } from "@/lib/api";
@@ -52,8 +53,11 @@ function sanitize(values: Values, registry: Registry): Values {
  * The "Create listing" form (manual path only). Purpose, Category and Subtype are rendered from the registry
  * (`useRegistry`); the form owns no taxonomy. Only "required" is checked here, every other rule is the server's.
  * After a Draft is created the form never accepts another submit: it opens the Draft page (or points at My listings).
+ * With `ai` (the server's `AI_FEATURES=1`), "Create with AI" creates the same Draft, after the external-service notice, and opens
+ * the assistant for it instead (Story 5.8).
  */
-export function CreateListingForm() {
+export function CreateListingForm({ ai = false }: { ai?: boolean }) {
+  const { withNotice, notice: aiNotice } = useAiNotice();
   const router = useRouter();
   const { refresh, account } = useSession();
   const { status, registry, retry, retrying, refetch } = useRegistry(SIGN_IN_PATH);
@@ -123,8 +127,7 @@ export function CreateListingForm() {
     clearErrors(...(name === "category" ? (["category", "subtype"] as FieldName[]) : [name]));
   }
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function createDraft(destination: "draft" | "assistant") {
     if (submitting.current || lockedRef.current) return;
     setNoticeState(null);
     // Required fields are checked here so a missing choice sends nothing; every other rule is the server's.
@@ -159,7 +162,7 @@ export function CreateListingForm() {
         if (typeof id === "string" && id) {
           setLocked("created");
           setAnnouncement("Draft created. Opening it.");
-          router.push(`${LISTINGS_PATH}/${encodeURIComponent(id)}`);
+          router.push(`${LISTINGS_PATH}/${encodeURIComponent(id)}${destination === "assistant" ? "/assistant" : ""}`);
           // If the Draft page does not open in time, point at My listings instead of freezing.
           navTimer.current = setTimeout(() => {
             if (window.location.pathname !== NEW_LISTING_PATH) return;
@@ -260,7 +263,9 @@ export function CreateListingForm() {
     <>
       {heading}
       <p className="muted" data-testid="create-note">
-        You are starting a listing manually. An AI-assisted way to start will be added later.
+        {ai
+          ? "Choose what you are listing, then create the draft yourself or start with AI."
+          : "You are starting a listing manually. An AI-assisted way to start will be added later."}
       </p>
       {/* The one live region of this form: the busy and error announcements (an open notice announces itself). */}
       <p role="status" aria-live="polite" className="sr-only" data-testid="create-status">
@@ -296,7 +301,13 @@ export function CreateListingForm() {
           )}
         </p>
       )}
-      <form method="post" onSubmit={onSubmit} noValidate aria-busy={pending} className="card">
+      <form
+        method="post"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void createDraft("draft");
+        }}
+        noValidate aria-busy={pending} className="card">
         <fieldset className="radio-group" aria-describedby={purposeDescribedBy}>
           <legend>Purpose</legend>
           {purposeErrors?.length ? (
@@ -347,7 +358,20 @@ export function CreateListingForm() {
         <button type="submit" className="primary-button" aria-disabled={busy ? true : undefined}>
           {pending ? "Creating…" : locked ? "Draft created" : "Create draft"}
         </button>
+        {ai && (
+          <button
+            type="button"
+            className="secondary-button"
+            aria-disabled={busy ? true : undefined}
+            onClick={() => {
+              if (!busy) withNotice(() => void createDraft("assistant"));
+            }}
+          >
+            Create with AI
+          </button>
+        )}
       </form>
+      {ai && aiNotice}
     </>
   );
 }

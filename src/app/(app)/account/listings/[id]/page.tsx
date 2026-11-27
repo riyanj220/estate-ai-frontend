@@ -10,5 +10,5 @@ export default async function DraftPage({ params }: { params: Promise<{ id: stri
   const result = await requireAccount();
   if (result.kind === "unavailable") return null; // the layout shows the unavailable state
   const { id } = await params;
-  return <DraftClient key={id} id={id} admin={result.account.account_type === "admin"} />;
+  return <DraftClient key={id} id={id} admin={result.account.account_type === "admin"} ai={process.env.AI_FEATURES === "1"} />;
 }

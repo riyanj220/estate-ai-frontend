@@ -110,6 +110,18 @@ progress {
   font-size: 0.875rem;
   margin-bottom: 0.25rem;
 }
+.chat-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.chat-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .field-error {
   color: var(--color-error);
   font-weight: 600;

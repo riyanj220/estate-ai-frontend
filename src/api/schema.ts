@@ -184,6 +184,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assistant/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create or open the assistant session of a Draft
+         * @description Needs `X-CSRFToken`. One open session per Draft.
+         */
+        post: operations["open_assistant_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An assistant session and its history
+         * @description Every answer of the view, errors included, is `no-store`.
+         */
+        get: operations["get_assistant_session"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/sessions/{session_id}/turns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send one message to the assistant
+         * @description Needs `X-CSRFToken`. May take up to about 30 seconds. When the assistant cannot answer it is `200` with an `outcome` other than `success`, `turn` null and a message to show; the Draft and the history are unchanged. At most 30 messages an hour.
+         */
+        post: operations["send_assistant_turn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/csrf": {
         parameters: {
             query?: never;
@@ -1427,6 +1487,62 @@ export interface components {
          * @enum {string}
          */
         AreaUnitEnum: "sqft" | "sqyd" | "marla" | "kanal" | "acre";
+        AssistantSession: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            listing_id: string;
+            registry_version: number;
+            schema_version: number;
+            /** Format: date-time */
+            created_at: string;
+            /** @description Show it beside any source. */
+            knowledge_notice: string;
+            /** @description Oldest first. */
+            turns: components["schemas"]["AssistantTurn"][];
+        };
+        AssistantSessionOpenRequest: {
+            /**
+             * Format: uuid
+             * @description The caller's own Draft.
+             */
+            listing_id: string;
+        };
+        AssistantSource: {
+            title: string;
+            source: string;
+            version: number;
+        };
+        AssistantTurn: {
+            /** Format: uuid */
+            id: string;
+            sequence: number;
+            /** Format: uuid */
+            client_turn_id: string;
+            /** @description The caller's message after redaction. Plain text. */
+            message: string;
+            /** @description The assistant's reply. Plain text. */
+            reply: string;
+            /** @description Knowledge base passages given to the assistant for this reply. */
+            sources: components["schemas"]["AssistantSource"][];
+            /** Format: date-time */
+            created_at: string;
+        };
+        AssistantTurnBodyRequest: {
+            message: string;
+            /**
+             * Format: uuid
+             * @description A new UUID for each message; send the same one to repeat a request.
+             */
+            client_turn_id: string;
+        };
+        AssistantTurnResult: {
+            outcome: components["schemas"]["OutcomeEnum"];
+            /** @description A notice to show; empty when there is nothing to say. */
+            message: string;
+            /** @description Null unless `success`: nothing was stored. */
+            turn: components["schemas"]["AssistantTurn"] | null;
+        };
         /**
          * @description * `not_applicable` - not_applicable
          *     * `balloting_pending` - balloting_pending
@@ -2439,6 +2555,15 @@ export interface components {
          * @enum {string}
          */
         OriginEnum: "manual" | "ai";
+        /**
+         * @description * `success` - success
+         *     * `fallback` - fallback
+         *     * `error` - error
+         *     * `timeout` - timeout
+         *     * `budget_exhausted` - budget_exhausted
+         * @enum {string}
+         */
+        OutcomeEnum: "success" | "fallback" | "error" | "timeout" | "budget_exhausted";
         /**
          * @description * `individual` - individual
          *     * `agency` - agency
@@ -3965,6 +4090,278 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    open_assistant_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantSessionOpenRequest"];
+            };
+        };
+        responses: {
+            /** @description The Draft's open session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantSession"];
+                };
+            };
+            /** @description A new session */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantSession"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated`: a Visitor */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: a Suspended or Deactivated account, or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found`: not the account's own */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `conflict`: not a Draft */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_assistant_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantSession"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `unauthenticated`: a Visitor */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: a Suspended or Deactivated account, or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found`: not the account's own */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    send_assistant_turn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantTurnBodyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantTurnResult"];
+                };
+            };
+            /** @description `validation_error`: `message` (1 to 2000 characters) or `client_turn_id` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated`: a Visitor */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: a Suspended or Deactivated account, or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `not_found`: not the account's own */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `conflict`: not a Draft, another message in progress, or a full session */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `idempotency_key_reused`: the `client_turn_id` had another message */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `throttled`: more than 30 messages in an hour; with `Retry-After` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Server error */

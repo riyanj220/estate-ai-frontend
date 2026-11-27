@@ -43,7 +43,7 @@ async function fetchDraft(id: string): Promise<ProfileFetch<Draft>> {
  * one answer for an unknown id, someone else's Listing, a malformed id and an administrator. Nothing about the Listing is
  * stored or logged.
  */
-export function DraftClient({ id, admin }: { id: string; admin: boolean }) {
+export function DraftClient({ id, admin, ai }: { id: string; admin: boolean; ai: boolean }) {
   const signInPath = signInPathFor(`${LISTINGS_PATH}/${id}`, admin);
   const [missing, setMissing] = useState(false);
   // The title follows the status the editor reports: "Draft" until the Listing is known and while it is one, "Listing" after.
@@ -114,6 +114,13 @@ export function DraftClient({ id, admin }: { id: string; admin: boolean }) {
   return (
     <>
       {heading}
+      {ai && draft && (
+        <p>
+          <Link href={`${LISTINGS_PATH}/${id}/assistant`} className="text-link">
+            Continue with the AI assistant
+          </Link>
+        </p>
+      )}
       <DraftEditor
         key={`${load.profile.listing.id}-${load.profile.load}`}
         initial={load.profile.listing}
