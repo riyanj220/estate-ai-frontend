@@ -1326,6 +1326,9 @@ let verificationPosts = [];
 // Stories 10.1 and 10.2: the one closure request (null until sent).
 const CLOSURE_ID = "00000000-0000-4000-c000-000000000002";
 let closure = null;
+// Stories 10.5 and 10.6: the little reference data and AI switch the admin screens change.
+const newPlatform = () => ({ assistantOn: true, cities: [{ id: "00000000-0000-4000-e100-000000000001", name: "Karachi", is_active: true }] });
+let platform = newPlatform();
 let accountsMode = "ok";
 let accountsPosts = [];
 // Epic 9: the one Report (null until sent) and the moderation state of one published listing and one draft.
@@ -2425,6 +2428,80 @@ const server = createServer((req, res) => {
       const status = { approve: "verified", reject: "rejected", revoke: "revoked" }[action];
       decide({ approve: "approved", reject: "rejected", revoke: "revoked" }[action], status, body?.reason ?? "");
       return json(200, { id: VERIFICATION_ID, status, decided_at: verification.decided_at });
+    });
+  }
+  // ---- Stories 10.4 to 10.8: account review, reference data, AI oversight, audit trail, dashboard.
+  const accountPath = /^\/api\/v1\/admin\/accounts(?:\/(00000000-0000-4000-e000-000000000001)(\/private)?)?$/.exec(url.pathname);
+  if (accountPath || /^\/api\/v1\/admin\/(dashboard|audit-records|ai-oversight|reference\/)/.test(url.pathname) || url.pathname.endsWith("/private-address")) {
+    res.setHeader("cache-control", "no-store");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication required."));
+    if (!sessionAdmin) return json(404, envelope("not_found", "Not found."));
+    const account = { id: "00000000-0000-4000-e000-000000000001", account_type: "individual", display_name: "Ayesha Sample", masked_email: "a***@example.com", state: "active", created_at: "2026-11-01T10:00:00+05:00" };
+    const respond = (body) => {
+      if (url.pathname === "/api/v1/admin/accounts") {
+        const q = (url.searchParams.get("q") ?? "").toLowerCase();
+        return json(200, { next: null, previous: null, results: account.display_name.toLowerCase().includes(q) ? [account] : [] });
+      }
+      if (accountPath?.[2]) return json(200, { email: "ayesha@example.com", phone: "+920000000000", office_address: "" });
+      if (accountPath) {
+        return json(200, {
+          account: { ...account, email_verified: true, suspension_reason: "", suspended_at: null, deactivated_at: null, description: "", city: null, verification_status: null },
+          reports: [{ id: account.id, target_type: "listing", listing_id: account.id, title: "Reported house", reason: "misleading", status: "pending", created_at: account.created_at }],
+          closure_requests: [{ id: account.id, kind: "deletion", status: "rejected", account_id: account.id, account_type: "individual", account_state: "active", masked_email: account.masked_email, submitted_at: account.created_at, decided_at: account.created_at, decision_reason: "Open report" }],
+        });
+      }
+      if (url.pathname.endsWith("/private-address")) return json(200, { street: "Sample Street", house_number: "7", latitude: null, longitude: null });
+      if (url.pathname === "/api/v1/admin/dashboard") {
+        return json(200, {
+          individual_accounts: 12,
+          agency_accounts: 3,
+          published_listings: 9,
+          listings_by_status: { draft: 4, published: 9, archived: 1, sold: 2, rented: 0, removed: 1 },
+          pending_verifications: 2,
+          unresolved_reports: 5,
+          activity: { days: 7, new_accounts: 6, new_listings: 8, messages_sent: 11 },
+        });
+      }
+      if (url.pathname === "/api/v1/admin/audit-records") {
+        const actions = ["city.created", "privacy.viewed"];
+        const row = { id: account.id, created_at: account.created_at, actor_kind: "admin", actor_id: ADMIN_ID, actor_email: "r***@example.com", action: "privacy.viewed", target_type: "account_contact", target_id: account.id, reason: "Checking a complaint", details: {} };
+        const wanted = url.searchParams.get("action");
+        return json(200, { next: null, previous: null, actions, results: !wanted || wanted === row.action ? [row] : [] });
+      }
+      if (url.pathname.startsWith("/api/v1/admin/ai-oversight")) {
+        if (req.method === "POST") {
+          platform.assistantOn = body.enabled;
+          return json(200, { name: "ai_assistant_turn", label: "Assistant chat", enabled: platform.assistantOn });
+        }
+        return json(200, {
+          switches: [{ name: "ai_assistant_turn", label: "Assistant chat", enabled: platform.assistantOn }],
+          window_days: 7,
+          calls: [{ feature: "assistant_turn", total: 4, failed: 1, outcomes: { success: 3, timeout: 1 } }],
+          valuation_model: { name: "price", version: 1, trained_at: account.created_at },
+          failed_valuations: [],
+        });
+      }
+      if (url.pathname === "/api/v1/admin/reference/fixed") return json(200, { purposes: ["sale", "rent"], categories: [{ id: "house", subtypes: ["house"] }], area_units: ["sqyd", "marla"] });
+      if (url.pathname === "/api/v1/admin/reference/amenities") return json(200, { items: [{ code: "parking", label: "Parking", kind: "on_property", group: "outdoor", is_active: true }] });
+      if (url.pathname === "/api/v1/admin/reference/cities" && req.method === "GET") return json(200, { items: platform.cities });
+      if (url.pathname === "/api/v1/admin/reference/cities") {
+        if (platform.cities.some((city) => city.name.toLowerCase() === body.name.toLowerCase())) return json(400, envelope("validation_error", "Invalid."));
+        platform.cities.push({ id: `00000000-0000-4000-e100-00000000000${platform.cities.length + 1}`, name: body.name, is_active: true });
+        res.writeHead(204);
+        return res.end();
+      }
+      const city = platform.cities.find((item) => url.pathname === `/api/v1/admin/reference/cities/${item.id}`);
+      if (city && req.method === "PATCH") {
+        Object.assign(city, body);
+        res.writeHead(204);
+        return res.end();
+      }
+      return json(404, envelope("not_found", "Not found."));
+    };
+    if (req.method === "GET") return respond();
+    return readBody((body) => {
+      if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
+      respond(body);
     });
   }
   // ---- Account closure (Stories 10.1 and 10.2)
@@ -4624,6 +4701,7 @@ const server = createServer((req, res) => {
     verificationHistory = [];
     verificationPosts = [];
     closure = null;
+    platform = newPlatform();
     accountsMode = "ok";
     accountsPosts = [];
     moderation = newModeration();

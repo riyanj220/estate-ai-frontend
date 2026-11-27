@@ -61,8 +61,8 @@ test("a Visitor opening /admin gets a 307 to the admin sign-in with no admin mar
   expect(raw.headers()["cache-control"]).toContain("no-store");
   const body = await raw.text();
   expect(body).not.toContain("EstateAI Administration");
-  expect(body).not.toContain("Administration tools");
-  expect(body).not.toContain("Coming soon");
+  expect(body).not.toContain("Platform overview");
+  expect(body).not.toContain("Audit log");
 });
 
 test("an ordinary account opening /admin gets the same redirect as a Visitor @smoke", async ({ request }) => {
@@ -73,7 +73,7 @@ test("an ordinary account opening /admin gets the same redirect as a Visitor @sm
   expect(ordinary.headers().location).toBe(visitor.headers().location);
   const body = await ordinary.text();
   expect(body).not.toContain("EstateAI Administration");
-  expect(body).not.toContain("Administration tools");
+  expect(body).not.toContain("Platform overview");
 });
 
 test("an expired administrator session gets the same redirect @smoke", async ({ request }) => {
@@ -109,7 +109,7 @@ for (const mode of ["error", "broken", "hang"]) {
     await request.get(`${STUB}/__admin-me-mode?value=${mode}`);
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: "Temporarily unavailable" })).toBeVisible();
-    await expect(page.getByText("Administration tools")).toHaveCount(0);
+    await expect(page.getByText("Platform overview")).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Administration", exact: true })).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText(/Internal detail|ECONNRESET|stack/i);
     // A minimal admin header (Sign out) and no public header; Try again reloads and recovers.
@@ -169,20 +169,20 @@ for (const denial of ["denied_401", "denied_403", "denied_404"]) {
     await request.get(`${STUB}/__admin-me-mode?value=${denial}`);
     await page.getByRole("link", { name: "Dashboard" }).click({ timeout: 3000 });
     await expect(page).toHaveURL(/\/admin\/sign-in\?next=%2Fadmin$/);
-    await expect(page.getByText("Administration tools")).toHaveCount(0);
+    await expect(page.getByText("Platform overview")).toHaveCount(0);
     expect((await stats(request)).sessionAdmin).toBe(true); // the provider was never the one to decide
   });
 }
 
 // ---- Shell and dashboard ---------------------------------------------------------------------------------------
 
-test("an administrator sees the shell and the empty dashboard", async ({ page, request }) => {
+test("an administrator sees the shell and the dashboard", async ({ page, request }) => {
   await startSession(page, request, "admin");
   const response = await page.goto("/admin");
   expect(response?.headers()["cache-control"]).toContain("no-store");
   await expect(page.getByRole("heading", { level: 1, name: "Administration" })).toBeVisible();
   await expect(page.getByTestId("admin-state")).toHaveText("Administrator account state: Active");
-  await expect(page.getByTestId("admin-empty")).toHaveText("Administration tools will appear here.");
+  await expect(page.getByRole("heading", { level: 2, name: "Platform overview" })).toBeVisible();
   // Chrome: one banner (the admin one), a named navigation, one main; the public header is absent.
   await expect(banner(page)).toHaveCount(1);
   await expect(banner(page)).toContainText("EstateAI Administration");
@@ -190,15 +190,16 @@ test("an administrator sees the shell and the empty dashboard", async ({ page, r
   await expect(banner(page).getByRole("link", { name: "EstateAI", exact: true })).toHaveCount(0);
   await expect(page.getByRole("main")).toHaveCount(1);
   await expect(page.getByTestId("account-name")).toHaveCount(0);
-  // The only backend call for admin data is admin/me (server side); the dashboard fetched nothing else.
+  // The guard asks admin/me server side.
   expect((await stats(request)).adminMeCount).toBeGreaterThan(0);
 });
 
-test("navigation: the built screens are links; the rest are disabled Coming soon items", async ({ page, request }) => {
+test("navigation: every screen is a link", async ({ page, request }) => {
   await startSession(page, request, "admin");
   await page.goto("/admin");
   const nav = page.getByRole("navigation", { name: "Administration" });
-  await expect(nav.getByRole("link")).toHaveCount(8);
+  await expect(nav.getByRole("link")).toHaveCount(11);
+  await expect(nav.getByRole("link", { name: "Audit log" })).toHaveAttribute("href", "/admin/audit");
   await expect(nav.getByRole("link", { name: "Closure requests" })).toHaveAttribute("href", "/admin/closure-requests");
   await expect(nav.getByRole("link", { name: "Flags" })).toHaveAttribute("href", "/admin/flags");
   await expect(nav.getByRole("link", { name: "Listings" })).toHaveAttribute("href", "/admin/listings");
@@ -208,12 +209,6 @@ test("navigation: the built screens are links; the rest are disabled Coming soon
   await expect(nav.getByRole("link", { name: "Publication limits" })).toHaveAttribute("href", "/admin/publication-limits");
   await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
   await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/admin");
-  for (const name of ["Audit log"]) {
-    const item = nav.getByRole("listitem").filter({ hasText: name });
-    await expect(item).toContainText("Coming soon");
-    await expect(item.getByRole("link")).toHaveCount(0);
-    await expect(item.getByRole("button")).toHaveCount(0);
-  }
   await expect(page.getByRole("navigation", { name: "Administrator account" }).getByRole("link", { name: "Change password" })).toHaveAttribute(
     "href",
     "/account/password?from=admin",
@@ -253,7 +248,7 @@ test("Back after sign-out never shows admin content", async ({ page, request }) 
   await expect(page).toHaveURL(`${APP}/admin/sign-in`);
   await page.goBack();
   await expect(page.getByRole("heading", { name: "Administrator sign in" })).toBeVisible();
-  await expect(page.getByText("Administration tools")).toHaveCount(0);
+  await expect(page.getByText("Platform overview")).toHaveCount(0);
 });
 
 test("a page restored from the back/forward cache is reloaded through the guard", async ({ page, request }) => {
@@ -263,7 +258,7 @@ test("a page restored from the back/forward cache is reloaded through the guard"
   await request.get(`${STUB}/__expire-session`);
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
   await expect(page).toHaveURL(/\/admin\/sign-in\?next=%2Fadmin$/);
-  await expect(page.getByText("Administration tools")).toHaveCount(0);
+  await expect(page.getByText("Platform overview")).toHaveCount(0);
 });
 
 test("a failed sign-out keeps the person in the shell with a message", async ({ page, request }) => {
@@ -288,7 +283,7 @@ test("an expired session is noticed on focus and sends the person to the admin s
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(page).toHaveURL(/\/admin\/sign-in\?next=%2Fadmin$/);
   await expect(page.getByRole("heading", { name: "Administrator sign in" })).toBeVisible();
-  await expect(page.getByText("Administration tools")).toHaveCount(0);
+  await expect(page.getByText("Platform overview")).toHaveCount(0);
 });
 
 test("the watcher keeps a deep path and its query in next", async ({ page, request }) => {
@@ -308,7 +303,7 @@ test("a session that turns out not to be an administrator's is sent to the admin
   await request.get(`${STUB}/__force-session`); // now an ordinary session
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(page).toHaveURL(/\/admin\/sign-in\?next=%2Fadmin$/);
-  await expect(page.getByText("Administration tools")).toHaveCount(0);
+  await expect(page.getByText("Platform overview")).toHaveCount(0);
 });
 
 test("a client navigation after expiry is stopped by the server guard", async ({ page, request }) => {
@@ -320,7 +315,7 @@ test("a client navigation after expiry is stopped by the server guard", async ({
   // at the admin sign-in, so a click on a link that has just been replaced is not a failure.
   await page.getByRole("link", { name: "Dashboard" }).click({ timeout: 3000 }).catch(() => {});
   await expect(page).toHaveURL(/\/admin\/sign-in\?next=%2Fadmin$/);
-  await expect(page.getByText("Administration tools")).toHaveCount(0);
+  await expect(page.getByText("Platform overview")).toHaveCount(0);
 });
 
 // ---- Sign-in page ----------------------------------------------------------------------------------------------
