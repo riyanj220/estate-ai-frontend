@@ -74,6 +74,7 @@ Use `PW_CHANNEL=chrome` when the Playwright Chromium is not downloaded.
 | `BACKEND_URL` | Backend origin for the proxy and server-side client (see above) |
 | `BACKEND_OPENAPI_PATH` | Path to the backend `openapi.yaml` for `npm run api:sync` (default `../estate-ai-backend/openapi.yaml`) |
 | `BACKEND_OPENAPI_URL` | Raw URL of the backend `main` `openapi.yaml` used by the online `api:check` |
+| `AI_FEATURES` | `1` shows the AI entry points (today "Create with AI" on Create listing, with the one-time external-service notice, `src/components/ai-notice.tsx`; every AI feature starts through `useAiNotice`). Off by default; the Playwright config turns it on |
 | `PW_CHANNEL` | e.g. `chrome`: run Playwright against an installed browser instead of the downloaded Chromium |
 
 ## AI Price Estimates

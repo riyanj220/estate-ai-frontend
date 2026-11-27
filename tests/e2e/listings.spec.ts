@@ -141,7 +141,7 @@ test("registry: purposes, Categories and the Subtypes of the chosen Category com
   await expect(subtype(page).locator("option")).toHaveText(["Select a subtype"]);
   await expect(page.locator("form")).toHaveAttribute("method", "post");
   await expect(page.getByTestId("create-note")).toHaveText("You are starting a listing manually. An AI-assisted way to start will be added later.");
-  await expect(main(page).getByRole("button")).toHaveCount(1); // no control for the AI-assisted path
+  await expect(page.locator("form").getByRole("button")).toHaveCount(1); // the manual form has no AI control (the flagged entry is outside it)
   expect((await stats(request)).registryGets).toBe(1);
 });
 

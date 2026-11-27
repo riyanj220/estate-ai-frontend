@@ -8,7 +8,7 @@ const STUB_PORT = 4120;
 const APP_PORT = 3210;
 const STUB = `http://127.0.0.1:${STUB_PORT}`;
 const APP = `http://127.0.0.1:${APP_PORT}`;
-const env = { ...process.env, BACKEND_URL: STUB, STUB_PORT: String(STUB_PORT) };
+const env = { ...process.env, BACKEND_URL: STUB, STUB_PORT: String(STUB_PORT), AI_FEATURES: "" };
 const children = [];
 const ID = "00000000-0000-4000-9000-000000000001";
 const PATHS = ["/account/listings", "/account/listings/new", `/account/listings/${ID}`, `/account/listings/${ID}/preview`];
@@ -61,6 +61,8 @@ try {
     const response = await get(path, "estate_session=stub-live");
     assert.equal(response.status, 200, `Signed in ${path}: status`);
     assert.match(response.headers.get("cache-control") ?? "", /no-store/, `Signed in ${path}: no-store`);
+    // Story 5.3: without AI_FEATURES=1 there is no AI entry point.
+    assert.ok(!(await response.text()).includes("Create with AI"), `Signed in ${path}: AI entry shown without the flag`);
     console.log(`ok  Signed in ${path} -> 200 no-store`);
   }
 

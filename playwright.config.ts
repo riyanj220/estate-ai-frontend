@@ -34,7 +34,8 @@ export default defineConfig({
       command: PROD ? `npx next build && npx next start -p ${APP_PORT}` : `npx next dev -p ${APP_PORT}`,
       // Each server needs its own build directory (Next locks it, and the stub URL is baked into a build); shard 0 keeps the
       // default .next for dev only.
-      env: { BACKEND_URL: `http://127.0.0.1:${STUB_PORT}`, ...(SHARD > 0 || PROD ? { NEXT_DIST_DIR: `.next-e2e-${SHARD}` } : {}) },
+      // AI_FEATURES shows the AI entry point, which is off by default (check:prod-listings asserts that).
+      env: { BACKEND_URL: `http://127.0.0.1:${STUB_PORT}`, AI_FEATURES: "1", ...(SHARD > 0 || PROD ? { NEXT_DIST_DIR: `.next-e2e-${SHARD}` } : {}) },
       url: `http://127.0.0.1:${APP_PORT}`,
       reuseExistingServer: !process.env.CI,
       timeout: PROD ? 400_000 : 180_000,
