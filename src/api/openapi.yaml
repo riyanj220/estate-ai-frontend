@@ -285,6 +285,223 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/closure-requests:
+    get:
+      operationId: list_admin_closure_requests
+      description: 20 per page; `next` is a link, `previous` is always null. `status`
+        defaults to `pending`. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Closure requests in one status, oldest first
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - approved
+          - pending
+          - rejected
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminClosureQueue'
+          description: One page
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/closure-requests/{request_id}/approve:
+    post:
+      operationId: approve_admin_closure_request
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; a decided
+        request is `409 conflict`. Cannot be undone. In one transaction the account
+        is deactivated and anonymised and its Listings archived; it is emailed. Visitors
+        get `401 unauthenticated`; signed-in non-administrators get `404 not_found`.
+        Never cached.
+      summary: 'Approve: deactivate and erase the account'
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClosureDecisionRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminClosureRequest'
+          description: Approved
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/closure-requests/{request_id}/reject:
+    post:
+      operationId: reject_admin_closure_request
+      description: Needs `X-CSRFToken`. An unknown id is `404 not_found`; a decided
+        request is `409 conflict`. The account is told in-app and by email. Visitors
+        get `401 unauthenticated`; signed-in non-administrators get `404 not_found`.
+        Never cached.
+      summary: 'Reject: the account stays as it is'
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClosureDecisionRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminClosureRequest'
+          description: Rejected
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/admin/flags:
     get:
       operationId: list_admin_flags
@@ -5553,6 +5770,194 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/closure-requests:
+    get:
+      operationId: get_own_closure
+      description: Individual and Agency accounts, Suspended ones included; an administrator
+        is `403 forbidden`, a Visitor `401 unauthenticated`. Never cached.
+      summary: The caller's latest closure request
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnClosure'
+          description: Status
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      operationId: request_own_closure
+      description: Needs `X-CSRFToken`. The account stays as it is until an administrator
+        decides; `409 conflict` while a request is pending. Individual and Agency
+        accounts, Suspended ones included; an administrator is `403 forbidden`, a
+        Visitor `401 unauthenticated`. Never cached.
+      summary: Ask for the account to be deactivated or deleted
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClosureSubmitRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnClosure'
+          description: Recorded
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/closure-requests/{request_id}:
+    get:
+      operationId: get_own_closure_request
+      description: Another account's or an unknown id is `404 not_found`. Individual
+        and Agency accounts, Suspended ones included; an administrator is `403 forbidden`,
+        a Visitor `401 unauthenticated`. Never cached.
+      summary: One of the caller's closure requests
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClosureRequest'
+          description: The request
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/me/email-change:
     post:
       operationId: request_email_change
@@ -8552,6 +8957,67 @@ components:
       - state
       - suspended_at
       - suspension_reason
+    AdminClosureQueue:
+      type: object
+      properties:
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminClosureRequest'
+      required:
+      - next
+      - previous
+      - results
+    AdminClosureRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/ClosureKindEnum'
+        status:
+          $ref: '#/components/schemas/ClosureStatusEnum'
+        account_id:
+          type: string
+          format: uuid
+        account_type:
+          type: string
+          nullable: true
+        account_state:
+          type: string
+          nullable: true
+          description: '`email_unverified`, `active`, `suspended` or `deactivated`.'
+        masked_email:
+          type: string
+          nullable: true
+          description: Null once closed.
+        submitted_at:
+          type: string
+          format: date-time
+        decided_at:
+          type: string
+          format: date-time
+          nullable: true
+        decision_reason:
+          type: string
+      required:
+      - account_id
+      - account_state
+      - account_type
+      - decided_at
+      - decision_reason
+      - id
+      - kind
+      - masked_email
+      - status
+      - submitted_at
     AdminListingDetail:
       type: object
       properties:
@@ -9365,6 +9831,69 @@ components:
             $ref: '#/components/schemas/City'
       required:
       - items
+    ClosureDecisionRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 5
+          description: One line, without contact details. The account holder reads
+            it.
+          maxLength: 500
+      required:
+      - reason
+    ClosureKindEnum:
+      enum:
+      - deactivation
+      - deletion
+      type: string
+      description: |-
+        * `deactivation` - deactivation
+        * `deletion` - deletion
+    ClosureRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/ClosureKindEnum'
+        status:
+          $ref: '#/components/schemas/ClosureStatusEnum'
+        submitted_at:
+          type: string
+          format: date-time
+        decided_at:
+          type: string
+          format: date-time
+          nullable: true
+        decision_reason:
+          type: string
+          description: Empty while pending.
+      required:
+      - decided_at
+      - decision_reason
+      - id
+      - kind
+      - status
+      - submitted_at
+    ClosureStatusEnum:
+      enum:
+      - pending
+      - approved
+      - rejected
+      type: string
+      description: |-
+        * `pending` - pending
+        * `approved` - approved
+        * `rejected` - rejected
+    ClosureSubmitRequest:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/ClosureKindEnum'
+      required:
+      - kind
     CodeEnum:
       enum:
       - bad_request
@@ -11989,6 +12518,19 @@ components:
         * `error` - error
         * `timeout` - timeout
         * `budget_exhausted` - budget_exhausted
+    OwnClosure:
+      type: object
+      properties:
+        can_submit:
+          type: boolean
+        request:
+          allOf:
+          - $ref: '#/components/schemas/ClosureRequest'
+          nullable: true
+          description: The latest request.
+      required:
+      - can_submit
+      - request
     OwnReport:
       type: object
       properties:

@@ -79,6 +79,13 @@ const KINDS: Record<string, KindEntry> = {
     href: () => "/account/verification",
     linkText: "Open verification",
   },
+  // Story 10.2: empty payload; the reason is read on the closure page.
+  "account.closure_rejected": {
+    title: "Your account closure request was not approved.",
+    text: "Your account is unchanged. Read the reason on the closure page.",
+    href: () => "/account/closure",
+    linkText: "Open the request",
+  },
   // Story 9.2: empty payloads; the review notes are never sent.
   "report.resolved": {
     title: "Your report was reviewed and resolved.",

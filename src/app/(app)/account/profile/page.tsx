@@ -1,9 +1,21 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requireAccount } from "@/lib/current-account";
 import { AgencyProfileClient } from "./agency-profile-client";
 import { ProfileClient } from "./profile-client";
 
 export const metadata: Metadata = { title: "Profile | EstateAI", robots: { index: false, follow: false } };
+
+/** Story 10.1: reachable by every Individual and Agency account, Suspended ones included. */
+function CloseAccountLink() {
+  return (
+    <p>
+      <Link href="/account/closure" className="text-link">
+        Close account
+      </Link>
+    </p>
+  );
+}
 
 export default async function ProfilePage() {
   const result = await requireAccount();
@@ -15,6 +27,7 @@ export default async function ProfilePage() {
       <>
         <h1 className="page-title">Profile</h1>
         <ProfileClient />
+        <CloseAccountLink />
       </>
     );
   }
@@ -23,6 +36,7 @@ export default async function ProfilePage() {
       <>
         <h1 className="page-title">Business profile</h1>
         <AgencyProfileClient />
+        <CloseAccountLink />
       </>
     );
   }

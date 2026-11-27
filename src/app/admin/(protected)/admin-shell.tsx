@@ -16,6 +16,7 @@ const PAGES = [
   { href: "/admin/listings", label: "Listings" },
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/flags", label: "Flags" },
+  { href: "/admin/closure-requests", label: "Closure requests" },
 ];
 
 // Placeholders for later administration screens: inert text, never links, so no empty routes ship. Hand-off: turn an entry into a link when its route and page (with `requireAdmin()`) exist, and

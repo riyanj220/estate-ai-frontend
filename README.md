@@ -1380,3 +1380,10 @@ none); `/__correction-mode` (`ok`, `hold`, `read_error`, `stale`, `conflict`, `u
 - "Report conversation" on `/messages/{id}` (Story 9.5) sends the other side's chosen messages. In `/admin/reports` a
   Conversation report shows no message text until the administrator gives a reason (recorded on every view), and offers
   the existing suspension. `/admin/flags` (Story 9.6) lists the advisory duplicate and suspicious flags.
+
+## Account closure (Stories 10.1 and 10.2)
+
+- `/account/closure` (linked from the profile page) shows the latest request and, when none is pending, the form.
+  Suspended accounts use it too.
+- `/admin/closure-requests` is the queue: approve (cannot be undone) or reject, each with a reason the account holder reads.
+- Stub: the routes under `// ---- Account closure`. Spec: `tests/e2e/account-closure.spec.ts`.
