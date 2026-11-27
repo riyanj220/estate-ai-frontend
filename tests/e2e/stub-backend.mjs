@@ -1117,6 +1117,7 @@ const LISTING_PRESETS = {
   publish_no_image: () => [Object.assign(publishReady(1), { images: [] })],
   publish_rent_no_period: () => [Object.assign(publishReady(1), { fields: { ...publishReady(1).fields, purpose: "rent", category: "apartment", subtype: "apartment", price_basis: "rental_period", rental_period: null, bathrooms: 2, bedrooms: 1, lift: true } })],
   publish_ai_street: () => [Object.assign(publishReady(1), { provenance: { street: { origin: "ai", confirmed: false } } }, { fields: { ...publishReady(1).fields, street: "Cedar Lane" } })],
+  publish_ai_price: () => [Object.assign(publishReady(1), { provenance: { asking_price: { origin: "ai", confirmed: false } } })],
   publish_cleared_city: () => [Object.assign(publishReady(1), { fields: { ...publishReady(1).fields, city: null, locality: null } })],
   // Story 2.17: Listings in every status. A Published one is complete (it can be edited without becoming invalid), has two images and
   // revision 4; the rent one is an apartment for rent.
@@ -1225,7 +1226,7 @@ const pending = []; // responses held open by the hang mode
 // Story 5.8: one assistant session per Draft. Modes through /__assistant-mode; "hold" keeps a turn open until /__assistant-release.
 // Stories 5.9 and 5.10: what the Draft still needs; "extract" saves two fields to it, "review" says nothing required is missing.
 const nextStep = (kind, question, fields_asked = [], in_form = false) => ({ kind, question, fields_asked, optional: [], in_form });
-const ASSISTANT_MODES = ["extract", "review", "ok", "sources", "no_explanations", "error", "timeout", "budget_exhausted", "rate_limited", "conflict", "hold", "forbidden", "open_conflict"];
+const ASSISTANT_MODES = ["extract", "review", "ok", "sources", "no_explanations", "error", "timeout", "budget_exhausted", "rate_limited", "conflict", "hold", "forbidden", "open_conflict", "describe_fail"];
 let assistantMode = "ok";
 let assistantSessions = new Map();
 let assistantRequests = [];
@@ -2351,7 +2352,7 @@ createServer((req, res) => {
       const created = !assistantSessions.has(draft.id);
       if (created) {
         const n = String(assistantSessions.size + 1).padStart(12, "0");
-        assistantSessions.set(draft.id, { id: `00000000-0000-4000-c000-${n}`, listing_id: draft.id, registry_version: draft.registryVersion, schema_version: 1, created_at: "2026-11-27T10:00:00Z", knowledge_notice: "General information only.", turns: [], next_step: nextStep("required", "What is the area of the property, with its unit?", ["area_value", "area_unit"]) });
+        assistantSessions.set(draft.id, { id: `00000000-0000-4000-c000-${n}`, listing_id: draft.id, registry_version: draft.registryVersion, schema_version: 1, created_at: "2026-11-27T10:00:00Z", knowledge_notice: "General information only.", turns: [], summary: [], next_step: nextStep("required", "What is the area of the property, with its unit?", ["area_value", "area_unit"]) });
       }
       return json(created ? 201 : 200, assistantSessions.get(draft.id));
     });
@@ -2379,13 +2380,46 @@ createServer((req, res) => {
           turn.rejected = [{ field: "bathrooms", code: "out_of_range" }];
           turn.notices = ["I removed a phone number, email address or street address from your message.", "I could not save: bathrooms. <i>Please check</i> and tell me again."];
           session.next_step = nextStep("required", "Please choose the city in the form.", ["city"], true);
+          session.summary = [{ field: "bedrooms", value: "5", confirmed: false }, { field: "asking_price", value: "60000000 PKR", confirmed: false }];
         }
         if (assistantMode === "review") session.next_step = nextStep("review", "All required details are filled in. You can review your listing now.");
         session.turns.push(turn);
-        json(200, { outcome: "success", message: assistantMode === "no_explanations" ? "Raw server text." : "", turn, next_step: session.next_step });
+        json(200, { outcome: "success", message: assistantMode === "no_explanations" ? "Raw server text." : "", turn, next_step: session.next_step, summary: session.summary ?? [] });
       };
       if (assistantMode === "hold") return void assistantHeld.push(answer);
       return answer();
+    });
+  }
+  // Story 5.12: the owner's confirmation of stored values; field names only.
+  const confirmRoute = /^\/api\/v1\/listings\/([^/]+)\/confirm$/.exec(url.pathname);
+  if (confirmRoute && req.method === "POST") {
+    return readBody((body) => {
+      if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
+      const target = sessionAdmin ? undefined : listings.find((item) => item.id === confirmRoute[1] && item.owner === "mine");
+      if (!target) return json(404, envelope("not_found", "Not found."));
+      if (body.base_revision !== target.revision) return json(409, { ...envelope("stale_revision", "Changed."), current: publicListing(target) });
+      for (const name of body.fields) target.provenance = { ...target.provenance, [name]: { origin: "manual", confirmed: true } };
+      target.revision += 1;
+      return json(200, publicListing(target));
+    });
+  }
+  // Story 5.13: the description is saved as an unconfirmed assistant value; a manual one needs `replace`.
+  const describeRoute = /^\/api\/v1\/assistant\/sessions\/([^/]+)\/description$/.exec(url.pathname);
+  if (describeRoute && req.method === "POST") {
+    return readBody((body) => {
+      if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
+      const session = [...assistantSessions.values()].find((item) => item.id === describeRoute[1]);
+      const target = session && listings.find((item) => item.id === session.listing_id);
+      if (!target) return json(404, envelope("not_found", "Not found."));
+      if (body.base_revision !== target.revision) return json(409, { ...envelope("stale_revision", "Changed."), current: publicListing(target) });
+      if (target.fields.description && target.provenance.description?.origin !== "ai" && body.replace !== true) {
+        return json(400, envelope("validation_error", "Invalid.", { description: ["manual_description"] }));
+      }
+      if (assistantMode === "describe_fail") return json(200, { outcome: "error", message: "Raw server text.", listing: null, claims: [], left_out: [] });
+      target.fields.description = "This house is for sale.\n\nIt has <b>three</b> bedrooms.";
+      target.provenance = { ...target.provenance, description: { origin: "ai", confirmed: false } };
+      target.revision += 1;
+      return json(200, { outcome: "success", message: "", listing: publicListing(target), claims: [{ text: "This house is for sale.", fields: ["purpose", "subtype"] }], left_out: ["asking_price"] });
     });
   }
   if (url.pathname === "/api/v1/listings" && req.method === "POST") {
@@ -2783,7 +2817,7 @@ createServer((req, res) => {
       for (const def of REGISTRY_FIELDS[fieldsName]) {
         const origin = target.provenance?.[def.id];
         const value = target.fields[def.id];
-        if ((def.class === "private" || def.quota_identity) && value !== null && value !== undefined && value !== "" && origin?.origin === "ai" && origin.confirmed !== true) problems[def.id] = ["confirm_required"];
+        if ((def.class === "private" || def.quota_identity || def.id === "asking_price") && value !== null && value !== undefined && value !== "" && origin?.origin === "ai" && origin.confirmed !== true) problems[def.id] = ["confirm_required"];
       }
       if (publishMode === "invalid_extra") problems.title = [...(problems.title ?? []), "too_short"];
       if (Object.keys(problems).length > 0) return fail(problems);

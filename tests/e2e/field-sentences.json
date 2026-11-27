@@ -60,5 +60,7 @@
  "locality_not_in_city": "Choose a locality that belongs to the selected city.",
  "no_change": "Nothing would change. Enter a different locality or area.",
   "images_required": "Add at least one image.",
- "confirm_required": "Confirm this value before publishing."
+ "confirm_required": "Confirm this value before publishing.",
+ "manual_description": "You wrote this description. Choose to replace it.",
+ "nothing_confirmed": "Fill in and confirm some details first."
 }
