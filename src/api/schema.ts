@@ -24,6 +24,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Individual and Agency accounts, newest first
+         * @description 20 per page; `next` is a link, `previous` is always null. `q` is part of a name or an account id; email is not searched (use the reasoned lookup). Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["list_admin_accounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/accounts/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One account with its Reports and closure requests
+         * @description An unknown id or an administrator is `404 not_found`. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["get_admin_account"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/accounts/{account_id}/private": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read one account's contact details, with a reason
+         * @description Needs `X-CSRFToken`. A reasoned private read recorded in the audit trail. A Listing's Private address is read on the Listing. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["read_admin_account_contact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/accounts/{account_id}/reactivate": {
         parameters: {
             query?: never;
@@ -84,6 +144,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/ai-oversight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI feature switches, failures and the valuation model
+         * @description Counts cover the last 7 days. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["get_admin_ai_oversight"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ai-oversight/switches/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn an AI feature off or on
+         * @description Needs `X-CSRFToken`. Applies to the next request, without a restart, and is audited. An unknown name is `404 not_found`. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["set_admin_ai_switch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit records, newest first
+         * @description 50 per page; `next` is a link, `previous` is always null. `actor` and `target` are ids; the dates are Karachi calendar days, inclusive. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["list_admin_audit_records"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/closure-requests": {
         parameters: {
             query?: never;
@@ -138,6 +258,26 @@ export interface paths {
          * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; a decided request is `409 conflict`. The account is told in-app and by email. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
          */
         post: operations["reject_admin_closure_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Platform counts
+         * @description Accounts in every state; activity covers the last 7 days. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["get_admin_dashboard"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -238,6 +378,26 @@ export interface paths {
          * @description Needs `X-CSRFToken`. An unknown id is `404 not_found`; an action not open for this Listing now is `409 conflict`. The owner is notified with the reason. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
          */
         post: operations["lift_admin_listing_restriction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/listings/{listing_id}/private-address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a Listing's Private address, with a reason
+         * @description Needs `X-CSRFToken`. A reasoned private read recorded in the audit trail, one Listing at a time. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["read_admin_listing_address"];
         delete?: never;
         options?: never;
         head?: never;
@@ -402,6 +562,158 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reference/amenities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every amenity and nearby facility, deactivated ones included
+         * @description Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["list_admin_amenities"];
+        put?: never;
+        /**
+         * Add an amenity or nearby facility
+         * @description Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`; an unknown item is `404 not_found`. Every change is audited. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["create_admin_amenity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reference/amenities/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Relabel, deactivate or reactivate an amenity
+         * @description Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`; an unknown item is `404 not_found`. Every change is audited. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        patch: operations["update_admin_amenity"];
+        trace?: never;
+    };
+    "/api/v1/admin/reference/cities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every city, deactivated ones included
+         * @description Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["list_admin_cities"];
+        put?: never;
+        /**
+         * Add a city
+         * @description Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`; an unknown item is `404 not_found`. Every change is audited. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["create_admin_city"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reference/cities/{city_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename, deactivate or reactivate a city
+         * @description Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`; an unknown item is `404 not_found`. Every change is audited. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        patch: operations["update_admin_city"];
+        trace?: never;
+    };
+    "/api/v1/admin/reference/cities/{city_id}/localities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every locality of a city, deactivated ones included
+         * @description An unknown city is `404 not_found`. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["list_admin_localities"];
+        put?: never;
+        /**
+         * Add an area or society to an active city
+         * @description Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`; an unknown item is `404 not_found`. Every change is audited. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        post: operations["create_admin_locality"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reference/fixed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Purposes, Categories, Subtypes and area units (read only)
+         * @description Fixed by the product. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        get: operations["get_admin_fixed_catalogue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reference/localities/{locality_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename, deactivate or reactivate a locality
+         * @description Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`; an unknown item is `404 not_found`. Every change is audited. Visitors get `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never cached.
+         */
+        patch: operations["update_admin_locality"];
         trace?: never;
     };
     "/api/v1/admin/reports": {
@@ -2177,10 +2489,40 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccountContact: {
+            /** @description Private. */
+            email: string;
+            /** @description Private. */
+            phone: string;
+            /** @description Private; agencies. */
+            office_address: string;
+        };
         AccountLookupRequest: {
             reason: string;
             /** @description Matched ignoring case. */
             email: string;
+        };
+        AccountProfile: {
+            /** Format: uuid */
+            id: string;
+            account_type: components["schemas"]["OwnerAccountTypeEnum"];
+            display_name: string;
+            masked_email: string;
+            state: components["schemas"]["StateEnum"];
+            /** Format: date-time */
+            created_at: string;
+            email_verified: boolean;
+            suspension_reason: string;
+            /** Format: date-time */
+            suspended_at: string | null;
+            /** Format: date-time */
+            deactivated_at: string | null;
+            /** @description Agencies only. */
+            description: string;
+            /** @description Agencies only. */
+            city: string | null;
+            /** @description Agencies only. */
+            verification_status: string | null;
         };
         AccountReasonRequest: {
             /** @description One line, without contact details. */
@@ -2189,6 +2531,24 @@ export interface components {
         AccountRef: {
             type: string;
             masked_email: string;
+        };
+        AccountReport: {
+            /** Format: uuid */
+            id: string;
+            target_type: components["schemas"]["TargetTypeEnum"];
+            /** Format: uuid */
+            listing_id: string;
+            title: string | null;
+            reason: components["schemas"]["ReportReasonEnum"];
+            status: components["schemas"]["ReportStatusEnum"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        AccountReview: {
+            account: components["schemas"]["AccountProfile"];
+            /** @description About this account; newest 50. */
+            reports: components["schemas"]["AccountReport"][];
+            closure_requests: components["schemas"]["AdminClosureRequest"][];
         };
         AccountStatus: {
             /** Format: uuid */
@@ -2199,6 +2559,12 @@ export interface components {
             suspension_reason: string;
             /** Format: date-time */
             suspended_at: string | null;
+        };
+        Activity: {
+            days: number;
+            new_accounts: number;
+            new_listings: number;
+            messages_sent: number;
         };
         ActorSummary: {
             /** Format: uuid */
@@ -2237,6 +2603,26 @@ export interface components {
             display_name: string;
             email_verified: boolean;
         };
+        AdminAmenity: {
+            code: string;
+            label: string;
+            /** @description `on_property`, `community` or `nearby`. */
+            kind: string;
+            group: string;
+            is_active: boolean;
+        };
+        AdminAmenityList: {
+            items: components["schemas"]["AdminAmenity"][];
+        };
+        AdminCity: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            is_active: boolean;
+        };
+        AdminCityList: {
+            items: components["schemas"]["AdminCity"][];
+        };
         AdminClosureQueue: {
             next: string | null;
             previous: string | null;
@@ -2259,6 +2645,22 @@ export interface components {
             /** Format: date-time */
             decided_at: string | null;
             decision_reason: string;
+        };
+        AdminDashboard: {
+            individual_accounts: number;
+            agency_accounts: number;
+            published_listings: number;
+            listings_by_status: components["schemas"]["ListingsByStatus"];
+            pending_verifications: number;
+            unresolved_reports: number;
+            activity: components["schemas"]["Activity"];
+        };
+        /** @description Private. All null when the Listing has no Private address. */
+        AdminListingAddress: {
+            street: string | null;
+            house_number: string | null;
+            latitude: string | null;
+            longitude: string | null;
         };
         AdminListingDetail: {
             /** Format: uuid */
@@ -2315,6 +2717,17 @@ export interface components {
             title: string | null;
             /** Format: date-time */
             created_at: string;
+        };
+        AdminLocality: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            is_active: boolean;
+            /** @description `area` or `society`. */
+            kind: string;
+        };
+        AdminLocalityList: {
+            items: components["schemas"]["AdminLocality"][];
         };
         AdminMe: {
             /** Format: uuid */
@@ -2390,6 +2803,30 @@ export interface components {
             city_id: string;
             /** @description 8 to 1024 characters, not a common password, not the email address. */
             password: string;
+        };
+        AiCallCounts: {
+            feature: string;
+            total: number;
+            failed: number;
+            outcomes: {
+                [key: string]: number;
+            };
+        };
+        AiOversight: {
+            switches: components["schemas"]["AiSwitch"][];
+            window_days: number;
+            calls: components["schemas"]["AiCallCounts"][];
+            valuation_model: components["schemas"]["ValuationModel"] | null;
+            /** @description Newest 20. */
+            failed_valuations: components["schemas"]["FailedValuation"][];
+        };
+        AiSwitch: {
+            name: string;
+            label: string;
+            enabled: boolean;
+        };
+        AiSwitchChangeRequest: {
+            enabled: boolean;
         };
         /**
          * @description Allowlist. Codes, labels and groups are plain strings (managed in the database, never
@@ -2571,6 +3008,33 @@ export interface components {
             next_step: components["schemas"]["AssistantNextStep"] | null;
             /** @description Empty unless `success`. */
             summary: components["schemas"]["AssistantFact"][];
+        };
+        AuditPage: {
+            next: string | null;
+            previous: string | null;
+            results: components["schemas"]["AuditRecord"][];
+            /** @description Every action that can be recorded. */
+            actions: string[];
+        };
+        AuditRecord: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            created_at: string;
+            actor_kind: string;
+            /** Format: uuid */
+            actor_id: string | null;
+            /** @description Masked. */
+            actor_email: string | null;
+            action: string;
+            target_type: string;
+            /** Format: uuid */
+            target_id: string;
+            /** @description Reasoned private reads only. */
+            reason: string;
+            details: {
+                [key: string]: unknown;
+            };
         };
         /**
          * @description * `available` - available
@@ -2821,6 +3285,21 @@ export interface components {
          * @enum {string}
          */
         DevelopmentStatusEnum: "developed" | "partially_developed" | "undeveloped";
+        DirectoryPage: {
+            next: string | null;
+            previous: string | null;
+            results: components["schemas"]["DirectoryRow"][];
+        };
+        DirectoryRow: {
+            /** Format: uuid */
+            id: string;
+            account_type: components["schemas"]["OwnerAccountTypeEnum"];
+            display_name: string;
+            masked_email: string;
+            state: components["schemas"]["StateEnum"];
+            /** Format: date-time */
+            created_at: string;
+        };
         DraftCreateRequest: {
             /**
              * @description From the registry.
@@ -2945,6 +3424,13 @@ export interface components {
          * @enum {string}
          */
         EstimateStatusEnum: "available" | "unavailable";
+        FailedValuation: {
+            /** Format: date-time */
+            created_at: string;
+            model: string;
+            outcome: string;
+            latency_ms: number;
+        };
         Favourite: {
             /** Format: uuid */
             listing_id: string;
@@ -2977,6 +3463,15 @@ export interface components {
          * @enum {string}
          */
         FieldRequirementEnum: "required_for_publication" | "recommended" | "optional";
+        FixedCatalogue: {
+            purposes: string[];
+            categories: components["schemas"]["FixedCategory"][];
+            area_units: string[];
+        };
+        FixedCategory: {
+            id: string;
+            subtypes: string[];
+        };
         FlaggedListing: {
             /** Format: uuid */
             id: string;
@@ -3651,6 +4146,14 @@ export interface components {
             base_revision: number;
             fields: components["schemas"]["ListingFieldsUpdateRequest"];
         };
+        ListingsByStatus: {
+            draft: number;
+            published: number;
+            archived: number;
+            sold: number;
+            rented: number;
+            removed: number;
+        };
         /**
          * @description Allowlist. Names are plain strings: locality values are managed in the database. `kind`
          *     is `area` or `society`, a closed vocabulary the form groups by.
@@ -3739,6 +4242,23 @@ export interface components {
             at: string;
             /** Format: uuid */
             by_account_id: string;
+        };
+        NewAmenityRequest: {
+            /** @description snake_case; never changes. */
+            code: string;
+            label: string;
+            /** @description `on_property`, `community` or `nearby`. */
+            kind: string;
+            /** @description snake_case. */
+            group: string;
+        };
+        NewCityRequest: {
+            name: string;
+        };
+        NewLocalityRequest: {
+            name: string;
+            /** @description `area` or `society`. */
+            kind: string;
         };
         Notification: {
             /** Format: uuid */
@@ -3900,6 +4420,14 @@ export interface components {
             business_phone?: string;
             /** @description 5 to 300 characters. Mandatory: blank or null is refused. */
             office_address?: string;
+        };
+        PatchedAmenityChangeRequest: {
+            label?: string;
+            is_active?: boolean;
+        };
+        PatchedPlaceChangeRequest: {
+            name?: string;
+            is_active?: boolean;
         };
         PatchedProfileUpdateRequest: {
             /** @description 2 to 80 characters. */
@@ -4838,6 +5366,12 @@ export interface components {
         UnreadCount: {
             unread: number;
         };
+        ValuationModel: {
+            name: string;
+            version: number;
+            /** Format: date-time */
+            trained_at: string;
+        };
         /**
          * @description * `about_equal` - about_equal
          *     * `above` - above
@@ -5010,6 +5544,247 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActorSummary"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_admin_accounts: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                q?: string;
+                state?: "active" | "deactivated" | "email_unverified" | "suspended";
+                type?: "agency" | "individual";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryPage"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_admin_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountReview"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    read_admin_account_contact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonedReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Private */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountContact"];
                 };
             };
             /** @description Bad request or validation error */
@@ -5314,6 +6089,250 @@ export interface operations {
             };
         };
     };
+    get_admin_ai_oversight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Oversight */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiOversight"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    set_admin_ai_switch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiSwitchChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description The switch */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSwitch"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_admin_audit_records: {
+        parameters: {
+            query?: {
+                action?: string;
+                actor?: string;
+                cursor?: string;
+                /** @description YYYY-MM-DD */
+                date_from?: string;
+                /** @description YYYY-MM-DD */
+                date_to?: string;
+                target?: string;
+                target_type?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPage"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     list_admin_closure_requests: {
         parameters: {
             query?: {
@@ -5497,6 +6516,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminClosureRequest"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_admin_dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDashboard"];
                 };
             };
             /** @description Bad request or validation error */
@@ -5901,6 +6996,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModerationRecord"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    read_admin_listing_address: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonedReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Private */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminListingAddress"];
                 };
             };
             /** @description Bad request or validation error */
@@ -6543,6 +7720,788 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["QuotaUsagePage"];
                 };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_admin_amenities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Amenities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAmenityList"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create_admin_amenity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewAmenityRequest"];
+            };
+        };
+        responses: {
+            /** @description Added */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    update_admin_amenity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedAmenityChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_admin_cities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCityList"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create_admin_city: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewCityRequest"];
+            };
+        };
+        responses: {
+            /** @description Added */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    update_admin_city: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                city_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedPlaceChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_admin_localities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                city_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Localities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocalityList"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create_admin_locality: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                city_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewLocalityRequest"];
+            };
+        };
+        responses: {
+            /** @description Added */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_admin_fixed_catalogue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fixed values */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FixedCatalogue"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    update_admin_locality: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                locality_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedPlaceChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Bad request or validation error */
             400: {

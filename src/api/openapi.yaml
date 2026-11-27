@@ -70,6 +70,228 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/accounts:
+    get:
+      operationId: list_admin_accounts
+      description: 20 per page; `next` is a link, `previous` is always null. `q` is
+        part of a name or an account id; email is not searched (use the reasoned lookup).
+        Visitors get `401 unauthenticated`; signed-in non-administrators get `404
+        not_found`. Never cached.
+      summary: Individual and Agency accounts, newest first
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: q
+        schema:
+          type: string
+      - in: query
+        name: state
+        schema:
+          type: string
+          enum:
+          - active
+          - deactivated
+          - email_unverified
+          - suspended
+      - in: query
+        name: type
+        schema:
+          type: string
+          enum:
+          - agency
+          - individual
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DirectoryPage'
+          description: One page
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/accounts/{account_id}:
+    get:
+      operationId: get_admin_account
+      description: An unknown id or an administrator is `404 not_found`. Visitors
+        get `401 unauthenticated`; signed-in non-administrators get `404 not_found`.
+        Never cached.
+      summary: One account with its Reports and closure requests
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountReview'
+          description: The account
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/accounts/{account_id}/private:
+    post:
+      operationId: read_admin_account_contact
+      description: Needs `X-CSRFToken`. A reasoned private read recorded in the audit
+        trail. A Listing's Private address is read on the Listing. Visitors get `401
+        unauthenticated`; signed-in non-administrators get `404 not_found`. Never
+        cached.
+      summary: Read one account's contact details, with a reason
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonedReadRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountContact'
+          description: Private
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/admin/accounts/{account_id}/reactivate:
     post:
       operationId: reactivate_admin_account
@@ -244,6 +466,226 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminAccount'
           description: The account
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/ai-oversight:
+    get:
+      operationId: get_admin_ai_oversight
+      description: Counts cover the last 7 days. Visitors get `401 unauthenticated`;
+        signed-in non-administrators get `404 not_found`. Never cached.
+      summary: AI feature switches, failures and the valuation model
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiOversight'
+          description: Oversight
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/ai-oversight/switches/{name}:
+    post:
+      operationId: set_admin_ai_switch
+      description: Needs `X-CSRFToken`. Applies to the next request, without a restart,
+        and is audited. An unknown name is `404 not_found`. Visitors get `401 unauthenticated`;
+        signed-in non-administrators get `404 not_found`. Never cached.
+      summary: Turn an AI feature off or on
+      parameters:
+      - in: path
+        name: name
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiSwitchChangeRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiSwitch'
+          description: The switch
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/audit-records:
+    get:
+      operationId: list_admin_audit_records
+      description: 50 per page; `next` is a link, `previous` is always null. `actor`
+        and `target` are ids; the dates are Karachi calendar days, inclusive. Visitors
+        get `401 unauthenticated`; signed-in non-administrators get `404 not_found`.
+        Never cached.
+      summary: Audit records, newest first
+      parameters:
+      - in: query
+        name: action
+        schema:
+          type: string
+      - in: query
+        name: actor
+        schema:
+          type: string
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: date_from
+        schema:
+          type: string
+        description: YYYY-MM-DD
+      - in: query
+        name: date_to
+        schema:
+          type: string
+        description: YYYY-MM-DD
+      - in: query
+        name: target
+        schema:
+          type: string
+      - in: query
+        name: target_type
+        schema:
+          type: string
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditPage'
+          description: One page
         '400':
           description: Bad request or validation error
           content:
@@ -461,6 +903,65 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminClosureRequest'
           description: Rejected
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/dashboard:
+    get:
+      operationId: get_admin_dashboard
+      description: Accounts in every state; activity covers the last 7 days. Visitors
+        get `401 unauthenticated`; signed-in non-administrators get `404 not_found`.
+        Never cached.
+      summary: Platform counts
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboard'
+          description: Counts
         '400':
           description: Bad request or validation error
           content:
@@ -841,6 +1342,77 @@ paths:
               schema:
                 $ref: '#/components/schemas/ModerationRecord'
           description: Recorded
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/listings/{listing_id}/private-address:
+    post:
+      operationId: read_admin_listing_address
+      description: Needs `X-CSRFToken`. A reasoned private read recorded in the audit
+        trail, one Listing at a time. Visitors get `401 unauthenticated`; signed-in
+        non-administrators get `404 not_found`. Never cached.
+      summary: Read a Listing's Private address, with a reason
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonedReadRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListingAddress'
+          description: Private
         '400':
           description: Bad request or validation error
           content:
@@ -1390,6 +1962,634 @@ paths:
               schema:
                 $ref: '#/components/schemas/QuotaUsagePage'
           description: One page
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reference/amenities:
+    get:
+      operationId: list_admin_amenities
+      description: Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Every amenity and nearby facility, deactivated ones included
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAmenityList'
+          description: Amenities
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      operationId: create_admin_amenity
+      description: Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`;
+        an unknown item is `404 not_found`. Every change is audited. Visitors get
+        `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never
+        cached.
+      summary: Add an amenity or nearby facility
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewAmenityRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Added
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reference/amenities/{code}:
+    patch:
+      operationId: update_admin_amenity
+      description: Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`;
+        an unknown item is `404 not_found`. Every change is audited. Visitors get
+        `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never
+        cached.
+      summary: Relabel, deactivate or reactivate an amenity
+      parameters:
+      - in: path
+        name: code
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAmenityChangeRequest'
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Changed
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reference/cities:
+    get:
+      operationId: list_admin_cities
+      description: Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Every city, deactivated ones included
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCityList'
+          description: Cities
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      operationId: create_admin_city
+      description: Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`;
+        an unknown item is `404 not_found`. Every change is audited. Visitors get
+        `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never
+        cached.
+      summary: Add a city
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewCityRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Added
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reference/cities/{city_id}:
+    patch:
+      operationId: update_admin_city
+      description: Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`;
+        an unknown item is `404 not_found`. Every change is audited. Visitors get
+        `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never
+        cached.
+      summary: Rename, deactivate or reactivate a city
+      parameters:
+      - in: path
+        name: city_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPlaceChangeRequest'
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Changed
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reference/cities/{city_id}/localities:
+    get:
+      operationId: list_admin_localities
+      description: An unknown city is `404 not_found`. Visitors get `401 unauthenticated`;
+        signed-in non-administrators get `404 not_found`. Never cached.
+      summary: Every locality of a city, deactivated ones included
+      parameters:
+      - in: path
+        name: city_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLocalityList'
+          description: Localities
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      operationId: create_admin_locality
+      description: Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`;
+        an unknown item is `404 not_found`. Every change is audited. Visitors get
+        `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never
+        cached.
+      summary: Add an area or society to an active city
+      parameters:
+      - in: path
+        name: city_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewLocalityRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Added
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reference/fixed:
+    get:
+      operationId: get_admin_fixed_catalogue
+      description: Fixed by the product. Visitors get `401 unauthenticated`; signed-in
+        non-administrators get `404 not_found`. Never cached.
+      summary: Purposes, Categories, Subtypes and area units (read only)
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixedCatalogue'
+          description: Fixed values
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/reference/localities/{locality_id}:
+    patch:
+      operationId: update_admin_locality
+      description: Needs `X-CSRFToken`. A bad or already taken value is `400 validation_error`;
+        an unknown item is `404 not_found`. Every change is audited. Visitors get
+        `401 unauthenticated`; signed-in non-administrators get `404 not_found`. Never
+        cached.
+      summary: Rename, deactivate or reactivate a locality
+      parameters:
+      - in: path
+        name: locality_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPlaceChangeRequest'
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Changed
         '400':
           description: Bad request or validation error
           content:
@@ -8818,6 +10018,22 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
 components:
   schemas:
+    AccountContact:
+      type: object
+      properties:
+        email:
+          type: string
+          description: Private.
+        phone:
+          type: string
+          description: Private.
+        office_address:
+          type: string
+          description: Private; agencies.
+      required:
+      - email
+      - office_address
+      - phone
     AccountLookupRequest:
       type: object
       properties:
@@ -8833,6 +10049,60 @@ components:
       required:
       - email
       - reason
+    AccountProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        account_type:
+          $ref: '#/components/schemas/OwnerAccountTypeEnum'
+        display_name:
+          type: string
+        masked_email:
+          type: string
+        state:
+          $ref: '#/components/schemas/StateEnum'
+        created_at:
+          type: string
+          format: date-time
+        email_verified:
+          type: boolean
+        suspension_reason:
+          type: string
+        suspended_at:
+          type: string
+          format: date-time
+          nullable: true
+        deactivated_at:
+          type: string
+          format: date-time
+          nullable: true
+        description:
+          type: string
+          description: Agencies only.
+        city:
+          type: string
+          nullable: true
+          description: Agencies only.
+        verification_status:
+          type: string
+          nullable: true
+          description: Agencies only.
+      required:
+      - account_type
+      - city
+      - created_at
+      - deactivated_at
+      - description
+      - display_name
+      - email_verified
+      - id
+      - masked_email
+      - state
+      - suspended_at
+      - suspension_reason
+      - verification_status
     AccountReasonRequest:
       type: object
       properties:
@@ -8853,6 +10123,53 @@ components:
       required:
       - masked_email
       - type
+    AccountReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        target_type:
+          $ref: '#/components/schemas/TargetTypeEnum'
+        listing_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          nullable: true
+        reason:
+          $ref: '#/components/schemas/ReportReasonEnum'
+        status:
+          $ref: '#/components/schemas/ReportStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - id
+      - listing_id
+      - reason
+      - status
+      - target_type
+      - title
+    AccountReview:
+      type: object
+      properties:
+        account:
+          $ref: '#/components/schemas/AccountProfile'
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountReport'
+          description: About this account; newest 50.
+        closure_requests:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminClosureRequest'
+      required:
+      - account
+      - closure_requests
+      - reports
     AccountStatus:
       type: object
       properties:
@@ -8876,6 +10193,22 @@ components:
       - state
       - suspended_at
       - suspension_reason
+    Activity:
+      type: object
+      properties:
+        days:
+          type: integer
+        new_accounts:
+          type: integer
+        new_listings:
+          type: integer
+        messages_sent:
+          type: integer
+      required:
+      - days
+      - messages_sent
+      - new_accounts
+      - new_listings
     ActorSummary:
       type: object
       properties:
@@ -8957,6 +10290,58 @@ components:
       - state
       - suspended_at
       - suspension_reason
+    AdminAmenity:
+      type: object
+      properties:
+        code:
+          type: string
+        label:
+          type: string
+        kind:
+          type: string
+          description: '`on_property`, `community` or `nearby`.'
+        group:
+          type: string
+        is_active:
+          type: boolean
+      required:
+      - code
+      - group
+      - is_active
+      - kind
+      - label
+    AdminAmenityList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminAmenity'
+      required:
+      - items
+    AdminCity:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        is_active:
+          type: boolean
+      required:
+      - id
+      - is_active
+      - name
+    AdminCityList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminCity'
+      required:
+      - items
     AdminClosureQueue:
       type: object
       properties:
@@ -9018,6 +10403,52 @@ components:
       - masked_email
       - status
       - submitted_at
+    AdminDashboard:
+      type: object
+      properties:
+        individual_accounts:
+          type: integer
+        agency_accounts:
+          type: integer
+        published_listings:
+          type: integer
+        listings_by_status:
+          $ref: '#/components/schemas/ListingsByStatus'
+        pending_verifications:
+          type: integer
+        unresolved_reports:
+          type: integer
+        activity:
+          $ref: '#/components/schemas/Activity'
+      required:
+      - activity
+      - agency_accounts
+      - individual_accounts
+      - listings_by_status
+      - pending_verifications
+      - published_listings
+      - unresolved_reports
+    AdminListingAddress:
+      type: object
+      description: Private. All null when the Listing has no Private address.
+      properties:
+        street:
+          type: string
+          nullable: true
+        house_number:
+          type: string
+          nullable: true
+        latitude:
+          type: string
+          nullable: true
+        longitude:
+          type: string
+          nullable: true
+      required:
+      - house_number
+      - latitude
+      - longitude
+      - street
     AdminListingDetail:
       type: object
       properties:
@@ -9172,6 +10603,33 @@ components:
       - subtype
       - title
       - under_review
+    AdminLocality:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        is_active:
+          type: boolean
+        kind:
+          type: string
+          description: '`area` or `society`.'
+      required:
+      - id
+      - is_active
+      - kind
+      - name
+    AdminLocalityList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminLocality'
+      required:
+      - items
     AdminMe:
       type: object
       properties:
@@ -9321,6 +10779,72 @@ components:
       - office_address
       - password
       - phone
+    AiCallCounts:
+      type: object
+      properties:
+        feature:
+          type: string
+        total:
+          type: integer
+        failed:
+          type: integer
+        outcomes:
+          type: object
+          additionalProperties:
+            type: integer
+      required:
+      - failed
+      - feature
+      - outcomes
+      - total
+    AiOversight:
+      type: object
+      properties:
+        switches:
+          type: array
+          items:
+            $ref: '#/components/schemas/AiSwitch'
+        window_days:
+          type: integer
+        calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/AiCallCounts'
+        valuation_model:
+          allOf:
+          - $ref: '#/components/schemas/ValuationModel'
+          nullable: true
+        failed_valuations:
+          type: array
+          items:
+            $ref: '#/components/schemas/FailedValuation'
+          description: Newest 20.
+      required:
+      - calls
+      - failed_valuations
+      - switches
+      - valuation_model
+      - window_days
+    AiSwitch:
+      type: object
+      properties:
+        name:
+          type: string
+        label:
+          type: string
+        enabled:
+          type: boolean
+      required:
+      - enabled
+      - label
+      - name
+    AiSwitchChangeRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+      required:
+      - enabled
     Amenity:
       type: object
       description: |-
@@ -9716,6 +11240,72 @@ components:
       - outcome
       - summary
       - turn
+    AuditPage:
+      type: object
+      properties:
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditRecord'
+        actions:
+          type: array
+          items:
+            type: string
+          description: Every action that can be recorded.
+      required:
+      - actions
+      - next
+      - previous
+      - results
+    AuditRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        actor_kind:
+          type: string
+        actor_id:
+          type: string
+          format: uuid
+          nullable: true
+        actor_email:
+          type: string
+          nullable: true
+          description: Masked.
+        action:
+          type: string
+        target_type:
+          type: string
+        target_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          description: Reasoned private reads only.
+        details:
+          type: object
+          additionalProperties: {}
+      required:
+      - action
+      - actor_email
+      - actor_id
+      - actor_kind
+      - created_at
+      - details
+      - id
+      - reason
+      - target_id
+      - target_type
     AvailabilityEnum:
       enum:
       - available
@@ -10218,6 +11808,47 @@ components:
         * `developed` - developed
         * `partially_developed` - partially_developed
         * `undeveloped` - undeveloped
+    DirectoryPage:
+      type: object
+      properties:
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DirectoryRow'
+      required:
+      - next
+      - previous
+      - results
+    DirectoryRow:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        account_type:
+          $ref: '#/components/schemas/OwnerAccountTypeEnum'
+        display_name:
+          type: string
+        masked_email:
+          type: string
+        state:
+          $ref: '#/components/schemas/StateEnum'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - account_type
+      - created_at
+      - display_name
+      - id
+      - masked_email
+      - state
     DraftCreateRequest:
       type: object
       properties:
@@ -10472,6 +12103,23 @@ components:
       description: |-
         * `available` - available
         * `unavailable` - unavailable
+    FailedValuation:
+      type: object
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        model:
+          type: string
+        outcome:
+          type: string
+        latency_ms:
+          type: integer
+      required:
+      - created_at
+      - latency_ms
+      - model
+      - outcome
     Favourite:
       type: object
       properties:
@@ -10533,6 +12181,37 @@ components:
         * `required_for_publication` - required_for_publication
         * `recommended` - recommended
         * `optional` - optional
+    FixedCatalogue:
+      type: object
+      properties:
+        purposes:
+          type: array
+          items:
+            type: string
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/FixedCategory'
+        area_units:
+          type: array
+          items:
+            type: string
+      required:
+      - area_units
+      - categories
+      - purposes
+    FixedCategory:
+      type: object
+      properties:
+        id:
+          type: string
+        subtypes:
+          type: array
+          items:
+            type: string
+      required:
+      - id
+      - subtypes
     FlaggedListing:
       type: object
       properties:
@@ -12235,6 +13914,28 @@ components:
       required:
       - base_revision
       - fields
+    ListingsByStatus:
+      type: object
+      properties:
+        draft:
+          type: integer
+        published:
+          type: integer
+        archived:
+          type: integer
+        sold:
+          type: integer
+        rented:
+          type: integer
+        removed:
+          type: integer
+      required:
+      - archived
+      - draft
+      - published
+      - removed
+      - rented
+      - sold
     Locality:
       type: object
       description: |-
@@ -12412,6 +14113,50 @@ components:
       - restriction_after
       - status_after
       - status_before
+    NewAmenityRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: snake_case; never changes.
+        label:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          minLength: 1
+          description: '`on_property`, `community` or `nearby`.'
+        group:
+          type: string
+          minLength: 1
+          description: snake_case.
+      required:
+      - code
+      - group
+      - kind
+      - label
+    NewCityRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+      required:
+      - name
+    NewLocalityRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          minLength: 1
+          description: '`area` or `society`.'
+      required:
+      - kind
+      - name
     Notification:
       type: object
       properties:
@@ -12719,6 +14464,22 @@ components:
           type: string
           minLength: 1
           description: '5 to 300 characters. Mandatory: blank or null is refused.'
+    PatchedAmenityChangeRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          minLength: 1
+        is_active:
+          type: boolean
+    PatchedPlaceChangeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        is_active:
+          type: boolean
     PatchedProfileUpdateRequest:
       type: object
       properties:
@@ -14820,6 +16581,20 @@ components:
           minimum: 0
       required:
       - unread
+    ValuationModel:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+        trained_at:
+          type: string
+          format: date-time
+      required:
+      - name
+      - trained_at
+      - version
     VerdictEnum:
       enum:
       - about_equal

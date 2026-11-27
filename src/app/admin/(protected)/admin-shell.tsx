@@ -17,11 +17,10 @@ const PAGES = [
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/flags", label: "Flags" },
   { href: "/admin/closure-requests", label: "Closure requests" },
+  { href: "/admin/reference", label: "Reference data" },
+  { href: "/admin/ai", label: "AI oversight" },
+  { href: "/admin/audit", label: "Audit log" },
 ];
-
-// Placeholders for later administration screens: inert text, never links, so no empty routes ship. Hand-off: turn an entry into a link when its route and page (with `requireAdmin()`) exist, and
-// every page under `(protected)` must call `requireAdmin()` (tests/e2e/admin-guard-rule.spec.ts enforces it).
-const PLACEHOLDERS = ["Audit log"];
 
 /**
  * Admin account controls shared by the shell and the unavailable state: Change password (marked `from=admin` so a lost
@@ -114,13 +113,6 @@ export function AdminShell({ children, embedded = false }: { children: React.Rea
                 <Link href={href} className="text-link" aria-current={pathname === href ? "page" : undefined}>
                   {label}
                 </Link>
-              </li>
-            ))}
-            {PLACEHOLDERS.map((name) => (
-              <li key={name}>
-                <span className="admin-nav-disabled">
-                  {name} <span className="coming-soon">Coming soon</span>
-                </span>
               </li>
             ))}
           </ul>

@@ -12,6 +12,7 @@ import { failureMessage, thrownMessage } from "@/lib/request-errors";
 import { useSession } from "@/lib/session";
 import { useFormFeedback } from "@/lib/use-form-feedback";
 import { AccountAction } from "./account-action";
+import { Directory } from "./directory";
 import { LOOKUP_REASON, NOT_FOUND, SIGN_IN_PATH, checkReason, reasonMessage, type AccountStatus, type AdminAccount } from "./accounts-api";
 
 /** Account lookup, suspension and reactivation (Story 2.21): the server decides every rule; the page shows its answers. */
@@ -108,6 +109,8 @@ export function Accounts() {
   return (
     <>
       <h1 className="page-title">Accounts</h1>
+      <Directory />
+      <h2 className="section-title">Look up by email</h2>
       <p className="muted">Look up an Individual or Agency account to suspend or reactivate it. Every lookup is recorded with your reason.</p>
       {/* The one live region of this page. */}
       <p role="status" aria-live="polite" className={announcement && !notice ? "muted" : "sr-only"} data-testid="accounts-status">

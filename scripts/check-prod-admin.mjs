@@ -43,7 +43,7 @@ async function expectGuarded(path, cookie, label, expectedNext) {
   assert.equal(response.headers.get("location"), `/admin/sign-in?next=${expectedNext}`, `${label} ${path}: location`);
   assert.match(response.headers.get("cache-control") ?? "", /no-store/, `${label} ${path}: no-store`);
   const body = await response.text();
-  for (const marker of ["EstateAI Administration", "Administration tools", "Coming soon", "Listings"]) {
+  for (const marker of ["EstateAI Administration", "Platform overview", "Audit log", "Listings"]) {
     assert.ok(!body.includes(marker), `${label} ${path}: body leaks "${marker}"`);
   }
   console.log(`ok  ${label} ${path} -> 307`);

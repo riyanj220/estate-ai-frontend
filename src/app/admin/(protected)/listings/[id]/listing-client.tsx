@@ -10,6 +10,7 @@ import { withTimeout } from "@/lib/forms";
 import { formatResetDate as formatDate } from "@/lib/publication-allowance";
 import { failureMessage, thrownMessage } from "@/lib/request-errors";
 import { LOOKUP_REASON, checkReason, reasonMessage } from "../../accounts/accounts-api";
+import { ReasonedRead } from "../../reasoned-read";
 import { STATUS_LABELS, shown, useAdminWrite, useSessionGone, words } from "../../moderation-shared";
 
 type Detail = components["schemas"]["AdminListingDetail"];
@@ -164,6 +165,7 @@ export function ListingReview({ listingId, draft }: { listingId: string; draft: 
               ))}
             </ul>
           )}
+          <PrivateAddress listingId={listingId} onSessionGone={gone} />
           <h2 className="section-title">Actions</h2>
           {detail.actions.length === 0 ? (
             <p className="muted" data-testid="no-actions">
@@ -198,5 +200,35 @@ export function ListingReview({ listingId, draft }: { listingId: string; draft: 
         </article>
       )}
     </>
+  );
+}
+
+/** The Private address (Story 10.4): one listing at a time, after a recorded reason. */
+function PrivateAddress({ listingId, onSessionGone }: { listingId: string; onSessionGone: () => Promise<void> }) {
+  return (
+    <ReasonedRead<components["schemas"]["AdminListingAddress"]>
+      title="Private address"
+      onSessionGone={onSessionGone}
+      send={async (reason, csrf, signal) => {
+        const api = await getApi();
+        return api.POST("/api/v1/admin/listings/{listing_id}/private-address", {
+          params: { path: { listing_id: listingId } },
+          body: { reason },
+          headers: { "X-CSRFToken": csrf },
+          cache: "no-store",
+          signal,
+        });
+      }}
+      show={(address) => (
+        <dl className="account-details">
+          <dt>Street</dt>
+          <dd className="account-text">{address.street ?? "Not given"}</dd>
+          <dt>House number</dt>
+          <dd className="account-text">{address.house_number ?? "Not given"}</dd>
+          <dt>Coordinates</dt>
+          <dd>{address.latitude && address.longitude ? `${address.latitude}, ${address.longitude}` : "Not given"}</dd>
+        </dl>
+      )}
+    />
   );
 }

@@ -30,11 +30,11 @@ const SENDERS = { reporter: "Reporter", reported: "Reported account", deleted_us
 const rowTitle = (row: Row) => (row.target_type === "conversation" ? "Conversation messages" : (row.title ?? "Untitled listing"));
 
 /** The Report queue (Stories 9.2 and 9.5). Nothing here changes a Listing or a Message. */
-export function ReportsReview() {
+export function ReportsReview({ initialReason = "" }: { initialReason?: ReportReason | "" }) {
   const router = useRouter();
   const gone = useSessionGone("/admin/reports");
   const [status, setStatus] = useState<Status>("pending");
-  const [reason, setReason] = useState<ReportReason | "">("");
+  const [reason, setReason] = useState<ReportReason | "">(initialReason);
   const [list, setList] = useState<List>({ kind: "loading" });
   const [selected, setSelected] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
