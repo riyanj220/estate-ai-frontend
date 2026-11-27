@@ -5224,6 +5224,67 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/public/search:
+    post:
+      operationId: interpret_search
+      description: 'Public; needs `X-CSRFToken`. One AI call on redacted text; the
+        request is not stored. `200` with `status: fallback` when the AI is off, unavailable,
+        too slow, out of budget or gave nothing usable. Limits: 10 a minute per Visitor,
+        30 an hour per account (`429` with `Retry-After`). Never cached.'
+      summary: Turn a search written in plain words into filters
+      tags:
+      - public
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequestRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchInterpretation'
+          description: The filters
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: CSRF token'
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`throttled`'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/reference/amenities:
     get:
       operationId: list_amenities
@@ -10346,6 +10407,59 @@ components:
         * `main_road` - main_road
         * `secondary_road` - secondary_road
         * `inner_street` - inner_street
+    SearchInterpretation:
+      type: object
+      properties:
+        status:
+          allOf:
+          - $ref: '#/components/schemas/SearchInterpretationStatusEnum'
+          description: |-
+            `fallback`: nothing was understood; offer the conventional filters.
+
+            * `interpreted` - interpreted
+            * `fallback` - fallback
+        message:
+          type: string
+          description: Why, on a fallback.
+        params:
+          type: object
+          additionalProperties:
+            type: string
+          description: Query parameters for `GET /api/v1/public/listings`; a `prefer_`
+            one only ranks. Empty on a fallback.
+        unsupported:
+          type: array
+          items:
+            type: string
+          description: Parts of the request that were not searched for, in the buyer's
+            words.
+        notices:
+          type: array
+          items:
+            type: string
+      required:
+      - message
+      - notices
+      - params
+      - status
+      - unsupported
+    SearchInterpretationStatusEnum:
+      enum:
+      - interpreted
+      - fallback
+      type: string
+      description: |-
+        * `interpreted` - interpreted
+        * `fallback` - fallback
+    SearchRequestRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          minLength: 1
+          description: The request in the buyer's words, at most 500 characters.
+      required:
+      - query
     SectionEnum:
       enum:
       - details

@@ -1197,6 +1197,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn a search written in plain words into filters
+         * @description Public; needs `X-CSRFToken`. One AI call on redacted text; the request is not stored. `200` with `status: fallback` when the AI is off, unavailable, too slow, out of budget or gave nothing usable. Limits: 10 a minute per Visitor, 30 an hour per account (`429` with `Retry-After`). Never cached.
+         */
+        post: operations["interpret_search"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reference/amenities": {
         parameters: {
             query?: never;
@@ -3387,6 +3407,34 @@ export interface components {
          * @enum {string}
          */
         RoadAccessEnum: "main_road" | "secondary_road" | "inner_street";
+        SearchInterpretation: {
+            /**
+             * @description `fallback`: nothing was understood; offer the conventional filters.
+             *
+             *     * `interpreted` - interpreted
+             *     * `fallback` - fallback
+             */
+            status: components["schemas"]["SearchInterpretationStatusEnum"];
+            /** @description Why, on a fallback. */
+            message: string;
+            /** @description Query parameters for `GET /api/v1/public/listings`; a `prefer_` one only ranks. Empty on a fallback. */
+            params: {
+                [key: string]: string;
+            };
+            /** @description Parts of the request that were not searched for, in the buyer's words. */
+            unsupported: string[];
+            notices: string[];
+        };
+        /**
+         * @description * `interpreted` - interpreted
+         *     * `fallback` - fallback
+         * @enum {string}
+         */
+        SearchInterpretationStatusEnum: "interpreted" | "fallback";
+        SearchRequestRequest: {
+            /** @description The request in the buyer's words, at most 500 characters. */
+            query: string;
+        };
         /**
          * @description * `details` - details
          *     * `terms` - terms
@@ -9135,6 +9183,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    interpret_search: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchRequestRequest"];
+            };
+        };
+        responses: {
+            /** @description The filters */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchInterpretation"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `throttled` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Server error */

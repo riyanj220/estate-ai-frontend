@@ -135,30 +135,40 @@ export const cityName = (places: Places, id: string): string => places.cities.fi
 export const localityName = (places: Places, id: string): string =>
   places.localities.flatMap((group) => group.items).find((item) => item.id === id)?.name ?? "Selected area or society";
 
-/** One removable entry per criterion in the query. Preferences have no controls, so they have no entry. */
+const DECLARED = " (seller-declared)";
+
+/** One removable entry per criterion in the query, preferences included (they have no controls, so this is where they are removed). */
 export function activeChips(query: URLSearchParams, schema: FilterSchema, places: Places): Chip[] {
   const chips: Chip[] = [];
-  for (const filter of schema.filters) {
-    const title = filterTitle(filter.id);
-    filter.params.forEach((name, index) => {
-      if (filter.match === "range") {
-        const value = query.get(name);
-        if (value) chips.push({ key: name, text: `${boundTitle(index, filter.id)}: ${value}`, query: without(query, name) });
-        return;
-      }
-      for (const value of valuesOf(query, name)) {
-        let next = without(query, name, value);
-        let text = `${title}: ${filter.match === "boolean" ? (value === "true" ? "Yes" : value === "false" ? "No" : value) : label(value)}`;
-        if (filter.match === "amenities") text = `Amenity: ${isAmenityCode(value) ? amenityLabel(value, filter.options) : value}`;
-        if (filter.reference === "locality") text = `${title}: ${localityName(places, value)}`;
-        if (filter.reference === "city") {
-          text = `${title}: ${cityName(places, value)}`;
-          // Its localities go with it, or they would keep narrowing the results to that city.
-          for (const item of places.localities.find((group) => group.city.id === value)?.items ?? []) next = without(next, "locality", item.id);
+  for (const prefix of ["", schema.preferencePrefix]) {
+    const lead = prefix ? "Preferred: " : "";
+    for (const filter of schema.filters) {
+      const title = filterTitle(filter.id);
+      const declared = filter.sellerDeclared ? DECLARED : "";
+      filter.params.forEach((param, index) => {
+        const name = prefix + param;
+        if (filter.match === "range") {
+          const value = query.get(name);
+          if (value) chips.push({ key: name, text: `${lead}${boundTitle(index, filter.id)}: ${value}${declared}`, query: without(query, name) });
+          return;
         }
-        chips.push({ key: `${name}=${value}`, text, query: next });
-      }
-    });
+        for (const value of valuesOf(query, name)) {
+          let next = without(query, name, value);
+          let text = `${title}: ${filter.match === "boolean" ? (value === "true" ? "Yes" : value === "false" ? "No" : value) : label(value)}${declared}`;
+          if (filter.match === "amenities") {
+            const nearby = filter.options.some((item) => item.code === value && item.kind === "nearby");
+            text = `Amenity: ${isAmenityCode(value) ? amenityLabel(value, filter.options) : value}${nearby ? DECLARED : ""}`;
+          }
+          if (filter.reference === "locality") text = `${title}: ${localityName(places, value)}`;
+          if (filter.reference === "city") {
+            text = `${title}: ${cityName(places, value)}`;
+            // Its localities go with it, or they would keep narrowing the results to that city.
+            for (const item of places.localities.find((group) => group.city.id === value)?.items ?? []) next = without(next, "locality", item.id);
+          }
+          chips.push({ key: `${name}=${value}`, text: lead + text, query: next });
+        }
+      });
+    }
   }
   return chips;
 }

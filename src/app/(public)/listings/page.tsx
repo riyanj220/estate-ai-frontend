@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ListingResults } from "@/components/listing-results";
+import { SearchBox } from "@/components/search-box";
 import { browseHref, canonicalQuery, valuesOf } from "@/lib/listing-filters";
 import { BROWSE_PATH, fetchBrowse, fetchFilterSchema, fetchPlaces } from "@/lib/public-listings";
 
@@ -17,6 +18,8 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
   return (
     <>
       <h1 className="page-title">Browse listings</h1>
+      {/* Story 6.1: an AI entry point, so only where AI features are on. */}
+      {process.env.AI_FEATURES === "1" && <SearchBox path={BROWSE_PATH} />}
       <ListingResults path={BROWSE_PATH} query={query} result={result.kind === "not_found" ? { kind: "error" } : result} schema={schema} places={places} empty="There are no listings to show yet." />
     </>
   );
