@@ -15,7 +15,12 @@ const nextConfig: NextConfig = {
   // `proxyTimeout`: an assistant turn may take about 32 seconds (retrieval, then the model), longer than the 30-second default.
   experimental: { proxyClientMaxBodySize: "32mb", proxyTimeout: 45_000 },
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${target}/api/:path*` }];
+    // `/ws` is the live-delivery WebSocket (receive-only). Next.js passes the upgrade through to Django, in `next dev` and
+    // `next start` alike, so the browser stays on its own origin and sends its session cookie.
+    return [
+      { source: "/api/:path*", destination: `${target}/api/:path*` },
+      { source: "/ws", destination: `${target}/ws` },
+    ];
   },
   // The link carries a single-use token: no referrer leaks it and no cache keeps the page.
   async headers() {

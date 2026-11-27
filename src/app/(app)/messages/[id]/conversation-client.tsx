@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MessageForm } from "@/components/message-form";
-import { READ_ONLY_NOTES, conversationPath, fetchThread, listingHeading, mergeMessages, sendReply, type Thread } from "@/lib/messaging";
+import { useLiveEvents } from "@/lib/live";
+import { READ_ONLY_NOTES, conversationPath, fetchThread, listingHeading, mergeMessages, resumeSeq, sendReply, type Message, type Thread } from "@/lib/messaging";
 import { BROWSE_PATH } from "@/lib/public-listings";
 import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
 
@@ -17,7 +18,10 @@ async function load(id: string): Promise<ProfileFetch<Thread>> {
   return result.kind === "gone" ? "gone" : { kind: "error", message: result.message };
 }
 
-/** One Conversation (Story 7.1), read on the client behind the server guard. New Messages are fetched on demand until live delivery. */
+/**
+ * One Conversation (Stories 7.1 and 7.3), read on the client behind the server guard. New Messages arrive live; the button that
+ * checks for them stays for when the live connection is down.
+ */
 export function ConversationClient({ id }: { id: string }) {
   const { load: state, retry, sessionGone } = useResourceLoad<Thread>(() => load(id), HEADING_ID, {
     signInPath: `/sign-in?next=${encodeURIComponent(conversationPath(id))}`,
@@ -32,17 +36,38 @@ export function ConversationClient({ id }: { id: string }) {
     messages: mergeMessages(first.messages, latest?.messages ?? []),
   };
 
+  const held = useRef<Message[]>([]);
+  useEffect(() => {
+    held.current = thread?.messages ?? [];
+  });
+  // Live reads run one after another, so each starts from what the one before it brought.
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const catchUp = () => {
+    queue.current = queue.current.then(() => update(true, true)).catch(() => undefined);
+  };
+  const live = useLiveEvents(
+    Boolean(thread),
+    (event) => {
+      if (event.type === "ready" || event.conversation_id === id) catchUp();
+    },
+    catchUp, // the read answers 401 if the session really is gone
+  );
+
   /** Fetches what came after the newest Message on screen, and the header as it reads now. */
-  async function update(quiet = false): Promise<void> {
+  async function update(quiet = false, announce = false): Promise<void> {
     if (!thread) return;
-    const result = await fetchThread(id, thread.messages.at(-1)?.seq ?? 0);
+    const result = await fetchThread(id, resumeSeq(held.current));
     if (result.kind === "gone") return sessionGone();
     if (result.kind !== "ok") {
       if (!quiet) setNotice("We could not check for new messages. Try again.");
       return;
     }
     const { conversation, messages } = result.thread;
-    setLatest((held) => ({ conversation, messages: mergeMessages(held?.messages ?? [], messages) }));
+    const known = new Set(held.current.map((message) => message.seq));
+    const arrived = messages.filter((message) => !known.has(message.seq));
+    held.current = mergeMessages(held.current, messages);
+    setLatest((shown) => ({ conversation, messages: mergeMessages(shown?.messages ?? [], messages) }));
+    if (announce && arrived.some((message) => !message.mine)) setNotice("New message.");
     if (!quiet) setNotice(messages.length ? "New messages shown." : "No new messages.");
   }
 
@@ -59,7 +84,7 @@ export function ConversationClient({ id }: { id: string }) {
     }
     // The saved Message first; then whatever the other side wrote before it.
     await update(true);
-    setLatest((held) => held && { ...held, messages: mergeMessages(held.messages, [result.message]) });
+    setLatest((shown) => shown && { ...shown, messages: mergeMessages(shown.messages, [result.message]) });
     setNotice("Message sent.");
     return "";
   }
@@ -102,6 +127,9 @@ export function ConversationClient({ id }: { id: string }) {
               </li>
             ))}
           </ol>
+          <p className="muted" data-testid="live-status">
+            {live === "live" ? "New messages appear as they arrive." : live === "off" ? "Live updates are paused. Check for new messages below." : "Connecting…"}
+          </p>
           <p>
             <button type="button" className="secondary-button" onClick={() => void update()}>
               Check for new messages

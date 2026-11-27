@@ -5,7 +5,7 @@ import { withCsrf } from "./csrf";
 import { readErrorBody, withTimeout } from "./forms";
 import { failureMessage, thrownMessage } from "./request-errors";
 
-/** Messaging (Story 7.1). The backend decides who may read and send; this only shows what it answers. No realtime or inbox yet. */
+/** Messaging (Story 7.1). The backend decides who may read and send; this only shows what it answers. Live delivery is `live.ts`; no inbox yet. */
 export type Conversation = components["schemas"]["Conversation"];
 export type Message = components["schemas"]["Message"];
 
@@ -126,6 +126,11 @@ export async function fetchThread(id: string, after = 0): Promise<{ kind: "ok"; 
   } catch (error) {
     return { kind: "failed", message: thrownMessage(error) };
   }
+}
+
+/** The last `seq` held with nothing missing before it: where reading resumes, so a gap is always filled. */
+export function resumeSeq(messages: Message[]): number {
+  return messages.reduce((last, message) => (message.seq === last + 1 ? message.seq : last), 0);
 }
 
 /** Messages by `seq`, each once. */
