@@ -25,7 +25,8 @@ export type SignOutResult = { kind: "ok" } | { kind: "failed" };
 type SessionValue = {
   status: SessionStatus;
   account: Account | null;
-  signIn: (email: string, password: string, door?: SignInDoor) => Promise<SignInResult>;
+  /** `code` is the administrator door's one-time code; an empty one is not sent. */
+  signIn: (email: string, password: string, door?: SignInDoor, code?: string) => Promise<SignInResult>;
   signOut: () => Promise<SignOutResult>;
   refresh: () => Promise<void>;
 };
@@ -124,7 +125,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [check]);
 
   const signIn = useCallback(
-    async (email: string, password: string, door: SignInDoor = "ordinary"): Promise<SignInResult> => {
+    async (email: string, password: string, door: SignInDoor = "ordinary", code = ""): Promise<SignInResult> => {
       try {
         const api = await getApi();
         const { error, response, data } = await withCsrf((csrf) =>
@@ -135,7 +136,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
               parseAs: "text" as const, // a 200 whose body cannot be read is still a success: the cookie was set
               signal,
             };
-            return door === "admin" ? api.POST("/api/v1/admin-session", options) : api.POST("/api/v1/session", options);
+            if (door !== "admin") return api.POST("/api/v1/session", options);
+            return api.POST("/api/v1/admin-session", code ? { ...options, body: { ...options.body, code } } : options);
           }),
         );
         if (response.ok) {

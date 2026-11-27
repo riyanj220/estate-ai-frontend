@@ -17,9 +17,11 @@ const PAGES = [
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/flags", label: "Flags" },
   { href: "/admin/closure-requests", label: "Closure requests" },
+  { href: "/admin/support", label: "Support" },
   { href: "/admin/reference", label: "Reference data" },
   { href: "/admin/ai", label: "AI oversight" },
   { href: "/admin/audit", label: "Audit log" },
+  { href: "/admin/second-factor", label: "Second factor" },
 ];
 
 /**

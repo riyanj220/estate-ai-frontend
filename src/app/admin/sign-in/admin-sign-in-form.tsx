@@ -10,11 +10,11 @@ import {
 } from "@/lib/forms";
 import { useSession } from "@/lib/session";
 
-type FieldName = "email" | "password";
+type FieldName = "email" | "password" | "code";
 type Fields = Record<string, string[]>;
 
-const FIELD_ORDER: FieldName[] = ["email", "password"];
-const FIELD_LABELS: Record<FieldName, string> = { email: "Email address", password: "Password" };
+const FIELD_ORDER: FieldName[] = ["email", "password", "code"];
+const FIELD_LABELS: Record<FieldName, string> = { email: "Email address", password: "Password", code: "Authenticator code" };
 // One message for every credential failure: wrong password, unknown email, an ordinary account, a disabled
 // administrator and a throttled attempt look alike. Never any hint about administrators or lockouts.
 const SAFETY_TIMEOUT_MS = 10_000;
@@ -27,7 +27,7 @@ function isFieldName(key: string): key is FieldName {
 export function AdminSignInForm({ target }: { target: string }) {
   const { signIn, refresh } = useSession();
   const router = useRouter();
-  const [values, setValues] = useState<Record<FieldName, string>>({ email: "", password: "" });
+  const [values, setValues] = useState<Record<FieldName, string>>({ email: "", password: "", code: "" });
   const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Fields>({});
   const [formErrors, setFormErrors] = useState<string[]>([]);
@@ -105,12 +105,12 @@ export function AdminSignInForm({ target }: { target: string }) {
       setSummaryTick((tick) => tick + 1);
       return;
     }
-    const result = await signIn(email, values.password, "admin");
+    const result = await signIn(email, values.password, "admin", values.code.trim());
 
     if (result.kind === "ok") {
       // Stay busy until the navigation replaces this page, so a second submit cannot happen; if the navigation
       // never happens, the safety timer frees the form again.
-      setValues({ email: "", password: "" });
+      setValues({ email: "", password: "", code: "" });
       setAnnouncement("Signed in.");
       // If the navigation never happens, check the session again and go to the target by a hard navigation: the server
       // guard then decides, instead of leaving the person on a stuck form.
@@ -125,7 +125,7 @@ export function AdminSignInForm({ target }: { target: string }) {
 
     release();
     setAnnouncement("");
-    setValues((current) => ({ ...current, email, password: "" }));
+    setValues((current) => ({ ...current, email, password: "", code: "" }));
     if (result.kind === "validation") {
       const fields: Fields = {};
       const general: string[] = [];
@@ -224,6 +224,19 @@ export function AdminSignInForm({ target }: { target: string }) {
                 {showPassword ? "Hide password" : "Show password"}
               </button>
             </div>
+          )}
+        </Field>
+        {/* Story 10.10: only enrolled administrators have a code; a wrong or missing one reads like a wrong password. */}
+        <Field name="code" label="Authenticator code (if you set one up)" errors={fieldErrors.code}>
+          {(props) => (
+            <input
+              {...props}
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={values.code}
+              onChange={(e) => setValue("code", e.target.value)}
+            />
           )}
         </Field>
         <button type="submit" className="primary-button" disabled={pending}>

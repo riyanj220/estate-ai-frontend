@@ -86,6 +86,13 @@ const KINDS: Record<string, KindEntry> = {
     href: () => "/account/closure",
     linkText: "Open the request",
   },
+  // Story 10.9: empty payload.
+  "support.closed": {
+    title: "Your support request was closed.",
+    text: "You can send a new request if you still need help.",
+    href: () => "/account/support",
+    linkText: "Open support",
+  },
   // Story 9.2: empty payloads; the review notes are never sent.
   "report.resolved": {
     title: "Your report was reviewed and resolved.",

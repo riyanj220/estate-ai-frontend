@@ -11,8 +11,10 @@ paths:
         refuses administrator accounts. Needs `X-CSRFToken`. Anything but an active
         administrator with the right password (wrong password, unknown email, an Individual
         or Agency account, a disabled administrator, a throttled attempt) answers
-        the same `401 invalid_credentials`; the throttle is silent, never 429. Administrator
-        sessions expire after 30 idle minutes or 8 hours.
+        the same `401 invalid_credentials`; the throttle is silent, never 429. An
+        administrator with a second factor must also send a current, unused `code`;
+        without it the answer is the same `401`. Administrator sessions expire after
+        30 idle minutes or 8 hours.
       summary: Sign in as an administrator
       tags:
       - admin-session
@@ -20,7 +22,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SignInRequest'
+              $ref: '#/components/schemas/AdminSignInRequest'
         required: true
       responses:
         '200':
@@ -3026,6 +3028,403 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReportDetail'
           description: Reviewing
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/second-factor:
+    get:
+      operationId: get_admin_second_factor
+      description: Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Whether the caller has a second factor
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecondFactor'
+          description: Status
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/second-factor/confirm:
+    post:
+      operationId: confirm_admin_second_factor
+      description: Needs `X-CSRFToken`. After 5 wrong attempts in 15 minutes the answer
+        is `429 throttled`. From now on sign-in needs a code; other sessions end.
+        `409 conflict` when no secret is pending. Visitors get `401 unauthenticated`;
+        signed-in non-administrators get `404 not_found`. Never cached.
+      summary: Turn the second factor on with a first code
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecondFactorConfirmRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecondFactor'
+          description: Enrolled
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/second-factor/enrolment:
+    post:
+      operationId: start_admin_second_factor
+      description: Needs `X-CSRFToken`. After 5 wrong attempts in 15 minutes the answer
+        is `429 throttled`. `409 conflict` when already enrolled. Visitors get `401
+        unauthenticated`; signed-in non-administrators get `404 not_found`. Never
+        cached.
+      summary: Get a new second-factor secret (not active until confirmed)
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecondFactorStartRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecondFactorSecret'
+          description: The secret
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/support-requests:
+    get:
+      operationId: list_admin_support_requests
+      description: 20 per page; `next` is a link, `previous` is always null. `status`
+        defaults to `open`. Visitors get `401 unauthenticated`; signed-in non-administrators
+        get `404 not_found`. Never cached.
+      summary: Support requests in one status, oldest first, without their text
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - closed
+          - open
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSupportQueue'
+          description: One page
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/support-requests/{request_id}/close:
+    post:
+      operationId: close_admin_support_request
+      description: Needs `X-CSRFToken` and an empty body. An unknown id is `404 not_found`;
+        a closed request is `409 conflict`. Visitors get `401 unauthenticated`; signed-in
+        non-administrators get `404 not_found`. Never cached.
+      summary: Close a support request and notify its author
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSupportRequest'
+          description: Closed
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/admin/support-requests/{request_id}/read:
+    post:
+      operationId: read_admin_support_request
+      description: Needs `X-CSRFToken`. Every read is audited with its reason. An
+        unknown id is `404 not_found`. Visitors get `401 unauthenticated`; signed-in
+        non-administrators get `404 not_found`. Never cached.
+      summary: Read one support request's message, with a recorded reason
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonedReadRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSupportMessage'
+          description: The text
         '400':
           description: Bad request or validation error
           content:
@@ -8158,6 +8557,193 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/support-requests:
+    get:
+      operationId: list_own_support_requests
+      description: Individual and Agency accounts, Suspended ones included; an administrator
+        is `403 forbidden`, a Visitor `401 unauthenticated`. Never cached.
+      summary: The caller's support requests
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnSupport'
+          description: Requests
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      operationId: submit_support_request
+      description: Needs `X-CSRFToken`. At most 5 requests a day (`429 throttled`).
+        Individual and Agency accounts, Suspended ones included; an administrator
+        is `403 forbidden`, a Visitor `401 unauthenticated`. Never cached.
+      summary: Write to the platform team
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportSubmitRequest'
+        required: true
+      security:
+      - sessionCookie: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportRequest'
+          description: Recorded
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/support-requests/{request_id}:
+    get:
+      operationId: get_own_support_request
+      description: Another account's or an unknown id is `404 not_found`. Individual
+        and Agency accounts, Suspended ones included; an administrator is `403 forbidden`,
+        a Visitor `401 unauthenticated`. Never cached.
+      summary: One of the caller's support requests
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportRequest'
+          description: The request
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/notifications:
     get:
       operationId: list_notifications
@@ -10649,6 +11235,129 @@ components:
       - admin
       type: string
       description: '* `admin` - admin'
+    AdminSignInRequest:
+      type: object
+      description: '`email` and `password`, plus the one-time `code` of an enrolled
+        administrator.'
+      properties:
+        email:
+          type: string
+          minLength: 1
+          description: The account email; matched case-insensitively.
+        password:
+          type: string
+          minLength: 1
+          description: The account password.
+        code:
+          type: string
+          minLength: 1
+          description: Six digits from the authenticator; only for an enrolled administrator.
+      required:
+      - email
+      - password
+    AdminSupportMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        category:
+          $ref: '#/components/schemas/SupportCategoryEnum'
+        status:
+          $ref: '#/components/schemas/SupportStatusEnum'
+        account_id:
+          type: string
+          format: uuid
+        account_type:
+          type: string
+          nullable: true
+        account_state:
+          type: string
+          nullable: true
+          description: '`email_unverified`, `active`, `suspended` or `deactivated`.'
+        masked_email:
+          type: string
+          nullable: true
+          description: Null once closed.
+        submitted_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        message:
+          type: string
+          description: Private. Empty once erased.
+      required:
+      - account_id
+      - account_state
+      - account_type
+      - category
+      - closed_at
+      - id
+      - masked_email
+      - message
+      - status
+      - submitted_at
+    AdminSupportQueue:
+      type: object
+      properties:
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminSupportRequest'
+      required:
+      - next
+      - previous
+      - results
+    AdminSupportRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        category:
+          $ref: '#/components/schemas/SupportCategoryEnum'
+        status:
+          $ref: '#/components/schemas/SupportStatusEnum'
+        account_id:
+          type: string
+          format: uuid
+        account_type:
+          type: string
+          nullable: true
+        account_state:
+          type: string
+          nullable: true
+          description: '`email_unverified`, `active`, `suspended` or `deactivated`.'
+        masked_email:
+          type: string
+          nullable: true
+          description: Null once closed.
+        submitted_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - account_id
+      - account_state
+      - account_type
+      - category
+      - closed_at
+      - id
+      - masked_email
+      - status
+      - submitted_at
     Advertiser:
       type: object
       description: Who advertises the Listing (FR-39). Nothing else about the owner
@@ -14319,6 +15028,16 @@ components:
       - status
       - target_type
       - title
+    OwnSupport:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportRequest'
+          description: The latest 20, newest first.
+      required:
+      - results
     OwnVerification:
       type: object
       properties:
@@ -16353,6 +17072,43 @@ components:
           description: The request in the buyer's words, at most 500 characters.
       required:
       - query
+    SecondFactor:
+      type: object
+      properties:
+        enrolled:
+          type: boolean
+      required:
+      - enrolled
+    SecondFactorConfirmRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: Six digits from the authenticator.
+      required:
+      - code
+    SecondFactorSecret:
+      type: object
+      properties:
+        secret:
+          type: string
+          description: Base32. Shown only now.
+        otpauth_uri:
+          type: string
+          description: The same secret as an `otpauth://` URI.
+      required:
+      - otpauth_uri
+      - secret
+    SecondFactorStartRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          minLength: 1
+          description: The administrator's current password.
+      required:
+      - password
     SectionEnum:
       enum:
       - details
@@ -16475,6 +17231,64 @@ components:
         * `plot_file` - plot_file
         * `shop` - shop
         * `office` - office
+    SupportCategoryEnum:
+      enum:
+      - account
+      - decision
+      - technical
+      - other
+      type: string
+      description: |-
+        * `account` - account
+        * `decision` - decision
+        * `technical` - technical
+        * `other` - other
+    SupportRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        category:
+          $ref: '#/components/schemas/SupportCategoryEnum'
+        message:
+          type: string
+        status:
+          $ref: '#/components/schemas/SupportStatusEnum'
+        submitted_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - category
+      - closed_at
+      - id
+      - message
+      - status
+      - submitted_at
+    SupportStatusEnum:
+      enum:
+      - open
+      - closed
+      type: string
+      description: |-
+        * `open` - open
+        * `closed` - closed
+    SupportSubmitRequest:
+      type: object
+      properties:
+        category:
+          $ref: '#/components/schemas/SupportCategoryEnum'
+        message:
+          type: string
+          minLength: 10
+          maxLength: 2000
+      required:
+      - category
+      - message
     TargetTypeEnum:
       enum:
       - listing
