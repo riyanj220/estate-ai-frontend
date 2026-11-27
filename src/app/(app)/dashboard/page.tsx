@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { STATE_LABELS, canOwnListings, displayName, profileLinkLabel, typeLabel } from "@/lib/account";
 import { LISTINGS_PATH } from "@/lib/listing-messages";
+import { AgencySection } from "./agency-section";
 import { AllowanceCard } from "./allowance-card";
 import { requireAccount } from "@/lib/current-account";
 
@@ -45,6 +46,7 @@ export default async function DashboardPage() {
         </p>
       )}
       {canOwnListings(account.account_type) && <AllowanceCard />}
+      {account.account_type === "agency" && <AgencySection />}
       <p>
         <Link href="/account/password" className="text-link">
           Change password

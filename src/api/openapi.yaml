@@ -3244,6 +3244,172 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/agency-dashboard:
+    get:
+      operationId: get_agency_dashboard
+      description: Agency accounts only (a Suspended one may read). Listings by status
+        and in total, inquiries received and detail views. The publication allowance
+        is `/me/publication-allowance` and the inbox `/conversations`. Never cached.
+      summary: The signed-in Agency's totals
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+          description: The totals
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: not an Agency account'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/me/agency-dashboard/listings:
+    get:
+      operationId: list_agency_dashboard_listings
+      description: The Agency's own Listings only, newest first, 20 per page (`page_size`
+        up to 50). The filters combine; an empty one is ignored. The dates are Asia/Karachi
+        dates of creation, both inclusive. A bad value is `validation_error`; so is
+        a `cursor` issued for other filters. Never cached.
+      summary: The signed-in Agency's Listings with views and inquiries
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+          enum:
+          - apartment
+          - commercial
+          - house
+          - plot
+      - in: query
+        name: city_id
+        schema:
+          type: string
+      - in: query
+        name: created_from
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: created_to
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: locality_id
+        schema:
+          type: string
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - archived
+          - draft
+          - published
+          - removed
+          - rented
+          - sold
+      tags:
+      - me
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardListingPage'
+          description: One page
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`validation_error`'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`unauthenticated`: a Visitor'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: not an Agency account'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/me/agency-profile:
     get:
       operationId: get_agency_profile
@@ -5720,6 +5886,69 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/public/listings/{listing_id}/views:
+    post:
+      operationId: record_listing_view
+      description: 'Sent by the page after it has shown the Listing. No body. A signed-in
+        caller needs `X-CSRFToken`. `204` whether or not it counted: the owner, administrators,
+        known bots, a repeat from the same browser within 30 minutes and an over-eager
+        network are not counted. Only a total per Listing is kept; no cookie is set.
+        A Listing that is not publicly visible is `not_found`.'
+      summary: Count one view of a published Listing
+      parameters:
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - public
+      security:
+      - sessionCookie: []
+      responses:
+        '204':
+          description: Received
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`forbidden`: CSRF'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+          description: '`not_found`'
+        '400':
+          description: Bad request or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying, when known.
+              schema:
+                type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/public/search:
     post:
       operationId: interpret_search
@@ -7331,6 +7560,88 @@ components:
           type: string
       required:
       - csrf_token
+    Dashboard:
+      type: object
+      properties:
+        total_listings:
+          type: integer
+          minimum: 0
+        by_status:
+          $ref: '#/components/schemas/ListingCounts'
+        inquiries_total:
+          type: integer
+          minimum: 0
+          description: Conversations others started about the Agency's Listings.
+        views_total:
+          type: integer
+          minimum: 0
+      required:
+      - by_status
+      - inquiries_total
+      - total_listings
+      - views_total
+    DashboardListing:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ListingStatusEnum'
+        purpose:
+          $ref: '#/components/schemas/PurposeEnum'
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        subtype:
+          $ref: '#/components/schemas/SubtypeEnum'
+        city:
+          allOf:
+          - $ref: '#/components/schemas/Place'
+          nullable: true
+        locality:
+          allOf:
+          - $ref: '#/components/schemas/Place'
+          nullable: true
+        created_on:
+          type: string
+          format: date
+          description: The Asia/Karachi date of creation.
+        views:
+          type: integer
+          minimum: 0
+        inquiries:
+          type: integer
+          minimum: 0
+      required:
+      - category
+      - city
+      - created_on
+      - id
+      - inquiries
+      - locality
+      - purpose
+      - status
+      - subtype
+      - title
+      - views
+    DashboardListingPage:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardListing'
+        next:
+          type: string
+          format: uri
+          nullable: true
+          description: The next page; null on the last.
+      required:
+      - next
+      - results
     DevelopmentStatusEnum:
       enum:
       - developed

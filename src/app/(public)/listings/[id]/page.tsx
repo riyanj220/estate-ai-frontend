@@ -7,6 +7,7 @@ import { ListingFacts } from "@/components/listing-facts";
 import { MessageSeller } from "@/components/message-seller";
 import { RetryImage } from "@/components/retry-image";
 import { SaveButton } from "@/components/save-button";
+import { ViewBeacon } from "@/components/view-beacon";
 import type { AmenityCatalogueList } from "@/lib/amenities";
 import { FavouritesProvider } from "@/lib/favourites";
 import { summaryOf } from "@/lib/listing-labels";
@@ -59,6 +60,7 @@ export default async function ListingPage({ params }: Props) {
   return (
     <>
       {back}
+      <ViewBeacon listingId={listing.id} />
       <article className="card">
         <h1 className="page-title">{fields.title ?? "Untitled listing"}</h1>
         <p className="muted" data-testid="listing-summary">

@@ -765,6 +765,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/agency-dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in Agency's totals
+         * @description Agency accounts only (a Suspended one may read). Listings by status and in total, inquiries received and detail views. The publication allowance is `/me/publication-allowance` and the inbox `/conversations`. Never cached.
+         */
+        get: operations["get_agency_dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/agency-dashboard/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in Agency's Listings with views and inquiries
+         * @description The Agency's own Listings only, newest first, 20 per page (`page_size` up to 50). The filters combine; an empty one is ignored. The dates are Asia/Karachi dates of creation, both inclusive. A bad value is `validation_error`; so is a `cursor` issued for other filters. Never cached.
+         */
+        get: operations["list_agency_dashboard_listings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/agency-profile": {
         parameters: {
             query?: never;
@@ -1299,6 +1339,26 @@ export interface paths {
         get: operations["get_listing_estimate"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/listings/{listing_id}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Count one view of a published Listing
+         * @description Sent by the page after it has shown the Listing. No body. A signed-in caller needs `X-CSRFToken`. `204` whether or not it counted: the owner, administrators, known bots, a repeat from the same browser within 30 minutes and an over-eager network are not counted. Only a total per Listing is kept; no cookie is set. A Listing that is not publicly visible is `not_found`.
+         */
+        post: operations["record_listing_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1975,6 +2035,39 @@ export interface components {
         };
         CsrfToken: {
             csrf_token: string;
+        };
+        Dashboard: {
+            total_listings: number;
+            by_status: components["schemas"]["ListingCounts"];
+            /** @description Conversations others started about the Agency's Listings. */
+            inquiries_total: number;
+            views_total: number;
+        };
+        DashboardListing: {
+            /** Format: uuid */
+            id: string;
+            title: string | null;
+            status: components["schemas"]["ListingStatusEnum"];
+            purpose: components["schemas"]["PurposeEnum"];
+            category: components["schemas"]["CategoryEnum"];
+            subtype: components["schemas"]["SubtypeEnum"];
+            city: components["schemas"]["Place"] | null;
+            locality: components["schemas"]["Place"] | null;
+            /**
+             * Format: date
+             * @description The Asia/Karachi date of creation.
+             */
+            created_on: string;
+            views: number;
+            inquiries: number;
+        };
+        DashboardListingPage: {
+            results: components["schemas"]["DashboardListing"][];
+            /**
+             * Format: uri
+             * @description The next page; null on the last.
+             */
+            next: string | null;
         };
         /**
          * @description * `developed` - developed
@@ -7435,6 +7528,167 @@ export interface operations {
             };
         };
     };
+    get_agency_dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The totals */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `unauthenticated`: a Visitor */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: not an Agency account */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_agency_dashboard_listings: {
+        parameters: {
+            query?: {
+                category?: "apartment" | "commercial" | "house" | "plot";
+                city_id?: string;
+                created_from?: string;
+                created_to?: string;
+                cursor?: string;
+                locality_id?: string;
+                page_size?: number;
+                status?: "archived" | "draft" | "published" | "removed" | "rented" | "sold";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardListingPage"];
+                };
+            };
+            /** @description `validation_error` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unauthenticated`: a Visitor */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `forbidden`: not an Agency account */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     get_agency_profile: {
         parameters: {
             query?: never;
@@ -10009,6 +10263,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying, when known. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    record_listing_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Received */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: CSRF */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description `not_found` */
