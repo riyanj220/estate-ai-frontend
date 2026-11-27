@@ -650,6 +650,13 @@ const AMENITIES_DEF = fieldDef("amenities", "amenities", "optional", {
   description: "Amenities and nearby facilities as a map from a catalogue code to present or none. A code left out is unanswered, never none. Nearby facilities are the seller's own declaration.",
 });
 REGISTRY_FIELDS.default.push(AMENITIES_DEF);
+// Stories 11.3 and 11.4: a few of the deferred sale fields and the tour link, as their own preset (the default stays as it was).
+REGISTRY_FIELDS.deferred = [
+  ...REGISTRY_FIELDS.default,
+  termDef("payment_type", "enum", "optional", SALE, { allowed_values: ["cash", "installments", "cash_or_installments"] }),
+  termDef("mortgage_declaration", "enum", "optional", SALE, { allowed_values: ["none", "mortgaged"], seller_declared: true, ai_extractable: false }),
+  fieldDef("video_tour_url", "url", "optional", { applicability: BOTH_PURPOSES, max_length: 300 }),
+];
 // A location field with no `class` and one with an unknown `class`: both must be treated as private (fail closed).
 Object.defineProperty(REGISTRY_FIELDS, "oddclass", {
   enumerable: true,
@@ -722,7 +729,7 @@ const normalisedSqft = (value, unit, basis) => {
 /** Keeps a stub Listing consistent after any area change: the basis only for marla and kanal, the square feet always derived. */
 // A registry detail the editor builds generically: any non-derived field of a type with a control that is not hand-built.
 const HAND_IDS = ["purpose", "category", "subtype", "title", "description", "asking_price", "price_basis", "rental_period", "area_value", "area_unit", "marla_basis", "area_sqft"];
-const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money", "date"];
+const DETAIL_TYPES = ["integer", "boolean", "enum", "decimal", "money", "date", "url"];
 const currentDef = (id) => REGISTRY_FIELDS[fieldsName].find((entry) => entry.id === id);
 const isInput = (key) => INPUT_FIELDS.includes(key) || (!HAND_IDS.includes(key) && DETAIL_TYPES.includes(currentDef(key)?.type) && !currentDef(key).derived);
 /** Whether a field applies to a Listing, from the registry's applicability (an empty list means all). */
@@ -734,6 +741,7 @@ const applies = (rule, fields) =>
 const AREA_CODE_IDS = ["area_value", "covered_area_sqft", "garden_area_sqft"];
 const checkDetail = (rule, value, fields) => {
   if (!applies(rule, fields)) return { code: "not_applicable" };
+  if (rule.type === "url") return typeof value === "string" && value.startsWith("https://") ? { value } : { code: "invalid_url" };
   if (rule.type === "integer") {
     if (typeof value !== "number" || !Number.isInteger(value)) return { code: "invalid" };
     return value < Number(rule.min) || value > Number(rule.max) ? { code: "invalid_range" } : { value };
@@ -865,6 +873,7 @@ const publicListing = (item) => ({
   fields: item.fields,
   provenance: item.provenance,
   media: spoilMedia(item.images.map((image) => publicImage(item, image))),
+  floor_plan: item.floorPlan ? publicImage(item, item.floorPlan) : null,
   restricted: item.restricted === true,
   restriction_reason: item.restrictionReason ?? null,
   under_review: item.underReview === true,
@@ -1403,11 +1412,14 @@ const PUBLIC_DETAIL = {
     society: "Palm Society",
     amenities: { elevator: "present", nearby_park: "present" },
     possession_availability: "within_one_month",
+    mortgage_declaration: "none",
+    video_tour_url: "https://example.com/tour",
     street: "Cedar Lane",
     house_number: "Plot 12",
     latitude: "24.860000",
   },
   media: [1, 2].map((n) => ({ id: publicImageId(n), position: n - 1, is_cover: n === 1, content_type: "image/png", width: 1, height: 1, url: publicImageUrl(1, n) })),
+  floor_plan: { id: publicImageId(3), content_type: "image/png", width: 1, height: 1, url: publicImageUrl(1, 3) },
   registry_version: 10,
   phone: "+923009998877",
   revision: 7,
@@ -3864,6 +3876,34 @@ const server = createServer((req, res) => {
     });
     return;
   }
+  // Story 11.4: the floor plan (one per Listing, never one of the images).
+  const floorPlanRoute = /^\/api\/v1\/listings\/([^/]+)\/floor-plan$/.exec(url.pathname);
+  if (floorPlanRoute && (req.method === "PUT" || req.method === "DELETE")) {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      res.setHeader("cache-control", "no-store");
+      if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
+      unsafeCount += 1;
+      const target = ownDraft(floorPlanRoute[1]);
+      if (!target) return notFound();
+      if (req.method === "DELETE") {
+        if (!target.floorPlan) return notFound();
+        target.floorPlan = null;
+        target.revision += 1;
+        res.writeHead(204);
+        return res.end();
+      }
+      const file = parseMultipart(Buffer.concat(chunks), req.headers["content-type"])?.find((part) => part.name === "file");
+      const type = file ? sniffType(file.data) : null;
+      if (!type) return failFields({ file: ["unsupported_type"] });
+      const image = newImage(++imageSeq, 0, false, type);
+      target.floorPlan = { id: image.id, content_type: type, width: 1, height: 1, bytes: file.data.length };
+      target.revision += 1;
+      return json(200, publicImage(target, target.floorPlan));
+    });
+    return;
+  }
   if (imagesRoute && req.method === "PATCH") {
     return readBody((parsed) => {
       const sentToken = req.headers["x-csrftoken"] ?? null;
@@ -3925,7 +3965,7 @@ const server = createServer((req, res) => {
     res.setHeader("cache-control", "private, no-store");
     // A Visitor, another account, an administrator and an unknown id are one answer.
     const target = hasSession() ? ownDraft(imageFileRoute[1]) : undefined;
-    const image = target?.images.find((entry) => entry.id === decodeURIComponent(imageFileRoute[2]));
+    const image = [...(target?.images ?? []), ...(target?.floorPlan ? [target.floorPlan] : [])].find((entry) => entry.id === decodeURIComponent(imageFileRoute[2]));
     if (!image || imageFileMode === "not_found") return notFound();
     if (imageFileMode === "broken") return req.socket.destroy();
     res.writeHead(200, {
