@@ -83,6 +83,11 @@ shows an estimated figure uses `src/components/estimate-figure.tsx` (the value w
 explains the figures; keep it in step with the backend's `docs/valuation.md`. No user-facing string may say "demo" or "demonstration"
 (`tests/e2e/estimate.spec.ts` scans `src/`).
 
+On a public Listing page `src/components/listing-estimate.tsx` shows the total asking price beside the Estimated Property Value, the
+backend's verdict (about equal, above or below) and the 5-Year Price Forecast, under the one info button; the owner also gets
+"Recompute estimate". The figures come from `GET /api/v1/public/listings/{id}/estimate` (stub: `/__listing-estimate-mode`; tests
+`tests/e2e/listing-estimate.spec.ts`).
+
 ## Two-repo workflow
 
 The contract is the backend's committed `openapi.yaml`. `src/api/` holds a committed copy of it

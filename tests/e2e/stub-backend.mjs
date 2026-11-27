@@ -1185,6 +1185,25 @@ let heldStatusAnswers = [];
 let patchMode = "ok";
 // Story 2.13: the owner's preview and delete. Modes shape the answers; the lists keep what the page did.
 let previewMode = "ok";
+// Stories 4.6 and 4.7: the public estimate of listing 1. Modes: below, above, about_equal, unavailable, owner, owner_unavailable, error.
+let listingEstimateMode = "below";
+let publicRecomputed = false;
+function listingEstimate(mode, recomputed) {
+  const verdicts = {
+    below: ["1500000.00", { verdict: "below", percent: "25.0" }],
+    above: ["1500000.00", { verdict: "above", percent: "20.0" }],
+    about_equal: ["1500000.00", { verdict: "about_equal", percent: "3.2" }],
+  };
+  const unavailable = mode === "unavailable" || (mode === "owner_unavailable" && !recomputed);
+  const canRecompute = mode.startsWith("owner");
+  const [asking, comparison] = verdicts[mode] ?? verdicts.below;
+  if (unavailable) {
+    return { status: "unavailable", estimated_value: null, currency: "PKR", model_version: null, estimated_at: null, reason: "locality_not_covered", message: "This locality is not covered yet.", asking_total: asking, comparison: null, forecast: null, can_recompute: canRecompute };
+  }
+  const value = mode === "owner" && recomputed ? "2100000.00" : "2000000.00";
+  return { status: "available", estimated_value: value, currency: "PKR", model_version: 1, estimated_at: "2026-11-27T10:00:00Z", reason: null, message: null, asking_total: asking, comparison, forecast: { horizon_years: 5, low: "2433000.00", base: "2939000.00", high: "3525000.00" }, can_recompute: canRecompute };
+}
+
 // Story 4.4: estimate requests. `estimates` keeps the last one per Listing with the revision it was computed at.
 let estimateMode = "ok";
 let estimatePosts = [];
@@ -1450,6 +1469,17 @@ createServer((req, res) => {
   if (publicFileRequest || url.pathname === PUBLIC_LOGO_URL) {
     res.writeHead(200, { "content-type": "image/png", "content-length": String(IMAGE_PNG.length) });
     return res.end(IMAGE_PNG);
+  }
+  if (url.pathname === "/__listing-estimate-mode") {
+    listingEstimateMode = url.searchParams.get("value") ?? "below";
+    return json(200, { listingEstimateMode });
+  }
+  const publicEstimate = /^\/api\/v1\/public\/listings\/([^/]+)\/estimate$/.exec(url.pathname);
+  if (publicEstimate) {
+    res.setHeader("cache-control", "no-store");
+    if (publicEstimate[1] !== publicId(1)) return json(404, envelope("not_found", "Not found."));
+    if (listingEstimateMode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+    return json(200, listingEstimate(listingEstimateMode, publicRecomputed));
   }
   if (url.pathname === "/api/v1/public/listings" || url.pathname.startsWith("/api/v1/public/listings/")) {
     publicRequests.push({ path: url.pathname + url.search, cookie: req.headers.cookie ?? "" });
@@ -2092,6 +2122,12 @@ createServer((req, res) => {
     res.setHeader("cache-control", "no-store");
     if (signedInUnsafe(estimateMode, req.headers["x-csrftoken"] ?? null)) return;
     if (estimateMode === "error") return serverFailure("error");
+    if (id === publicId(1) && listingEstimateMode.startsWith("owner")) {
+      // the owner's recompute of a published Listing
+      publicRecomputed = true;
+      const { status, estimated_value, currency, model_version, estimated_at, reason, message } = listingEstimate(listingEstimateMode, true);
+      return json(200, { status, estimated_value, currency, model_version, estimated_at, reason, message });
+    }
     const found = listings.find((item) => item.id === id && item.owner === "mine");
     if (!found) return json(404, envelope("not_found", "Not found."));
     if (statusOf(found) !== "draft") return json(409, envelope("conflict", "Conflict."));
@@ -4057,6 +4093,8 @@ createServer((req, res) => {
     allowanceGets = 0;
     publishMode = "ok";
     estimateMode = "ok";
+    listingEstimateMode = "below";
+    publicRecomputed = false;
     estimatePosts = [];
     estimates = new Map();
     publishUsed = {};
