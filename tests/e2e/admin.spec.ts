@@ -198,7 +198,9 @@ test("navigation: every screen is a link", async ({ page, request }) => {
   await startSession(page, request, "admin");
   await page.goto("/admin");
   const nav = page.getByRole("navigation", { name: "Administration" });
-  await expect(nav.getByRole("link")).toHaveCount(11);
+  await expect(nav.getByRole("link")).toHaveCount(13);
+  await expect(nav.getByRole("link", { name: "Support" })).toHaveAttribute("href", "/admin/support");
+  await expect(nav.getByRole("link", { name: "Second factor" })).toHaveAttribute("href", "/admin/second-factor");
   await expect(nav.getByRole("link", { name: "Audit log" })).toHaveAttribute("href", "/admin/audit");
   await expect(nav.getByRole("link", { name: "Closure requests" })).toHaveAttribute("href", "/admin/closure-requests");
   await expect(nav.getByRole("link", { name: "Flags" })).toHaveAttribute("href", "/admin/flags");

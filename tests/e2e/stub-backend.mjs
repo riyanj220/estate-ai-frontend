@@ -1326,6 +1326,9 @@ let verificationPosts = [];
 // Stories 10.1 and 10.2: the one closure request (null until sent).
 const CLOSURE_ID = "00000000-0000-4000-c000-000000000002";
 let closure = null;
+// Stories 10.9 and 10.10: support requests, and the administrator's second factor (the stub accepts one fixed code, once enrolled).
+let support = [];
+let secondFactor = "off"; // "off" | "pending" | "on"
 // Stories 10.5 and 10.6: the little reference data and AI switch the admin screens change.
 const newPlatform = () => ({ assistantOn: true, cities: [{ id: "00000000-0000-4000-e100-000000000001", name: "Karachi", is_active: true }] });
 let platform = newPlatform();
@@ -2021,6 +2024,7 @@ const server = createServer((req, res) => {
       if (adminSignInMode === "validation") {
         return json(400, envelope("validation_error", "Some fields are invalid.", { email: ["Enter a valid email address."], password: ["This field may not be blank."] }));
       }
+      if (secondFactor === "on" && parsed?.code !== "123456") return json(401, envelope("invalid_credentials", "Wrong code."));
       liveSession = true;
       sessionAdmin = true;
       csrfSeed += 1; // the backend rotates the CSRF secret with the new session
@@ -2502,6 +2506,58 @@ const server = createServer((req, res) => {
     return readBody((body) => {
       if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
       respond(body);
+    });
+  }
+  // ---- Second factor (Story 10.10)
+  if (url.pathname.startsWith("/api/v1/admin/second-factor")) {
+    res.setHeader("cache-control", "no-store");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication required."));
+    if (!sessionAdmin) return json(404, envelope("not_found", "Not found."));
+    if (req.method === "GET") return json(200, { enrolled: secondFactor === "on" });
+    return readBody((body) => {
+      if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
+      if (url.pathname.endsWith("/enrolment")) {
+        if (body.password !== "stub password") return json(400, envelope("validation_error", "Invalid.", { password: ["incorrect"] }));
+        secondFactor = "pending";
+        return json(200, { secret: "STUBSTUBSTUB", otpauth_uri: "otpauth://totp/EstateAI:stub?secret=STUBSTUBSTUB" });
+      }
+      if (secondFactor !== "pending") return json(409, envelope("conflict", "Conflict."));
+      if (body.code !== "123456") return json(400, envelope("validation_error", "Invalid.", { code: ["invalid"] }));
+      secondFactor = "on";
+      return json(200, { enrolled: true });
+    });
+  }
+  // ---- Support requests (Story 10.9)
+  if (url.pathname.startsWith("/api/v1/me/support-requests") || url.pathname.startsWith("/api/v1/admin/support-requests")) {
+    res.setHeader("cache-control", "no-store");
+    const admin = url.pathname.startsWith("/api/v1/admin/");
+    if (!hasSession()) return json(401, envelope("unauthenticated", "Authentication required."));
+    if (admin && !sessionAdmin) return json(404, envelope("not_found", "Not found."));
+    if (!admin && sessionAdmin) return json(403, envelope("forbidden", "Forbidden."));
+    const row = ({ id, category, status, submitted_at, closed_at }) => ({ id, category, status, submitted_at, closed_at, account_id: CLOSURE_ID, account_type: "individual", account_state: "suspended", masked_email: "a***@example.com" });
+    if (req.method === "GET") {
+      if (!admin) return json(200, { results: support });
+      const wanted = url.searchParams.get("status") ?? "open";
+      return json(200, { next: null, previous: null, results: support.filter((entry) => entry.status === wanted).map(row) });
+    }
+    return readBody((body) => {
+      if (signedInUnsafe("ok", req.headers["x-csrftoken"] ?? null)) return;
+      if (!admin) {
+        if (support.length >= 5) {
+          res.writeHead(429, { "content-type": "application/json", "retry-after": "3600" });
+          return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+        }
+        const id = `00000000-0000-4000-9000-${String(support.length + 1).padStart(12, "0")}`;
+        const entry = { id, category: body.category, message: body.message, status: "open", submitted_at: "2026-11-27T10:00:00+05:00", closed_at: null };
+        support.unshift(entry);
+        return json(201, entry);
+      }
+      const entry = support.find((item) => url.pathname.includes(item.id));
+      if (!entry) return json(404, envelope("not_found", "Not found."));
+      if (url.pathname.endsWith("/read")) return json(200, { ...row(entry), message: entry.message });
+      if (entry.status !== "open") return json(409, envelope("conflict", "Conflict."));
+      Object.assign(entry, { status: "closed", closed_at: "2026-11-27T11:00:00+05:00" });
+      return json(200, row(entry));
     });
   }
   // ---- Account closure (Stories 10.1 and 10.2)
@@ -4701,6 +4757,8 @@ const server = createServer((req, res) => {
     verificationHistory = [];
     verificationPosts = [];
     closure = null;
+    support = [];
+    secondFactor = "off";
     platform = newPlatform();
     accountsMode = "ok";
     accountsPosts = [];
