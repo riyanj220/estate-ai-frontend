@@ -1322,6 +1322,10 @@ let accountsPosts = [];
 // Public browse and detail (Story 3.1): no session. Three Listings in pages of two; `next` is an absolute backend URL like the real one.
 let publicMode = "ok";
 let publicRequests = [];
+// Story 6.1: search by description. Modes through /__search-mode; the interpretation is fixed.
+let searchMode = "ok";
+let searchRequests = [];
+const SEARCH_PARAMS = { purpose: "sale", category: "house", prefer_parking_spaces_min: "1", prefer_amenities: "nearby_park" };
 // Favourites (Story 3.7): the saved listing ids, latest first. An id without a public card reads as no longer available.
 let favourites = [];
 let favouritesMode = "ok";
@@ -1469,6 +1473,30 @@ createServer((req, res) => {
     res.end(JSON.stringify(body));
   };
   const envelope = (code, message, fields = {}) => ({ error: { code, message, fields: wireFields(fields), request_id: "stub" } });
+  if (url.pathname === "/__search-mode") {
+    searchMode = url.searchParams.get("value") ?? "ok";
+    return json(200, { searchMode });
+  }
+  if (url.pathname === "/__search-requests") return json(200, { requests: searchRequests });
+  if (url.pathname === "/api/v1/public/search" && req.method === "POST") {
+    res.setHeader("cache-control", "no-store");
+    if (req.headers["x-csrftoken"] !== `csrf-${csrfSeed}`) return json(403, envelope("forbidden", "CSRF check failed."));
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    return req.on("end", () => {
+      searchRequests.push({ url: url.pathname + url.search, body: JSON.parse(raw) });
+      if (searchMode === "rate_limited") {
+        res.writeHead(429, { "content-type": "application/json", "retry-after": "60" });
+        return res.end(JSON.stringify(envelope("throttled", "Too many requests.")));
+      }
+      if (searchMode === "error") return json(500, envelope("server_error", "Internal detail that must not show."));
+      const answer = searchMode === "fallback"
+        ? { status: "fallback", message: "Search by description is unavailable right now. Use the filters to search instead.", params: {}, unsupported: [], notices: [] }
+        : { status: "interpreted", message: "", params: SEARCH_PARAMS, unsupported: ["near a metro station"], notices: ["Nearby facilities are seller-declared and not verified."] };
+      // "slow" leaves time to see the progress indicator.
+      setTimeout(() => json(200, answer), searchMode === "slow" ? 1500 : 0);
+    });
+  }
   if (url.pathname === "/__public-mode") {
     publicMode = url.searchParams.get("value") ?? "ok";
     return json(200, { publicMode });
@@ -4139,6 +4167,8 @@ createServer((req, res) => {
     accountsPosts = [];
     publicMode = "ok";
     publicRequests = [];
+    searchMode = "ok";
+    searchRequests = [];
     favourites = [];
     favouritesMode = "ok";
     suspensionReason = SUSPENSION_REASON;
