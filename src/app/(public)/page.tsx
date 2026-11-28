@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ListingCard } from "@/components/listing-card";
 import { SearchBox } from "@/components/search-box";
+import { SearchSelect } from "@/components/search-select";
 import { BROWSE_PATH, fetchBrowse, fetchPlaces } from "@/lib/public-listings";
 
 export const metadata: Metadata = { title: "EstateAI | Property for sale and rent in Karachi" };
@@ -13,7 +14,7 @@ const INNER = "mx-auto max-w-wide px-(--gutter)";
 const SECTION = `${INNER} w-full pt-[clamp(4rem,8vw,6.5rem)]`;
 const SECTION_HEAD = "mb-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-4";
 const HEADING = "section-title m-0 text-[clamp(1.875rem,3.5vw,2.75rem)] leading-[1.1] tracking-[-0.02em]";
-const FIELD = "searchbar-field grid flex-[1_1_12rem] gap-0.5 border-l border-line px-5 py-1 focus-within:rounded-xl focus-within:bg-accent-soft has-[select:focus-visible]:outline-2 has-[select:focus-visible]:-outline-offset-2 has-[select:focus-visible]:outline-accent max-[861px]:flex-none max-[861px]:border-t max-[861px]:border-l-0 max-[861px]:px-2 max-[861px]:pt-2.5 max-[861px]:pb-1";
+const FIELD = "searchbar-field grid flex-[1_1_12rem] gap-0.5 border-l border-line px-5 py-1 focus-within:rounded-xl focus-within:bg-accent-soft has-[select:focus-visible]:outline-2 has-[select:focus-visible]:-outline-offset-2 has-[select:focus-visible]:outline-accent has-[button:focus-visible]:outline-2 has-[button:focus-visible]:-outline-offset-2 has-[button:focus-visible]:outline-accent max-[861px]:flex-none max-[861px]:border-t max-[861px]:border-l-0 max-[861px]:px-2 max-[861px]:pt-2.5 max-[861px]:pb-1";
 const FIELD_LABEL = "block text-[0.6875rem] font-bold tracking-[0.12em] uppercase";
 const SEGMENT = "block min-w-20 rounded-full px-4 py-2.5 text-center text-[0.9375rem] font-semibold peer-checked:bg-accent peer-checked:text-white peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent";
 const LATEST = 6;
@@ -78,16 +79,9 @@ export default async function HomePage() {
             </select>
           </div>
           {localities.length > 0 && (
-            <div className={FIELD}>
+            <div className={`${FIELD} relative`}>
               <label className={FIELD_LABEL} htmlFor="home-locality">Area</label>
-              <select id="home-locality" name="locality" defaultValue="">
-                <option value="">Any area</option>
-                {localities.map((locality) => (
-                  <option key={locality.id} value={locality.id}>
-                    {locality.name}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect id="home-locality" name="locality" emptyLabel="Any area" searchLabel="Search areas" options={localities.map((locality) => ({ value: locality.id, label: locality.name }))} />
             </div>
           )}
           <button type="submit" className="primary-button min-h-13 px-7">

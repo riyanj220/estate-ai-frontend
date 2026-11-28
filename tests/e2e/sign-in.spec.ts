@@ -133,10 +133,10 @@ test("signed-in visit to /sign-in?next=/account/password goes there", async ({ p
 test("empty submit shows required field errors and sends no request", async ({ page, request }) => {
   await page.goto("/sign-in");
   await submit(page).click();
-  const summary = page.getByRole("group", { name: "There is a problem" });
-  await expect(summary).toBeFocused();
-  await expect(summary.getByRole("link", { name: /Email address: Enter your email address/ })).toBeVisible();
-  await expect(summary.getByRole("link", { name: /Password: Enter your password/ })).toBeVisible();
+  await expect(page.getByLabel("Email address")).toBeFocused();
+  await expect(page.getByLabel("Email address")).toHaveAccessibleDescription(/Enter your email address/);
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAccessibleDescription(/Enter your password/);
+  await expect(page.getByRole("group", { name: "There is a problem" })).toHaveCount(0);
   await expect(submit(page)).toBeEnabled();
   expect((await stats(request)).signInCount).toBe(0);
   expect((await stats(request)).csrfFetches).toBe(0);
@@ -217,17 +217,13 @@ test("bad credentials: one generic message, email kept, password cleared, focus 
   await expect(header(page).getByRole("link", { name: "Sign in" })).toBeVisible();
 });
 
-test("server field errors show against their fields in a focused summary", async ({ page, request }) => {
+test("server field errors show against their fields, with the first one focused", async ({ page, request }) => {
   await mode(request, "signin", "validation");
   await signIn(page);
-  const summary = page.getByRole("group", { name: "There is a problem" });
-  await expect(summary).toBeFocused();
-  await expect(summary.getByRole("link", { name: /Email address: Enter a valid email address/ })).toBeVisible();
-  await expect(summary.getByRole("link", { name: /Password: This field may not be blank/ })).toBeVisible();
+  await expect(page.getByLabel("Email address")).toBeFocused();
   await expect(page.getByLabel("Email address")).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByLabel("Email address")).toHaveAccessibleDescription(/Enter a valid email address/);
-  await summary.getByRole("link", { name: /^Password/ }).click();
-  await expect(page.getByLabel("Password", { exact: true })).toBeFocused();
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAccessibleDescription(/This field may not be blank/);
 });
 
 test("CSRF self-heal: a first 403 refetches the token and retries once", async ({ page, request }) => {
@@ -559,7 +555,7 @@ const axeStates: Record<string, (page: Page, request: APIRequestContext) => Prom
     await mode(request, "signin", "validation");
     await fill(page);
     await submit(page).click();
-    await expect(page.getByRole("group", { name: "There is a problem" })).toBeVisible();
+    await expect(page.locator("#email-error")).toBeVisible();
   },
   "server error": async (page, request) => {
     await mode(request, "signin", "error");

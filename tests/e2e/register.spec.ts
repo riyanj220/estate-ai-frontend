@@ -66,7 +66,7 @@ test("success shows check your email, clears password and phone, sends exactly f
   await expect(page.getByText(/spam/i)).toBeVisible();
   await expect(page.locator("body")).not.toContainText(CANARY_PASSWORD);
   await expect(page.locator("body")).not.toContainText(CANARY_PHONE);
-  await expect(page.locator(".error-summary, [data-testid=form-notice]")).toHaveCount(0);
+  await expect(page.locator("[data-testid=form-errors], [data-testid=form-notice]")).toHaveCount(0);
 
   const { body, count } = await (await request.get(`${STUB}/__last-registration`)).json();
   expect(count).toBe(1);
@@ -76,16 +76,14 @@ test("success shows check your email, clears password and phone, sends exactly f
   expect(body.phone).toBe(CANARY_PHONE);
 });
 
-test("field errors: summary focused with links, messages under inputs, aria attributes @smoke", async ({ page, request }) => {
+test("field errors: first field focused, messages under inputs, aria attributes @smoke", async ({ page, request }) => {
   await setMode(request, "fields");
   await page.goto("/register");
   await fill(page);
   await page.getByRole("button", { name: "Create account" }).click();
 
-  const summary = page.locator(".error-summary");
-  await expect(summary).toBeFocused();
-  await expect(summary.getByRole("link")).toHaveCount(4);
-  await expect(summary).toContainText("Enter a valid email address.");
+  await expect(page.locator("#full_name")).toBeFocused();
+  await expect(page.locator(".error-summary")).toHaveCount(0);
   for (const [id, message] of [
     ["full_name", "Enter your full name using letters only."],
     ["email", "Enter a valid email address."],
@@ -98,19 +96,17 @@ test("field errors: summary focused with links, messages under inputs, aria attr
     expect(describedBy).toContain(`${id}-error`);
     await expect(page.locator(`#${id}-error`)).toContainText(message);
   }
-  // Values are kept and the summary links move focus to the field.
+  // Values are kept.
   await expect(page.getByLabel("Full name")).toHaveValue("Ayesha Khan");
-  await summary.getByRole("link", { name: /Phone number/ }).click();
-  await expect(page.locator("#phone")).toBeFocused();
 });
 
-test("non-field errors appear in the summary @smoke", async ({ page, request }) => {
+test("non-field errors appear as one line @smoke", async ({ page, request }) => {
   await setMode(request, "non_field");
   await page.goto("/register");
   await fill(page);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.locator(".error-summary")).toBeFocused();
-  await expect(page.locator(".error-summary")).toContainText("Unexpected field.");
+  await expect(page.getByTestId("form-errors")).toBeFocused();
+  await expect(page.getByTestId("form-errors")).toContainText("Unexpected field.");
 });
 
 test("rate limited shows the wait time and keeps the values", async ({ page, request }) => {
@@ -171,13 +167,12 @@ test("a hung request times out into the network error and re-enables the button"
   await expect(page.getByLabel("Phone number")).toHaveValue(CANARY_PHONE);
 });
 
-test("empty submit goes to the server and shows its required messages in the focused summary", async ({ page, request }) => {
+test("empty submit goes to the server and shows its required messages under the fields", async ({ page, request }) => {
   await setMode(request, "required");
   await page.goto("/register");
   await page.getByRole("button", { name: "Create account" }).click();
-  const summary = page.locator(".error-summary");
-  await expect(summary).toBeFocused();
-  await expect(summary.getByRole("link")).toHaveCount(4);
+  await expect(page.locator("#full_name")).toBeFocused();
+  await expect(page.locator(".field-error")).toHaveCount(4);
   await expect(page.locator("#email-error")).toContainText("This field is required.");
   const { count } = await (await request.get(`${STUB}/__last-registration`)).json();
   expect(count).toBe(1);
@@ -188,16 +183,16 @@ test("400 with empty fields shows the server message", async ({ page, request })
   await page.goto("/register");
   await fill(page);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.locator(".error-summary")).toContainText("The server rejected this request.");
+  await expect(page.getByTestId("form-errors")).toContainText("The server rejected this request.");
 });
 
-test("mixed 400 maps known fields and lists unknown keys in the summary", async ({ page, request }) => {
+test("mixed 400 maps known fields and lists unknown keys above the form", async ({ page, request }) => {
   await setMode(request, "mixed");
   await page.goto("/register");
   await fill(page);
   await page.getByRole("button", { name: "Create account" }).click();
-  const summary = page.locator(".error-summary");
-  await expect(summary.getByRole("link")).toHaveCount(1);
+  const summary = page.getByTestId("form-errors");
+  await expect(page.locator(".field-error")).toHaveCount(1);
   await expect(page.locator("#email")).toHaveAttribute("aria-invalid", "true");
   await expect(summary).toContainText("Unknown field.");
   await expect(summary).toContainText("Unexpected field.");
@@ -310,7 +305,7 @@ const axeStates: Record<string, (page: Page, request: import("@playwright/test")
     await setMode(request, "fields");
     await fill(page);
     await page.getByRole("button", { name: "Create account" }).click();
-    await expect(page.locator(".error-summary")).toBeFocused();
+    await expect(page.locator("#full_name")).toBeFocused();
   },
   "rate limited": async (page, request) => {
     await setMode(request, "rate_limited");

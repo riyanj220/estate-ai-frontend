@@ -19,7 +19,7 @@ export function ListingCard({ card, children, testId = "browse-card" }: { card: 
   const area = areaSummary(fields);
   const price = priceParts(fields);
   return (
-    <li className="card" data-testid={testId}>
+    <li className="card relative cursor-pointer" data-testid={testId}>
       <div className="relative order-0 mx-0 mt-0 mb-4">
         {coverUrl ? (
           <RetryImage url={coverUrl} alt={`Cover image of ${title}`} label={`the cover of ${title}`} className={`image-thumb ${COVER}`} failedClassName={`image-thumb image-failed ${COVER}`} />
@@ -33,7 +33,8 @@ export function ListingCard({ card, children, testId = "browse-card" }: { card: 
         )}
       </div>
       <h2 className="order-2 mt-2 mb-1 line-clamp-2 h-12 text-[1rem] leading-6 font-semibold text-wrap">
-        <Link href={`${BROWSE_PATH}/${listing.id}`} className="text-link text-text no-underline hover:underline focus-visible:-outline-offset-2">
+        <Link href={`${BROWSE_PATH}/${listing.id}`} // Stretched over the whole card, so a click anywhere opens the listing; other controls sit above it.
+          className="text-link text-text no-underline after:absolute after:inset-0 hover:underline focus-visible:-outline-offset-2">
           {title}
         </Link>
       </h2>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { focusFirstError } from "@/components/form-errors";
 
 /**
  * The announcement, notice and error-summary focus handling shared by the registration forms: one polite live
@@ -11,12 +12,17 @@ export function useFormFeedback() {
   const [notice, setNotice] = useState("");
   const [summaryTick, setSummaryTick] = useState(0);
   const [noticeTick, setNoticeTick] = useState(0);
+  const [errorTick, setErrorTick] = useState(0);
   const summaryRef = useRef<HTMLDivElement>(null);
   const noticeRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
     if (summaryTick > 0) summaryRef.current?.focus();
   }, [summaryTick]);
+
+  useEffect(() => {
+    if (errorTick > 0) focusFirstError(summaryRef.current);
+  }, [errorTick]);
 
   useEffect(() => {
     if (noticeTick > 0) noticeRef.current?.focus();
@@ -53,6 +59,7 @@ export function useFormFeedback() {
     setNotice,
     showNotice,
     focusSummary: () => setSummaryTick((tick) => tick + 1),
+    focusErrors: () => setErrorTick((tick) => tick + 1),
     summaryRef,
     noticeRef,
   };

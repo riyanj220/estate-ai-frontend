@@ -31,6 +31,17 @@ export function SearchBox({ path }: { path: string }) {
   const [outcome, setOutcome] = useState<Outcome>({ kind: "idle" });
   const [empty, setEmpty] = useState(false);
 
+  // On the home page the box sits behind a summary line: opening it puts the cursor in it.
+  useEffect(() => {
+    const details = input.current?.closest("details");
+    if (!details) return;
+    const onToggle = () => {
+      if (details.open) input.current?.focus();
+    };
+    details.addEventListener("toggle", onToggle);
+    return () => details.removeEventListener("toggle", onToggle);
+  }, []);
+
   useEffect(() => {
     try {
       const kept = window.sessionStorage.getItem(STORAGE_KEY);
@@ -114,7 +125,8 @@ export function SearchBox({ path }: { path: string }) {
             ref={input}
             id="search-text"
             type="text"
-            className="order-1 min-h-13 w-auto flex-[1_1_18rem] rounded-full bg-[#fdfdfb] px-4.5 max-[641px]:basis-full"
+            placeholder="Type here what you want…"
+            className="search-glass order-1 w-auto flex-[1_1_18rem] placeholder:text-muted max-[641px]:basis-full"
             maxLength={SEARCH_MAX_CHARS}
             autoComplete="off"
             enterKeyHint="search"

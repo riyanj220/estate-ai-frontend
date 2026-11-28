@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { FormErrors, focusFirstError } from "@/components/form-errors";
 import {
   NETWORK_ERROR,
   REJECTED_ERROR,
@@ -15,7 +16,6 @@ type FieldName = "email" | "password";
 type Fields = Record<string, string[]>;
 
 const FIELD_ORDER: FieldName[] = ["email", "password"];
-const FIELD_LABELS: Record<FieldName, string> = { email: "Email address", password: "Password" };
 // One message for every credential failure: wrong password, unknown email, deactivated and locked out look alike.
 const STUCK_MESSAGE = "We could not open the next page. Please try again.";
 const SAFETY_TIMEOUT_MS = 10_000;
@@ -41,10 +41,8 @@ export function SignInForm({ target }: { target: string }) {
   const [summaryTick, setSummaryTick] = useState(0);
   const [noticeTick, setNoticeTick] = useState(0);
 
-  const hasErrors = formErrors.length > 0 || Object.keys(fieldErrors).length > 0;
-
   useEffect(() => {
-    if (summaryTick > 0) summaryRef.current?.focus();
+    if (summaryTick > 0) focusFirstError(summaryRef.current);
   }, [summaryTick]);
 
   useEffect(() => {
@@ -72,7 +70,7 @@ export function SignInForm({ target }: { target: string }) {
     };
   }, []);
 
-  // Failures are announced by exactly one mechanism: the focused alert (or the focused error summary).
+  // Failures are announced by exactly one mechanism: the focused alert (or the field that takes focus).
   // The live region only carries progress.
   function showNotice(message: string) {
     setAnnouncement("");
@@ -150,38 +148,12 @@ export function SignInForm({ target }: { target: string }) {
     }
   }
 
-  const invalidFields = FIELD_ORDER.filter((name) => fieldErrors[name]?.length);
-
   return (
     <>
       <div role="status" aria-live="polite" className="sr-only">
         {announcement}
       </div>
-      {hasErrors && (
-        <div ref={summaryRef} tabIndex={-1} role="group" className="error-summary" aria-labelledby="error-summary-title">
-          <h2 id="error-summary-title" className="summary-title">
-            There is a problem
-          </h2>
-          <ul>
-            {invalidFields.map((name) => (
-              <li key={name}>
-                <a
-                  href={`#${name}`}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    document.getElementById(name)?.focus();
-                  }}
-                >
-                  {FIELD_LABELS[name]}: {fieldErrors[name].join(" ")}
-                </a>
-              </li>
-            ))}
-            {formErrors.map((message, index) => (
-              <li key={index}>{message}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <FormErrors ref={summaryRef} messages={formErrors} />
       {notice && (
         <p ref={noticeRef} tabIndex={-1} role="alert" className="notice" data-testid="form-notice">
           {notice}

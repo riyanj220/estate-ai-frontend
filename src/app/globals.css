@@ -548,7 +548,8 @@
     @apply [transform:translateX(4px)];
   }
 
-  .searchbar-field select {
+  .searchbar-field select,
+  .searchbar-field .chevron {
     @apply appearance-none pr-6 w-full min-h-8 border-0 text-muted;
     background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%231e3a2f' stroke-width='2'%3E%3Cpath d='m1 1 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 0.25rem center;
     font: inherit;
@@ -564,6 +565,10 @@
   }
   .browse-grid .card > * {
     @apply order-5 mx-5;
+  }
+  /* Above the card-wide link of the title. */
+  .browse-grid .card :is(.advertiser a, .save-control, button) {
+    @apply relative z-10;
   }
   /* Who listed it and when sit at the foot of the card. */
   .browse-grid .card > .advertiser {
@@ -868,6 +873,21 @@
   }
 
   /* The described search: the microphone mark, the recording dot and the spinner. */
+  /* The magnifier inside the described-search box. */
+  .field input.search-glass {
+    @apply border-2 border-accent/45 pl-12 hover:border-accent focus:border-accent rounded-full min-h-13 pr-4.5;
+    background: var(--color-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%231e3a2f' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat left 1.125rem center;
+  }
+  /* Sign in and sign up: one short message under its field, and no boxes. */
+  .auth .field {
+    @apply flex flex-col;
+  }
+  .auth .field .field-error {
+    @apply order-1 mt-1 mb-0 text-[0.8125rem] font-medium;
+  }
+  .auth .notice {
+    @apply mb-4 border-0 bg-transparent p-0 text-[0.875rem] font-semibold text-error;
+  }
   .voice-button {
     @apply inline-flex items-center justify-center gap-2;
   }
@@ -907,10 +927,10 @@
       @apply hidden;
     }
     select:not([multiple]):not([size])::picker(select) {
-      @apply min-w-[max(anchor-size(width),13rem)] max-h-[min(18rem,50vh)] [position-try-order:normal] my-2 p-1.5 bg-surface border border-line rounded-[0.875rem] shadow-[0_16px_40px_rgb(23_32_27_/_14%)];
+      @apply w-[max(anchor-size(width),12rem)] min-w-0 max-h-[min(18rem,50vh)] [position-try-order:normal] my-2 p-1.5 bg-surface border border-line rounded-[0.875rem] shadow-[0_16px_40px_rgb(23_32_27_/_14%)];
     }
     select:not([multiple]):not([size]) option {
-      @apply flex items-center justify-between gap-4 min-h-10 py-2 px-3.5 rounded-lg text-text text-[0.9375rem] cursor-pointer;
+      @apply whitespace-normal wrap-anywhere flex items-center justify-between gap-4 min-h-10 py-2 px-3.5 rounded-lg text-text text-[0.9375rem] cursor-pointer;
     }
     select:not([multiple]):not([size]) option:hover,
     select:not([multiple]):not([size]) option:focus-visible {

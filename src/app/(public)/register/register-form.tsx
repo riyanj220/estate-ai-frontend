@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CheckYourEmail } from "@/components/check-your-email";
-import { ErrorSummary } from "@/components/error-summary";
+import { FormErrors } from "@/components/form-errors";
 import { Field, PasswordField } from "@/components/form-field";
 import { getApi } from "@/lib/api";
 import {
@@ -20,12 +20,6 @@ type Fields = Record<string, string[]>;
 type Status = "idle" | "pending" | "success";
 
 const FIELD_ORDER: FieldName[] = ["full_name", "email", "password", "phone"];
-const FIELD_LABELS: Record<FieldName, string> = {
-  full_name: "Full name",
-  email: "Email address",
-  password: "Password",
-  phone: "Phone number",
-};
 
 function isFieldName(key: string): key is FieldName {
   return (FIELD_ORDER as string[]).includes(key);
@@ -36,14 +30,12 @@ export function RegisterForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [fieldErrors, setFieldErrors] = useState<Fields>({});
   const [formErrors, setFormErrors] = useState<string[]>([]);
-  const { announcement, setAnnouncement, resetAnnouncement, announce, notice, setNotice, showNotice, focusSummary, summaryRef, noticeRef } =
+  const { announcement, setAnnouncement, resetAnnouncement, announce, notice, setNotice, showNotice, focusErrors, summaryRef, noticeRef } =
     useFormFeedback();
   const [submittedEmail, setSubmittedEmail] = useState("");
   const submitting = useRef(false);
   const successRef = useRef<HTMLHeadingElement>(null);
   const focusEmail = useRef(false);
-
-  const hasErrors = formErrors.length > 0 || Object.keys(fieldErrors).length > 0;
 
   useEffect(() => {
     if (status === "idle" && focusEmail.current) {
@@ -109,8 +101,8 @@ export function RegisterForm() {
         if (Object.keys(fields).length === 0 && general.length === 0) general.push(body.message);
         setFieldErrors(fields);
         setFormErrors(general);
-        focusSummary();
-        announce("The form has errors. Review the list at the top of the page.");
+        focusErrors();
+        announce("Check the highlighted fields.");
       } else if (response.status === 429) {
         showNotice(rateLimitMessage(response.headers.get("Retry-After")));
       } else if (response.status >= 500) {
@@ -146,15 +138,7 @@ export function RegisterForm() {
   return (
     <>
       {live}
-      {hasErrors && (
-        <ErrorSummary
-          ref={summaryRef}
-          order={FIELD_ORDER}
-          labels={FIELD_LABELS}
-          fieldErrors={fieldErrors}
-          formErrors={formErrors}
-        />
-      )}
+      <FormErrors ref={summaryRef} messages={formErrors} />
       {notice && (
         <p ref={noticeRef} tabIndex={-1} role="alert" className="notice" data-testid="form-notice">
           {notice}

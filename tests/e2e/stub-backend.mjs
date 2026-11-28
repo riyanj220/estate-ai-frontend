@@ -4647,7 +4647,7 @@ const server = createServer((req, res) => {
     });
   }
   if (url.pathname === "/__cities-mode") {
-    return choose("citiesMode", ["ok", "empty", "error", "flaky", "hang", "slow", "other", "malformed", "partial"], (v) => {
+    return choose("citiesMode", ["ok", "empty", "error", "flaky", "hang", "slow", "other", "malformed", "partial", "one"], (v) => {
       citiesMode = v;
       citiesCount = 0;
     });
@@ -4657,6 +4657,7 @@ const server = createServer((req, res) => {
     citiesCount += 1;
     if (citiesMode === "ok") return json(200, { items: CITIES });
     if (citiesMode === "empty") return json(200, { items: [] });
+    if (citiesMode === "one") return json(200, { items: CITIES.slice(0, 1) });
     if (citiesMode === "other") return json(200, { items: [{ id: "44444444-4444-4444-8444-444444444444", name: "Multan" }, { id: "55555555-5555-4555-8555-555555555555", name: "Peshawar" }] });
     if (citiesMode === "malformed") return json(200, { items: [{ id: 7, name: "Numeric id" }, { id: "66666666-6666-4666-8666-666666666666", name: "  " }, null] });
     if (citiesMode === "partial") {

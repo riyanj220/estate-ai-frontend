@@ -59,13 +59,13 @@ test("page: agency heading, six labelled fields with autocomplete hints, link to
   expect(await page.getByLabel("Office address").evaluate((el) => el.tagName)).toBe("TEXTAREA");
   await expect(page.getByLabel("Office address")).toHaveAttribute("maxlength", "300");
   await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("autocomplete", "new-password");
-  await page.getByRole("link", { name: "Create an individual account" }).click();
+  await page.getByRole("navigation", { name: "Account type" }).getByRole("link", { name: "Individual" }).click();
   await expect(page).toHaveURL(/\/register$/);
 });
 
 test("links: the Individual page and the home page link to the Agency page @smoke", async ({ page }) => {
   await page.goto("/register");
-  await page.getByRole("link", { name: "Register an agency instead" }).click();
+  await page.getByRole("navigation", { name: "Account type" }).getByRole("link", { name: "Agency" }).click();
   await expect(page).toHaveURL(/\/register\/agency$/);
   await page.goto("/");
   await expect(page.getByRole("main").getByRole("link", { name: "Create an account" })).toHaveAttribute("href", "/register");
@@ -102,7 +102,7 @@ test("cities empty: a message shows and submit is blocked with no request", asyn
   await page.getByLabel("Office address").fill(ADDRESS);
   await page.getByLabel("Password", { exact: true }).fill(PASSPHRASE);
   await submit(page).click();
-  await expect(page.locator(".error-summary")).toContainText("City: No cities are available right now.");
+  await expect(page.locator("#city_id-error")).toContainText("No cities are available right now.");
   expect((await lastAgency(request)).count).toBe(0);
 });
 
@@ -120,11 +120,9 @@ for (const mode of ["error", "hang"]) {
     await expect(page.locator("body")).not.toContainText("Internal detail");
     await expect(page.getByLabel("Agency name")).toBeEnabled();
     await submit(page).click();
-    await expect(page.locator(".error-summary")).toContainText("City: Cities could not be loaded. Retry above.");
+    await expect(page.locator("#city_id-error")).toContainText("Cities could not be loaded. Retry above.");
     await expect(page.locator("[role=status]")).toHaveCount(1); // the form's one live region
-    // The summary link goes to the Retry button, not to a dead control.
-    await page.locator(".error-summary").getByRole("link", { name: /City/ }).click();
-    await expect(page.locator("#city-retry")).toBeFocused();
+    await expect(page.locator("#agency_name")).toBeFocused(); // the first empty field of this submit
     expect((await lastAgency(request)).count).toBe(0);
     await setCities(request, "ok");
     await page.getByRole("button", { name: "Retry" }).click();
@@ -141,17 +139,14 @@ test("cities network failure shows the same inline message", async ({ page, requ
   await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
 });
 
-test("required checks: empty submit shows field errors in the focused summary and sends nothing", async ({ page, request }) => {
+test("required checks: empty submit shows field errors, focuses the first and sends nothing", async ({ page, request }) => {
   await open(page);
   await submit(page).click();
-  const summary = page.locator(".error-summary");
-  await expect(summary).toBeFocused();
-  await expect(summary.getByRole("link")).toHaveCount(6);
+  await expect(page.locator("#agency_name")).toBeFocused();
+  await expect(page.locator(".field-error")).toHaveCount(6);
   await expect(page.locator("#agency_name-error")).toContainText("Enter the agency name.");
   await expect(page.locator("#city_id-error")).toContainText("Select a city.");
   await expect(page.getByLabel("City")).toHaveAttribute("aria-invalid", "true");
-  await summary.getByRole("link", { name: /Office address/ }).click();
-  await expect(page.locator("#office_address")).toBeFocused();
   expect((await lastAgency(request)).count).toBe(0);
 });
 
@@ -191,14 +186,13 @@ test("existing email: the server answers the same 202 and the page is identical"
   expect(await page.locator("main section").innerText()).toBe(fresh);
 });
 
-test("field errors: mapped text under each field, summary focus, values kept, password cleared", async ({ page, request }) => {
+test("field errors: mapped text under each field, first field focused, values kept, password cleared", async ({ page, request }) => {
   await setAgency(request, "fields");
   await open(page);
   await fill(page);
   await submit(page).click();
-  const summary = page.locator(".error-summary");
-  await expect(summary).toBeFocused();
-  await expect(summary.getByRole("link")).toHaveCount(6);
+  await expect(page.locator("#agency_name")).toBeFocused();
+  await expect(page.locator(".field-error")).toHaveCount(6);
   for (const [id, message] of [
     ["agency_name", "Enter a valid agency name."],
     ["email", "Enter a valid email address."],
@@ -240,13 +234,13 @@ test("server sentences are shown as sent, unknown codes become the generic messa
   await expect(page.locator("body")).not.toContainText("mystery_code");
 });
 
-test("mixed and non-field errors: known fields mapped, the rest in the summary", async ({ page, request }) => {
+test("mixed and non-field errors: known fields mapped, the rest above the form", async ({ page, request }) => {
   await setAgency(request, "mixed");
   await open(page);
   await fill(page);
   await submit(page).click();
-  const summary = page.locator(".error-summary");
-  await expect(summary.getByRole("link")).toHaveCount(1);
+  const summary = page.getByTestId("form-errors");
+  await expect(page.locator(".field-error")).toHaveCount(1);
   await expect(page.locator("#email")).toHaveAttribute("aria-invalid", "true");
   await expect(summary).toContainText("Unknown field.");
   await expect(summary).toContainText("Reload the page and try again.");
@@ -261,7 +255,7 @@ test("400 without fields shows the server message", async ({ page, request }) =>
   await open(page);
   await fill(page);
   await submit(page).click();
-  await expect(page.locator(".error-summary")).toContainText("The server rejected this request.");
+  await expect(page.getByTestId("form-errors")).toContainText("The server rejected this request.");
 });
 
 test("invalid city: the selection is cleared, the list is re-fetched, the error is shown", async ({ page, request }) => {
@@ -281,7 +275,7 @@ test("invalid city: the selection is cleared, the list is re-fetched, the error 
   const sent = (await lastAgency(request)).count;
   await page.getByLabel("Password", { exact: true }).fill(PASSPHRASE);
   await submit(page).click();
-  await expect(page.locator(".error-summary")).toContainText("City: Select a city.");
+  await expect(page.locator("#city_id-error")).toContainText("Select a city.");
   expect((await lastAgency(request)).count).toBe(sent);
   await page.getByLabel("City").selectOption(LAHORE);
   await expect(page.getByLabel("City")).toHaveValue(LAHORE);
@@ -484,7 +478,7 @@ async function scanPrivacy(page: Page, context: import("@playwright/test").Brows
 
 for (const [mode, ready] of [
   ["accepted", (page: Page) => expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible()],
-  ["fields", (page: Page) => expect(page.locator(".error-summary")).toBeFocused()],
+  ["fields", (page: Page) => expect(page.locator("#agency_name")).toBeFocused()],
   ["rate_limited", (page: Page) => expect(page.getByTestId("form-notice")).toBeVisible()],
   ["error", (page: Page) => expect(page.getByTestId("form-notice")).toBeVisible()],
 ] as const) {
@@ -550,13 +544,13 @@ const axeStates: Record<string, (page: Page, request: APIRequestContext) => Prom
   },
   "required errors": async (page) => {
     await submit(page).click();
-    await expect(page.locator(".error-summary")).toBeFocused();
+    await expect(page.locator("#agency_name")).toBeFocused();
   },
   "server errors": async (page, request) => {
     await setAgency(request, "fields");
     await fill(page);
     await submit(page).click();
-    await expect(page.locator(".error-summary")).toBeFocused();
+    await expect(page.locator("#agency_name")).toBeFocused();
   },
   "rate limited": async (page, request) => {
     await setAgency(request, "rate_limited");

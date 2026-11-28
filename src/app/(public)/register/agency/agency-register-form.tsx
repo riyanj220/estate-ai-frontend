@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CheckYourEmail } from "@/components/check-your-email";
-import { ErrorSummary } from "@/components/error-summary";
+import { FormErrors } from "@/components/form-errors";
 import { CityField } from "@/components/city-field";
 import { Field, PasswordField } from "@/components/form-field";
 import { getApi } from "@/lib/api";
@@ -18,23 +18,14 @@ import {
 } from "@/lib/forms";
 import { mapFieldMessages } from "@/lib/password-messages";
 import { AGENCY_FIELD_MESSAGES, GENERAL_FIELD_MESSAGES } from "@/lib/registration-messages";
-import { cityFocusTarget, cityRequiredMessage, useCities } from "@/lib/use-cities";
+import { cityRequiredMessage, useCities } from "@/lib/use-cities";
 import { useFormFeedback } from "@/lib/use-form-feedback";
 
 type FieldName = "agency_name" | "email" | "phone" | "office_address" | "city_id" | "password";
 type Fields = Record<string, string[]>;
 type Status = "idle" | "pending" | "success";
 
-// The order of the form, and so of the summary.
 const FIELD_ORDER: FieldName[] = ["agency_name", "email", "phone", "office_address", "city_id", "password"];
-const FIELD_LABELS: Record<FieldName, string> = {
-  agency_name: "Agency name",
-  email: "Business email",
-  phone: "Business phone",
-  office_address: "Office address",
-  city_id: "City",
-  password: "Password",
-};
 const ADDRESS_MAX_LENGTH = 300; // the server limit
 const SIGNED_IN = "You are already signed in. Sign out to register another account.";
 
@@ -56,7 +47,7 @@ export function AgencyRegisterForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [fieldErrors, setFieldErrors] = useState<Fields>({});
   const [formErrors, setFormErrors] = useState<string[]>([]);
-  const { announcement, setAnnouncement, resetAnnouncement, announce, notice, setNotice, showNotice, focusSummary, summaryRef, noticeRef } =
+  const { announcement, setAnnouncement, resetAnnouncement, announce, notice, setNotice, showNotice, focusErrors, summaryRef, noticeRef } =
     useFormFeedback();
   const { cities, reload } = useCities({
     announce,
@@ -70,8 +61,6 @@ export function AgencyRegisterForm() {
   const submitting = useRef(false);
   const successRef = useRef<HTMLHeadingElement>(null);
   const focusEmail = useRef(false);
-
-  const hasErrors = formErrors.length > 0 || Object.keys(fieldErrors).length > 0;
 
   useEffect(() => {
     if (status === "idle" && focusEmail.current) {
@@ -115,8 +104,8 @@ export function AgencyRegisterForm() {
     if (Object.keys(missing).length > 0) {
       setFieldErrors(missing);
       setFormErrors([]);
-      focusSummary();
-      announce("The form has errors. Review the list at the top of the page.");
+      focusErrors();
+      announce("Check the highlighted fields.");
       return;
     }
     submitting.current = true;
@@ -172,8 +161,8 @@ export function AgencyRegisterForm() {
         if (cityGone) reload("select", "The city list was refreshed. Select a city.");
         setFieldErrors(fields);
         setFormErrors(general);
-        focusSummary();
-        announce("The form has errors. Review the list at the top of the page.");
+        focusErrors();
+        announce("Check the highlighted fields.");
       } else if (response.status === 429) {
         showNotice(rateLimitMessage(response.headers.get("Retry-After")));
       } else if (response.status === 403) {
@@ -210,16 +199,7 @@ export function AgencyRegisterForm() {
   return (
     <>
       {live}
-      {hasErrors && (
-        <ErrorSummary
-          ref={summaryRef}
-          order={FIELD_ORDER}
-          labels={FIELD_LABELS}
-          fieldErrors={fieldErrors}
-          formErrors={formErrors}
-          targets={{ city_id: cityFocusTarget(cities) }}
-        />
-      )}
+      <FormErrors ref={summaryRef} messages={formErrors} />
       {notice && (
         <p ref={noticeRef} tabIndex={-1} role="alert" className="notice" data-testid="form-notice">
           {notice}
