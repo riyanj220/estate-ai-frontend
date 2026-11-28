@@ -59,7 +59,7 @@ export function FilterPanel({ path, schema, places, query, problems }: Props) {
               <Control key={filter.id} filter={filter} places={places} query={query} problems={problems} />
             ))}
           </div>
-          <p className="filter-actions">
+          <p className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-6">
             <button type="submit" className="primary-button">
               Apply filters
             </button>

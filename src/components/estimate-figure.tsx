@@ -43,13 +43,13 @@ export function EstimateFigure({ value, testId }: { value: string; testId: strin
         if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
       }}
     >
-      <span className="muted-label">{ESTIMATE_VALUE_LABEL}</span>
-      <span className="estimate-line">
+      <span className="block text-muted text-[0.875rem]">{ESTIMATE_VALUE_LABEL}</span>
+      <span className="flex flex-wrap items-center gap-2 text-[1.25rem]">
         <strong data-testid={`${testId}-value`}>PKR {formatPrice(value)}</strong>
         <button
           ref={button}
           type="button"
-          className="info-button"
+          className="w-8 h-8 rounded-[50%] border-2 border-accent bg-surface text-accent text-[1rem] font-bold cursor-pointer"
           aria-label={ESTIMATE_INFO_LABEL}
           aria-expanded={open}
           aria-controls={popoverId}

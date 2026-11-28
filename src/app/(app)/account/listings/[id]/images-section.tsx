@@ -580,7 +580,7 @@ export function ImagesSection({
           <ul aria-labelledby="upload-title" className="upload-list">
             {rows.map((row) => (
               <li key={row.key} data-testid="upload-row" data-state={row.state}>
-                <span className="upload-name">{row.name}</span>: <span data-testid="upload-status">{STATE_TEXT[row.state]}</span>
+                <span className="font-semibold wrap-anywhere">{row.name}</span>: <span data-testid="upload-status">{STATE_TEXT[row.state]}</span>
                 {row.message ? <span data-testid="upload-message">. {row.message}</span> : null}
               </li>
             ))}
@@ -605,27 +605,27 @@ export function ImagesSection({
           {IMAGES_EMPTY}
         </p>
       ) : (
-        <ol className="image-list" aria-label="Images in order" data-testid="image-list">
+        <ol className="list-none p-0 m-0 grid grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))] gap-4" aria-label="Images in order" data-testid="image-list">
           {media.map((item, index) => {
             const name = `image ${index + 1} of ${count}`;
             const asking = confirming === item.id;
             const alt = item.isCover ? `Image ${index + 1} of ${count}, cover image` : `Image ${index + 1} of ${count}`;
             return (
-              <li key={item.id} id={`image-item-${item.id}`} tabIndex={-1} className="image-card" data-testid="image-item" data-cover={item.isCover ? "true" : "false"}>
+              <li key={item.id} id={`image-item-${item.id}`} tabIndex={-1} className="border border-border rounded-(--radius) p-3 bg-surface" data-testid="image-item" data-cover={item.isCover ? "true" : "false"}>
                 <Thumb url={item.url} alt={alt} label={name} />
-                <p className="image-caption">
+                <p className="flex flex-wrap items-center gap-2 my-2 mx-0 font-semibold">
                   <span data-testid="image-position">
                     Image {index + 1} of {count}
                   </span>
                   {item.isCover && (
-                    <span className="cover-badge" data-testid="image-cover">
+                    <span className="bg-accent text-accent-text rounded-(--radius) py-0.5 px-2 text-[0.875rem]" data-testid="image-cover">
                       Cover image
                     </span>
                   )}
                 </p>
                 {asking ? (
                   <div role="group" aria-label={`Delete ${name}`} className="image-actions" data-testid="image-confirm">
-                    <p className="image-confirm-text">Delete this image? This cannot be undone.</p>
+                    <p className="basis-full m-0">Delete this image? This cannot be undone.</p>
                     <button type="button" className="primary-button" aria-disabled={flag} onClick={() => void remove(item.id)}>
                       Yes, delete<span className="sr-only"> {name}</span>
                     </button>

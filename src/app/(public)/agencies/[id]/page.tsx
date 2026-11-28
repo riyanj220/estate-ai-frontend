@@ -50,15 +50,15 @@ export default async function AgencyPage({ params, searchParams }: Props) {
   return (
     <>
       {back}
-      <div className="card agency-profile" data-testid="agency-profile">
+      <div className="card agency-profile mb-4 wrap-anywhere" data-testid="agency-profile">
         <div className="advertiser">
           {logoUrl && (
             // Same-origin and public only while the Agency is Active, so never the image optimiser.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt={`Logo of ${name}`} className="advertiser-logo" />
+            <img src={logoUrl} alt={`Logo of ${name}`} className="w-8 h-8 object-contain rounded-(--radius)" />
           )}
           <h1 className="page-title">{name}</h1>
-          {verified && <span className="verified-mark">Verified agency</span>}
+          {verified && <span className="py-0 px-2 rounded-(--radius) bg-accent text-accent-text text-[0.8125rem] font-bold">Verified agency</span>}
         </div>
         {!verified && <p className="muted">Not verified</p>}
         {description && <p style={{ whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{description}</p>}

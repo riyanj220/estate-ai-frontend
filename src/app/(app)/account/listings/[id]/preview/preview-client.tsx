@@ -114,7 +114,7 @@ function PreviewBody({ listing, estimate, signInPath }: { listing: ListingView; 
 
   return (
     <>
-      <p className="notice preview-banner" data-testid="preview-banner">
+      <p className="notice preview-banner font-bold" data-testid="preview-banner">
         {PREVIEW_BANNER}
       </p>
       <article className="card" aria-labelledby="preview-listing-title" style={{ marginBottom: "var(--space)" }} data-testid="preview-listing">
@@ -129,7 +129,7 @@ function PreviewBody({ listing, estimate, signInPath }: { listing: ListingView; 
             {PREVIEW_NO_IMAGES}
           </p>
         ) : (
-          <ul className="preview-gallery" aria-label="Images" data-testid="preview-images">
+          <ul className="list-none p-0 mt-0 mx-0 mb-4 grid grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-4" aria-label="Images" data-testid="preview-images">
             {listing.media.map((item, index) => (
               <li key={item.id}>
                 <RetryImage

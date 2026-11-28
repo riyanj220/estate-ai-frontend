@@ -64,7 +64,7 @@ export function SiteHeader() {
   return (
     <header className={scrolledAway && !menuOpen ? "site-header site-header-away" : "site-header"}>
       <div className="site-header-inner">
-          <Link href="/" className="brand">
+          <Link href="/" className="inline-flex items-center gap-2 font-serif font-bold text-accent text-[1.5rem] tracking-[-0.01em] mr-0 max-[641px]:text-[1.25rem]">
             <svg aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
               <path d="M3 11.5 12 4l9 7.5M5.5 10v10h13V10M10 20v-5h4v5" />
             </svg>
@@ -82,12 +82,12 @@ export function SiteHeader() {
             </Link>
           </nav>
         {status === "signed_in" && account && (
-          <button type="button" className="secondary-button sidebar-toggle" aria-expanded={menuOpen} onClick={() => setMenuAt(menuOpen ? null : pathname)}>
+          <button type="button" className="secondary-button ml-auto min-[1024px]:hidden" aria-expanded={menuOpen} onClick={() => setMenuAt(menuOpen ? null : pathname)}>
             Menu
           </button>
         )}
         <nav aria-label="Account" className={status === "signed_in" ? `account-nav sidebar${menuOpen ? " sidebar-open" : ""}` : "account-nav"} aria-busy={status === "loading"}>
-          {status === "loading" && <span className="nav-placeholder" aria-hidden="true" />}
+          {status === "loading" && <span className="inline-block w-40 h-6" aria-hidden="true" />}
           {status === "signed_out" && (
             <>
               <Link href="/sign-in" className="text-link">

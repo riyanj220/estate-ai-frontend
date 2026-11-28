@@ -98,7 +98,7 @@ export function AmenitiesSection({
           <div
             key={kind.kind}
             role="group"
-            className="amenity-kind"
+            className="mt-0 mx-0 mb-4 p-0 min-w-0"
             aria-labelledby={`amenities-${kind.kind}-title`}
             aria-describedby={nearby ? "amenities-nearby-help" : undefined}
             data-testid={`amenities-${kind.kind}`}
@@ -121,7 +121,7 @@ export function AmenitiesSection({
             {kind.groups.map((group) => (
               <div key={group.group} className="amenity-group" data-testid={`amenities-group-${kind.kind}-${group.group}`}>
                 {group.group !== kind.kind && (
-                  <h5 className="amenity-group-title" data-testid={`amenities-group-title-${kind.kind}-${group.group}`}>
+                  <h5 className="text-[0.9375rem] font-semibold mt-3 mx-0 mb-1" data-testid={`amenities-group-title-${kind.kind}-${group.group}`}>
                     {group.title}
                   </h5>
                 )}
@@ -134,14 +134,14 @@ export function AmenitiesSection({
         );
       })}
       {others.length > 0 && (
-        <div role="group" className="amenity-kind" aria-labelledby="amenities-other-title" aria-describedby="amenities-other-help" data-testid="amenities-other">
+        <div role="group" className="mt-0 mx-0 mb-4 p-0 min-w-0" aria-labelledby="amenities-other-title" aria-describedby="amenities-other-help" data-testid="amenities-other">
           <h4 id="amenities-other-title" className="group-title">
             {OTHER_AMENITIES}
           </h4>
           <p id="amenities-other-help" className="hint">
             {OTHER_AMENITIES_HELP}
           </p>
-          <ul className="amenity-other-list">
+          <ul className="m-0 pl-5">
             {others.map((code) => (
               <li key={code} data-testid={`amenity-other-${code}`}>
                 {amenityLabel(code, catalogue.items)}: {STATE_TEXT[map[code]]}{" "}
@@ -163,7 +163,7 @@ function AmenityItem({ item, state, describedBy, onChoose }: { item: CatalogueIt
   return (
     <fieldset className="amenity-item" data-testid={`amenity-${item.code}`} aria-describedby={describedBy}>
       <legend>{item.label}</legend>
-      <div className="amenity-options">
+      <div className="flex flex-wrap gap-x-5 gap-y-0">
         {OPTIONS.map((option) => {
           const id = `amenity-${item.code}-${option.state || "unanswered"}`;
           return (

@@ -293,7 +293,7 @@ export function ListingsClient({ admin }: { admin: boolean }) {
       {load.kind === "ready" && (
         <>
           <p>
-            <Link href={NEW_LISTING_PATH} className="primary-button button-link">
+            <Link href={NEW_LISTING_PATH} className="primary-button inline-flex items-center no-underline">
               Create listing
             </Link>
           </p>
@@ -316,7 +316,7 @@ export function ListingsClient({ admin }: { admin: boolean }) {
         </div>
       ) : (
         <>
-          <div role="tablist" aria-label="Listing status" className="status-tabs" data-testid="listing-tabs" onKeyDown={onTabKeyDown}>
+          <div role="tablist" aria-label="Listing status" className="flex flex-wrap gap-2 mt-0 mx-0 mb-4" data-testid="listing-tabs" onKeyDown={onTabKeyDown}>
             {TAB_ORDER.map((status) => (
               <button
                 key={status}
@@ -332,7 +332,7 @@ export function ListingsClient({ admin }: { admin: boolean }) {
               >
                 {TAB_LABELS[status]}
                 {tabCounts && (
-                  <span className="tab-count" data-testid={`tab-count-${status}`}>
+                  <span className="[font-variant-numeric:tabular-nums]" data-testid={`tab-count-${status}`}>
                     {" "}
                     ({tabCounts[status]})
                   </span>
@@ -361,11 +361,11 @@ export function ListingsClient({ admin }: { admin: boolean }) {
                   <ul className="listing-list" aria-label="My listings">
                     {items.map((item) => (
                       <li key={item.id} id={itemId(item.id)} tabIndex={-1} className="card listing-item" data-testid="listing">
-                        <Link href={`${LISTINGS_PATH}/${encodeURIComponent(item.id)}`} className="text-link listing-link">
+                        <Link href={`${LISTINGS_PATH}/${encodeURIComponent(item.id)}`} className="text-link listing-link font-semibold">
                           {summaryOf(item.fields)}
                         </Link>
-                        <span className="status-marker">{label(item.status)}</span>
-                        {item.underReview && <span className="status-marker">Under review</span>}
+                        <span className="status-marker text-[0.8125rem] font-bold border border-muted rounded-(--radius) py-0 px-1.5 text-muted">{label(item.status)}</span>
+                        {item.underReview && <span className="status-marker text-[0.8125rem] font-bold border border-muted rounded-(--radius) py-0 px-1.5 text-muted">Under review</span>}
                         <Link href={`${LISTINGS_PATH}/${encodeURIComponent(item.id)}/preview`} className="text-link" data-testid="listing-preview-link">
                           Preview<span className="sr-only">: {summaryOf(item.fields)}</span>
                         </Link>

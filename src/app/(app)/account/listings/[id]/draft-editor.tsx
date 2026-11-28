@@ -1187,7 +1187,7 @@ export function DraftEditor({
     if (!fieldPublish[name]?.includes(CONFIRM_REQUIRED_ERROR)) return null;
     const busy = pending || imagesBusy || deleting || publishing ? true : undefined;
     return (
-      <div className="conflict-actions" data-testid={`confirm-${name}`}>
+      <div className="flex flex-wrap gap-2" data-testid={`confirm-${name}`}>
         <button type="button" className="secondary-button" aria-disabled={busy} onClick={() => void confirmValue(name)}>
           {CONFIRM_LABEL}
           <span className="sr-only"> for {actionLabelOf(name, listing.fields.category)}</span>
@@ -1207,11 +1207,11 @@ export function DraftEditor({
     if (!showConflict(name)) return null;
     const busy = pending ? true : undefined;
     return (
-      <div className="conflict-row" data-testid={`conflict-${name}`}>
+      <div className="mt-2" data-testid={`conflict-${name}`}>
         <p id={`${name}-latest`} className="hint">
-          Latest saved{registry?.field(name)?.sellerDeclared ? ` (${SELLER_DECLARED.toLowerCase()})` : ""}: <span className="latest-value">{latestOf(name)}</span>
+          Latest saved{registry?.field(name)?.sellerDeclared ? ` (${SELLER_DECLARED.toLowerCase()})` : ""}: <span className="latest-value font-semibold whitespace-pre-wrap wrap-anywhere">{latestOf(name)}</span>
         </p>
-        <div className="conflict-actions">
+        <div className="flex flex-wrap gap-2">
           <button type="button" className="secondary-button" aria-disabled={busy} onClick={() => keepMine(name)}>
             Keep mine<span className="sr-only"> for {actionLabelOf(name, listing.fields.category)}</span>
           </button>
@@ -1299,7 +1299,7 @@ export function DraftEditor({
           {(props) => (
             <>
               <div className="money-row">
-                <span className="money-prefix" aria-hidden="true">
+                <span className="money-prefix inline-flex items-center py-0 px-3 font-semibold text-muted bg-bg border border-border rounded-(--radius)" aria-hidden="true">
                   {def.currency ?? "PKR"}
                 </span>
                 <input

@@ -157,7 +157,7 @@ export function ListingReview({ listingId, draft }: { listingId: string; draft: 
             ))}
           </dl>
           {detail.media.length > 0 && (
-            <ul className="preview-gallery" aria-label="Images">
+            <ul className="list-none p-0 mt-0 mx-0 mb-4 grid grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-4" aria-label="Images">
               {detail.media.map((item, index) => (
                 <li key={item.id}>
                   <RetryImage url={item.url} alt={`Image ${index + 1} of ${detail.media.length}`} label={`image ${index + 1}`} className="image-thumb" failedClassName="image-thumb image-failed" />

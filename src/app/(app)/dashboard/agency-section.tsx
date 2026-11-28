@@ -148,7 +148,7 @@ function ListingRow({ row }: { row: DashboardRow }) {
   const place = [row.locality?.name, row.city?.name].filter(Boolean).join(", ");
   return (
     <li className="listing-item" data-testid="portfolio-row">
-      <Link href={`${LISTINGS_PATH}/${row.id}`} className="listing-link">
+      <Link href={`${LISTINGS_PATH}/${row.id}`} className="listing-link font-semibold">
         {row.title ?? "Untitled listing"}
       </Link>
       <p className="muted">

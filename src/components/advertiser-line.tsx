@@ -15,7 +15,7 @@ export function AdvertiserLine({ advertiser, testId }: { advertiser: Advertiser;
       {advertiser.logoUrl && (
         // Decorative (the name is beside it); same-origin and public only while the Agency is Active, so never the image optimiser.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={advertiser.logoUrl} alt="" loading="lazy" className="advertiser-logo" />
+        <img src={advertiser.logoUrl} alt="" loading="lazy" className="w-8 h-8 object-contain rounded-(--radius)" />
       )}
       <p>
         {advertiser.name ? "Listed by agency: " : "Listed by "}
@@ -27,7 +27,7 @@ export function AdvertiserLine({ advertiser, testId }: { advertiser: Advertiser;
           (advertiser.name ?? "an agency")
         )}
       </p>
-      {advertiser.verified && <span className="verified-mark">Verified agency</span>}
+      {advertiser.verified && <span className="py-0 px-2 rounded-(--radius) bg-accent text-accent-text text-[0.8125rem] font-bold">Verified agency</span>}
     </div>
   );
 }

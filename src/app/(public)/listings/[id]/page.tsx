@@ -67,7 +67,7 @@ export default async function ListingPage({ params }: Props) {
       <article className="detail">
         <header className="detail-head">
           <h1 className="page-title">{fields.title ?? "Untitled listing"}</h1>
-          {place && <p className="detail-place">{place}</p>}
+          {place && <p className="text-muted text-[1.0625rem]">{place}</p>}
           <p className="muted" data-testid="listing-summary">
             {summaryOf(fields)}
             {publishedOn && (
@@ -79,9 +79,9 @@ export default async function ListingPage({ params }: Props) {
           </p>
         </header>
         {media.length === 0 ? (
-          <p className="detail-no-images">{PREVIEW_NO_IMAGES}</p>
+          <p className="bg-sand rounded-2xl py-12 px-6 text-center text-muted mb-8">{PREVIEW_NO_IMAGES}</p>
         ) : (
-          <ul className="preview-gallery detail-gallery" aria-label="Images" data-testid="listing-images">
+          <ul className="list-none p-0 mt-0 mx-0 grid detail-gallery" aria-label="Images" data-testid="listing-images">
             {media.map((item, index) => (
               <li key={item.id}>
                 <RetryImage
@@ -95,11 +95,11 @@ export default async function ListingPage({ params }: Props) {
             ))}
           </ul>
         )}
-        <div className="detail-columns">
+        <div className="grid grid-cols-[minmax(0,1fr)_21rem] gap-x-8 gap-y-6 items-start max-[901px]:grid-cols-[minmax(0,1fr)]">
           {/* First in the document so a phone shows the price and the actions before the long details. */}
-          <div className="detail-side">
+          <div className="[grid-column:2] [grid-row:1] sticky top-24 min-w-0 max-[901px]:[grid-column:1] max-[901px]:static">
             <div className="card">
-              <p className="detail-price" data-testid="listing-headline-price">
+              <p className="font-serif text-[1.625rem] font-semibold text-accent wrap-anywhere mb-3" data-testid="listing-headline-price">
                 {priceText(fields)}
               </p>
               {result.advertiser && <AdvertiserLine advertiser={result.advertiser} testId="listing-advertiser" />}
@@ -112,7 +112,7 @@ export default async function ListingPage({ params }: Props) {
               </div>
             </div>
           </div>
-          <div className="detail-main">
+          <div className="[grid-column:1] [grid-row:1] grid gap-6 min-w-0 max-[901px]:[grid-row:2]">
             {fields.description !== null && (
               <section className="card" aria-labelledby="listing-description-title">
                 <h2 id="listing-description-title" className="section-title">

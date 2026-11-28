@@ -13,7 +13,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       <div className="auth-visual">
         <Image src="/images/auth.jpg" alt="" fill sizes="(max-width: 900px) 0px, 50vw" loading="eager" className="object-cover" />
         <div className="auth-visual-text">
-          <p className="auth-headline">Your next move starts here</p>
+          <p className="font-serif text-[clamp(2rem,3.4vw,3rem)] font-semibold leading-[1.1] max-w-[14ch] mb-5">Your next move starts here</p>
           <ul>
             {POINTS.map((point) => (
               <li key={point}>{point}</li>
@@ -21,8 +21,8 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           </ul>
         </div>
       </div>
-      <div className="auth-main">
-        <div className="auth-form">{children}</div>
+      <div className="flex items-center justify-center py-12 px-(--gutter) bg-surface max-[901px]:items-start">
+        <div className="w-full max-w-108">{children}</div>
       </div>
     </div>
   );

@@ -69,6 +69,13 @@ const viewports = [
 
 // ---------------------------------------------------------------- structure
 
+/** The themed dropdown from the keyboard: an arrow opens the list, an arrow moves to the next choice, Enter takes it. */
+async function pickByKey(page: Page, key: "ArrowUp" | "ArrowDown") {
+  await page.keyboard.press(key);
+  await page.keyboard.press(key);
+  await page.keyboard.press("Enter");
+}
+
 test("location: a Location block with the public group and a separated private address, each with its helper @smoke", async ({ page, request }) => {
   await openDraft(page, request, "location_filled");
   await ready(page);
@@ -539,7 +546,7 @@ test("location: the saved locality is not offered after the city moved away, and
   await expect(page.getByTestId("locality-status")).toHaveText("We could not load the localities.");
   await expect(field(page, "Locality")).toHaveValue(DHA);
   await field(page, "Locality").focus();
-  await page.keyboard.press("ArrowUp");
+  await pickByKey(page, "ArrowUp");
   await expect(field(page, "Locality")).toHaveValue("");
   await saveButton(page).click();
   await expect(page.getByTestId("draft-live")).toHaveText("Saved");
@@ -690,12 +697,12 @@ test("location: the whole section works from the keyboard", async ({ page, reque
   await openDraft(page, request, "house_blank");
   await ready(page);
   await field(page, "City").focus();
-  await page.keyboard.press("ArrowDown"); // Karachi
+  await pickByKey(page, "ArrowDown"); // Karachi
   await expect(field(page, "City")).toHaveValue(KARACHI);
   await page.keyboard.press("Tab");
   await expect(field(page, "Locality")).toBeFocused();
   await expect(field(page, "Locality").locator("option", { hasText: "Clifton" })).toHaveCount(1);
-  await page.keyboard.press("ArrowDown"); // Clifton, the first option after Not answered
+  await pickByKey(page, "ArrowDown"); // Clifton, the first option after Not answered
   await expect(field(page, "Locality")).toHaveValue(CLIFTON);
   for (const text of ["Palm", "P1", "S1", "B1"]) {
     await page.keyboard.press("Tab");

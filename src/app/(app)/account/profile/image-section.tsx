@@ -352,7 +352,7 @@ export function ProfileImageSection({
             failedTestId="profile-image-failed"
           />
         ) : (
-          <div className="profile-image profile-image-placeholder" aria-hidden="true" data-testid="profile-image-placeholder" />
+          <div className="profile-image profile-image-placeholder border border-border border-dashed" aria-hidden="true" data-testid="profile-image-placeholder" />
         )}
       </div>
       {!shown.image && (
@@ -400,7 +400,7 @@ export function ProfileImageSection({
               if (event.key === "Escape") cancelRemove();
             }}
           >
-            <p className="image-confirm-text">{text.removeAsk}</p>
+            <p className="basis-full m-0">{text.removeAsk}</p>
             <button type="button" className="primary-button" aria-disabled={flag} onClick={() => void remove()}>
               Yes, remove
             </button>

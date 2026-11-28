@@ -203,7 +203,7 @@ export function DetailsSection({
             <>
               {def.type === "money" ? (
                 <div className="money-row">
-                  <span className="money-prefix" aria-hidden="true">
+                  <span className="money-prefix inline-flex items-center py-0 px-3 font-semibold text-muted bg-bg border border-border rounded-(--radius)" aria-hidden="true">
                     {def.currency ?? "PKR"}
                   </span>
                   {input}

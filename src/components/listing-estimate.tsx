@@ -79,8 +79,8 @@ export function ListingEstimatePanel({ listingId, initial }: { listingId: string
           <div className="price-compare">
             {askingTotal !== null && (
               <div>
-                <span className="muted-label">{ASKING_TOTAL_LABEL}</span>
-                <span className="estimate-line">
+                <span className="block text-muted text-[0.875rem]">{ASKING_TOTAL_LABEL}</span>
+                <span className="flex flex-wrap items-center gap-2 text-[1.25rem]">
                   <strong data-testid="asking-total">PKR {formatPrice(askingTotal)}</strong>
                 </span>
               </div>
@@ -90,7 +90,7 @@ export function ListingEstimatePanel({ listingId, initial }: { listingId: string
           {comparison && (
             <p data-testid="price-comparison">{comparison.verdict === "about_equal" ? ABOUT_EQUAL_TEXT : comparisonText(comparison.verdict, comparison.percent)}</p>
           )}
-          <h3 className="muted-label">{FORECAST_TITLE}</h3>
+          <h3 className="block text-muted text-[0.875rem]">{FORECAST_TITLE}</h3>
           {forecast ? (
             <p data-testid="price-forecast">
               <strong>

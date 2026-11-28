@@ -112,7 +112,7 @@ export function ListingResults({ path, query, result, schema, places, empty }: P
               </ul>
             </FavouritesProvider>
           )}
-          <p className="browse-pages">
+          <p className="flex flex-wrap gap-x-6 gap-y-2 justify-center mt-8">
             {query.has("cursor") && (
               <Link href={href(firstPage)} className="text-link">
                 Back to the first page

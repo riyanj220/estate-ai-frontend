@@ -5,7 +5,6 @@ import { UnreadCountProvider } from "@/lib/use-unread-count";
 import "@fontsource-variable/fraunces";
 import "@fontsource-variable/inter";
 import "./globals.css";
-import "./design.css";
 
 export const metadata: Metadata = {
   title: "EstateAI",

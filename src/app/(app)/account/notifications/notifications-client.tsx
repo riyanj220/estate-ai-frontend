@@ -425,8 +425,8 @@ export function NotificationsClient({ admin }: { admin: boolean }) {
       {heading}
       {load.kind !== "loading" && (
         <>
-          <div className="notification-toolbar">
-            <div role="group" aria-label="Show notifications" className="notification-toolbar">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+            <div role="group" aria-label="Show notifications" className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
               {(["all", "unread"] as const).map((value) => (
                 <button key={value} type="button" className="secondary-button" aria-pressed={filter === value} onClick={() => chooseFilter(value)}>
                   {value === "all" ? "All" : "Unread"}
@@ -474,13 +474,13 @@ export function NotificationsClient({ admin }: { admin: boolean }) {
               {filter === "unread" ? "You have no unread notifications." : "You have no notifications."}
             </p>
           ) : (
-            <ul className="notification-list" aria-label="Notifications">
+            <ul className="list-none mt-0 mx-0 mb-4 p-0" aria-label="Notifications">
               {list.items.map((item) => {
                 const view = describeNotification(item.kind, item.payload);
                 const time = formatTime(item.created_at);
                 return (
                   <li key={item.id} id={itemId(item.id)} tabIndex={-1} className={`card notification-item${item.read ? "" : " notification-item-unread"}`} data-testid="notification">
-                    <strong className="notification-title">{view.title}</strong>
+                    <strong className="notification-title block text-[1.0625rem] mb-1">{view.title}</strong>
                     {view.text && <p>{view.text}</p>}
                     {view.href && (
                       <p>
@@ -490,13 +490,13 @@ export function NotificationsClient({ admin }: { admin: boolean }) {
                         </Link>
                       </p>
                     )}
-                    <div className="notification-meta">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2">
                       {time && (
                         <time dateTime={item.created_at} className="muted" style={{ marginBottom: 0 }}>
                           {time}
                         </time>
                       )}
-                      {!item.read && <span className="unread-marker">Unread</span>}
+                      {!item.read && <span className="text-[0.8125rem] font-bold border border-accent rounded-(--radius) py-0 px-1.5 text-accent">Unread</span>}
                       {!item.read && (
                         <button
                           type="button"

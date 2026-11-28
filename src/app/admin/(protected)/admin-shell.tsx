@@ -105,7 +105,7 @@ export function AdminShell({ children, embedded = false }: { children: React.Rea
       )}
       <header className="site-header">
         <div className="site-header-inner admin-header-inner">
-          <span className="brand">EstateAI Administration</span>
+          <span className="inline-flex items-center gap-2 font-serif font-bold text-accent text-[1.5rem] tracking-[-0.01em] mr-0 max-[641px]:text-[1.25rem]">EstateAI Administration</span>
           <AccountControls signingOut={signingOut} onSignOut={onSignOut} />
         </div>
         <nav aria-label="Administration" className="admin-nav">
@@ -135,7 +135,7 @@ export function AdminUnavailable() {
     <AdminSessionWatch paused={signingOut}>
       <header className="site-header">
         <div className="site-header-inner admin-header-inner">
-          <span className="brand">EstateAI Administration</span>
+          <span className="inline-flex items-center gap-2 font-serif font-bold text-accent text-[1.5rem] tracking-[-0.01em] mr-0 max-[641px]:text-[1.25rem]">EstateAI Administration</span>
           <AccountControls signingOut={signingOut} onSignOut={onSignOut} />
         </div>
         <StatusLine failure={failure} statusRef={statusRef} />
