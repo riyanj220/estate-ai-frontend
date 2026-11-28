@@ -405,7 +405,7 @@ export function NotificationsClient({ admin }: { admin: boolean }) {
   const markAllBlocked = !hasUnread || markingAll || showLoading;
 
   const heading = (
-    <h1 id={HEADING_ID} tabIndex={-1} className="page-title">
+    <h1 id={HEADING_ID} tabIndex={-1} className="page-title mb-6 tracking-[-0.02em]">
       Notifications
     </h1>
   );
@@ -425,16 +425,27 @@ export function NotificationsClient({ admin }: { admin: boolean }) {
       {heading}
       {load.kind !== "loading" && (
         <>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
-            <div role="group" aria-label="Show notifications" className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div role="group" aria-label="Show notifications" className="flex gap-1 rounded-full bg-sand p-1">
               {(["all", "unread"] as const).map((value) => (
-                <button key={value} type="button" className="secondary-button" aria-pressed={filter === value} onClick={() => chooseFilter(value)}>
+                <button
+                  key={value}
+                  type="button"
+                  className="min-h-11 min-w-24 cursor-pointer rounded-full px-5 text-[0.9375rem] font-semibold aria-pressed:bg-accent aria-pressed:text-white"
+                  aria-pressed={filter === value}
+                  onClick={() => chooseFilter(value)}
+                >
                   {value === "all" ? "All" : "Unread"}
                 </button>
               ))}
             </div>
             {load.kind === "ready" && (
-              <>
+              <div className="flex flex-wrap items-center gap-3">
+                {count !== null && (
+                  <span className="text-[0.875rem] font-semibold text-muted" data-testid="unread-summary">
+                    {count} unread
+                  </span>
+                )}
                 <button
                   type="button"
                   className="secondary-button"
@@ -447,12 +458,7 @@ export function NotificationsClient({ admin }: { admin: boolean }) {
                 >
                   Mark all as read
                 </button>
-                {count !== null && (
-                  <span className="muted" data-testid="unread-summary" style={{ marginBottom: 0 }}>
-                    {count} unread
-                  </span>
-                )}
-              </>
+              </div>
             )}
           </div>
           {/* The one live region of this page: results and failures of marking read and loading more. */}
@@ -470,43 +476,56 @@ export function NotificationsClient({ admin }: { admin: boolean }) {
       ) : (
         <>
           {list.items.length === 0 ? (
-            <p className="card" data-testid="notifications-empty">
+            <p className="card py-12 text-center text-muted" data-testid="notifications-empty">
               {filter === "unread" ? "You have no unread notifications." : "You have no notifications."}
             </p>
           ) : (
-            <ul className="list-none mt-0 mx-0 mb-4 p-0" aria-label="Notifications">
+            <ul className="card mb-4 list-none divide-y divide-line overflow-hidden p-0" aria-label="Notifications">
               {list.items.map((item) => {
                 const view = describeNotification(item.kind, item.payload);
                 const time = formatTime(item.created_at);
                 return (
-                  <li key={item.id} id={itemId(item.id)} tabIndex={-1} className={`card notification-item${item.read ? "" : " notification-item-unread"}`} data-testid="notification">
-                    <strong className="notification-title block text-[1.0625rem] mb-1">{view.title}</strong>
-                    {view.text && <p>{view.text}</p>}
-                    {view.href && (
-                      <p>
-                        <Link href={view.href} className="text-link" data-testid="notification-link">
-                          {view.linkText}
-                          <span className="sr-only">: {view.title}</span>
-                        </Link>
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2">
-                      {time && (
-                        <time dateTime={item.created_at} className="muted" style={{ marginBottom: 0 }}>
-                          {time}
-                        </time>
-                      )}
-                      {!item.read && <span className="text-[0.8125rem] font-bold border border-accent rounded-(--radius) py-0 px-1.5 text-accent">Unread</span>}
-                      {!item.read && (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          aria-disabled={busyIds.has(item.id) ? true : undefined}
-                          onClick={() => void markRead(item)}
-                        >
-                          Mark as read<span className="sr-only">: {view.title}</span>
-                        </button>
-                      )}
+                  <li
+                    key={item.id}
+                    id={itemId(item.id)}
+                    tabIndex={-1}
+                    className={`notification-item grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 p-5${item.read ? "" : " notification-item-unread bg-accent-soft/60"}`}
+                    data-testid="notification"
+                  >
+                    <span aria-hidden="true" className={`flex size-10 items-center justify-center rounded-full ${item.read ? "bg-sand text-muted" : "bg-accent text-white"}`}>
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M6 16V10a6 6 0 0 1 12 0v6l2 2H4zM10 21h4" />
+                      </svg>
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+                        <strong className="notification-title">{view.title}</strong>
+                        {time && (
+                          <time dateTime={item.created_at} className="text-[0.8125rem] text-muted">
+                            {time}
+                          </time>
+                        )}
+                      </div>
+                      {view.text && <p className="mt-1 text-[0.9375rem] text-muted">{view.text}</p>}
+                      <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1">
+                        {view.href && (
+                          <Link href={view.href} className="text-link inline-flex min-h-11 items-center font-semibold" data-testid="notification-link">
+                            {view.linkText}
+                            <span className="sr-only">: {view.title}</span>
+                          </Link>
+                        )}
+                        {!item.read && <span className="rounded-full border border-accent px-2 text-[0.75rem] font-bold text-accent">Unread</span>}
+                        {!item.read && (
+                          <button
+                            type="button"
+                            className="text-link min-h-11 cursor-pointer text-[0.875rem] font-semibold aria-disabled:cursor-not-allowed aria-disabled:text-muted"
+                            aria-disabled={busyIds.has(item.id) ? true : undefined}
+                            onClick={() => void markRead(item)}
+                          >
+                            Mark as read<span className="sr-only">: {view.title}</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </li>
                 );

@@ -209,14 +209,8 @@
   .unread-badge {
     @apply inline-block min-w-5 py-0 px-1.5 rounded-full bg-accent text-accent-text text-[0.8125rem] font-bold text-center leading-[1.25rem];
   }
-  .notification-item {
-    @apply mb-3;
-  }
   .notification-item:focus {
-    @apply [outline:3px_solid_var(--color-accent)] [outline-offset:2px];
-  }
-  .notification-item-unread {
-    @apply border-l-4 border-l-accent;
+    @apply [outline:3px_solid_var(--color-accent)] [outline-offset:-3px];
   }
   .secondary-button[aria-pressed="true"] {
     @apply bg-accent text-accent-text;
