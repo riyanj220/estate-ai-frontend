@@ -15,7 +15,7 @@ never directly in `src/components` or `src/lib`.
 | `src/app` | Routes only. A piece used by one route sits beside its page. |
 | `src/components/ui` | Shared building blocks that know nothing about a feature (fields, errors, dropdowns). |
 | `src/components/layout` | Header, footer and the navigation links with badges. |
-| `src/components/{auth,listing,search,messaging,reference,ai}` | Components of one feature. |
+| `src/components/{auth,listing,valuation,search,messaging,reference,ai}` | Components of one feature. |
 | `src/lib/{http,forms,auth,account,listing,search,messaging,reference,ai}` | Logic of one feature, without markup of its own (providers excepted). `http` is the API client; `forms` is form handling. |
 | `src/api` | The generated API client types. |
 
@@ -99,11 +99,11 @@ Use `PW_CHANNEL=chrome` when the Playwright Chromium is not downloaded.
 ## AI Price Estimates
 
 "Get estimate" on a Draft asks the backend only when pressed, from the saved details, and never changes the asking price. Every place that
-shows an estimated figure uses `src/components/listing/estimate-figure.tsx` (the value with its one info button and popover). `/about-estimates`
+shows an estimated figure uses `src/components/valuation/estimate-figure.tsx` (the value with its one info button and popover). `/about-estimates`
 explains the figures; keep it in step with the backend's `docs/valuation.md`. No user-facing string may say "demo" or "demonstration"
 (`tests/e2e/estimate.spec.ts` scans `src/`).
 
-On a public Listing page `src/components/listing/listing-estimate.tsx` shows the total asking price beside the Estimated Property Value, the
+On a public Listing page `src/components/valuation/listing-estimate.tsx` shows the total asking price beside the Estimated Property Value, the
 backend's verdict (about equal, above or below) and the 5-Year Price Forecast, under the one info button; the owner also gets
 "Recompute estimate". The figures come from `GET /api/v1/public/listings/{id}/estimate` (stub: `/__listing-estimate-mode`; tests
 `tests/e2e/listing-estimate.spec.ts`).

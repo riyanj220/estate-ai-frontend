@@ -6,9 +6,6 @@ export const metadata: Metadata = { title: "Choose a new password | EstateAI", r
 
 export default function ResetPasswordPage() {
   return (
-    <>
-      <h1 className="page-title">Choose a new password</h1>
-      <ResetPasswordClient />
-    </>
+    <ResetPasswordClient />
   );
 }

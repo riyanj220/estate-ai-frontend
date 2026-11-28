@@ -42,7 +42,7 @@ const EMPTY: Record<FieldName, string> = {
   password: "",
 };
 
-export function AgencyRegisterForm() {
+export function AgencyRegisterForm({ intro }: { intro: React.ReactNode }) {
   const [values, setValues] = useState<Record<FieldName, string>>(EMPTY);
   const [status, setStatus] = useState<Status>("idle");
   const [fieldErrors, setFieldErrors] = useState<Fields>({});
@@ -198,6 +198,7 @@ export function AgencyRegisterForm() {
   const pending = status === "pending";
   return (
     <>
+      {intro}
       {live}
       <FormErrors ref={summaryRef} messages={formErrors} />
       {notice && (

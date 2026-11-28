@@ -17,6 +17,7 @@ import {
 import { RESET_PASSWORD_MESSAGES, mapFieldMessages } from "@/lib/forms/password-messages";
 import { scrubTokenFromHistory } from "@/lib/auth/scrub-token";
 import { useSession } from "@/lib/auth/session";
+import { StatusScreen } from "@/components/auth/status-screen";
 
 type LinkFailure = "link_expired" | "link_used" | "link_invalid" | "missing";
 type State = "init" | "form" | "success" | LinkFailure;
@@ -144,8 +145,12 @@ export function ResetPasswordClient() {
     }
   }
 
+  const heading = <h1 className="page-title">Choose a new password</h1>;
+
   if (state === "init") {
     return (
+      <>
+      {heading}
       <section className="card" aria-labelledby="result-title">
         <h2 id="result-title" className="section-title">
           Checking your link
@@ -154,26 +159,23 @@ export function ResetPasswordClient() {
           Please wait a moment.
         </p>
       </section>
+      </>
     );
   }
 
   if (state === "success") {
     return (
-      <section className="card" aria-labelledby="result-title">
-        <h2 id="result-title" tabIndex={-1} ref={headingRef} className="section-title">
-          Password changed
-        </h2>
+      <StatusScreen icon="done" title="Password changed" headingRef={headingRef} action={{ href: "/sign-in", label: "Sign in" }}>
         <p>Your password has been changed. Sign in with your new password.</p>
-        <Link href="/sign-in" className="text-link">
-          Sign in
-        </Link>
-      </section>
+      </StatusScreen>
     );
   }
 
   if (state !== "form") {
     const failure = FAILURES[state];
     return (
+      <>
+      {heading}
       <section className="card" aria-labelledby="result-title">
         <h2 id="result-title" tabIndex={-1} ref={headingRef} className="section-title">
           {failure.title}
@@ -185,12 +187,14 @@ export function ResetPasswordClient() {
           Request a new link
         </Link>
       </section>
+      </>
     );
   }
 
   const hasErrors = fieldErrors.length > 0 || formErrors.length > 0;
   return (
     <>
+      {heading}
       <div role="status" aria-live="polite" className="sr-only">
         {pending ? "Saving your new password." : ""}
       </div>

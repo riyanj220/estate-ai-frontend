@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdvertiserLine } from "@/components/listing/advertiser-line";
-import { ListingEstimatePanel } from "@/components/listing/listing-estimate";
+import { ListingEstimatePanel } from "@/components/valuation/listing-estimate";
 import { FloorPlanView } from "@/components/listing/floor-plan-view";
 import { ListingFacts, priceText } from "@/components/listing/listing-facts";
+import { estimateFactors } from "@/lib/listing/estimate-factors";
 import { MessageSeller } from "@/components/messaging/message-seller";
 import { ReportListing } from "@/components/listing/report-listing";
 import { RetryImage } from "@/components/ui/retry-image";
@@ -38,8 +39,11 @@ export default async function ListingPage({ params }: Props) {
   const result = await fetchDetail(id);
   if (result.kind === "not_found") notFound();
   const back = (
-    <p>
-      <Link href={BROWSE_PATH} className="text-link">
+    <p className="mb-5">
+      <Link
+        href={BROWSE_PATH}
+        className="inline-flex min-h-11 items-center gap-2 font-semibold text-accent before:content-['←'_/_''] before:transition-transform hover:underline hover:before:-translate-x-1"
+      >
         Back to browse
       </Link>
     </p>
@@ -131,6 +135,7 @@ export default async function ListingPage({ params }: Props) {
                 </p>
               </section>
             )}
+            <ListingEstimatePanel listingId={listing.id} initial={insight} factors={estimateFactors(listing)} />
             <section className="card" aria-labelledby="listing-details-title">
               <h2 id="listing-details-title" className="section-title">
                 Property details
@@ -138,9 +143,6 @@ export default async function ListingPage({ params }: Props) {
               <ListingFacts listing={listing} registry={registry} catalogue={catalogue} cityName={result.cityName} localityName={result.localityName} testId="listing" />
               {registry === null && <p className="state-note">{PREVIEW_DETAILS_FAILED}</p>}
             </section>
-            <div className="card">
-              <ListingEstimatePanel listingId={listing.id} initial={insight} />
-            </div>
             {listing.floorPlan && (
               <div className="card">
                 <FloorPlanView url={listing.floorPlan.url} testId="listing-floor-plan" />

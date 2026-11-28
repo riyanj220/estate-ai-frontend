@@ -18,12 +18,16 @@ import { EMAIL_MESSAGES, mapFieldMessages } from "@/lib/forms/password-messages"
 // One confirmation for every address: nothing here says whether the address has an account.
 const SENT = "If that address has an account, we have sent a link. It works once and expires in 1 hour.";
 
+// How long before another link can be asked for.
+const RESEND_SECONDS = 40;
+
 type Target = "summary" | "notice" | "sent";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
   const [pending, setPending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [wait, setWait] = useState(0);
   const [notice, setNotice] = useState("");
   const [fieldErrors, setFieldErrors] = useState<string[]>([]);
   const [formErrors, setFormErrors] = useState<string[]>([]);
@@ -40,6 +44,12 @@ export function ForgotPasswordForm() {
     refs[focus.target].current?.focus();
   }, [focus]);
 
+  useEffect(() => {
+    if (wait <= 0) return;
+    const timer = setTimeout(() => setWait((left) => left - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [wait]);
+
   function show(target: Target) {
     setFocus((current) => ({ target, count: (current?.count ?? 0) + 1 }));
   }
@@ -47,7 +57,7 @@ export function ForgotPasswordForm() {
   // The request is anonymous: the backend view ignores the session cookie, so no CSRF token is needed (no withCsrf).
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting.current) return;
+    if (submitting.current || wait > 0) return;
     submitting.current = true;
     setPending(true);
     setSent(false);
@@ -68,6 +78,7 @@ export function ForgotPasswordForm() {
       if (response.status === 202) {
         setEmail(trimmed);
         setSent(true);
+        setWait(RESEND_SECONDS);
         return show("sent");
       }
       const body = response.status === 400 ? readErrorBody(error) : null;
@@ -106,7 +117,7 @@ export function ForgotPasswordForm() {
         {pending ? "Sending the link." : ""}
       </div>
       {sent && (
-        <p ref={sentRef} tabIndex={-1} role="status" className="card" data-testid="form-sent">
+        <p ref={sentRef} tabIndex={-1} role="status" className="mt-6 rounded-xl bg-accent-soft p-4 text-[0.9375rem] text-accent" data-testid="form-sent">
           {SENT}
         </p>
       )}
@@ -140,7 +151,7 @@ export function ForgotPasswordForm() {
           {notice}
         </p>
       )}
-      <form method="post" onSubmit={onSubmit} noValidate className="card" aria-busy={pending} style={sent ? { marginTop: "var(--space)" } : undefined}>
+      <form method="post" onSubmit={onSubmit} noValidate className="card" aria-busy={pending}>
         <div className="field">
           <label htmlFor="email">Email address</label>
           {fieldErrors.length > 0 && (
@@ -167,9 +178,19 @@ export function ForgotPasswordForm() {
             }}
           />
         </div>
-        <button type="submit" className="primary-button" disabled={pending}>
+        <button type="submit" className="primary-button" disabled={pending || wait > 0}>
           {pending ? "Sending…" : "Send reset link"}
         </button>
+        {wait > 0 && (
+          <div className="mt-3" data-testid="resend-timer">
+            <p className="text-center text-[0.875rem] text-muted">
+              You can request another link in <strong className="text-text tabular-nums">{wait} seconds</strong>.
+            </p>
+            <div aria-hidden="true" className="mt-2 h-1 overflow-hidden rounded-full bg-sand">
+              <div className="h-full bg-accent transition-[width] duration-1000 ease-linear" style={{ width: `${(wait / RESEND_SECONDS) * 100}%` }} />
+            </div>
+          </div>
+        )}
       </form>
       <p className="muted" style={{ marginTop: "var(--space)" }}>
         Remembered it?{" "}

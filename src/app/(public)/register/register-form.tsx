@@ -25,7 +25,7 @@ function isFieldName(key: string): key is FieldName {
   return (FIELD_ORDER as string[]).includes(key);
 }
 
-export function RegisterForm() {
+export function RegisterForm({ intro }: { intro: React.ReactNode }) {
   const [values, setValues] = useState<Record<FieldName, string>>({ full_name: "", email: "", password: "", phone: "" });
   const [status, setStatus] = useState<Status>("idle");
   const [fieldErrors, setFieldErrors] = useState<Fields>({});
@@ -137,6 +137,7 @@ export function RegisterForm() {
 
   return (
     <>
+      {intro}
       {live}
       <FormErrors ref={summaryRef} messages={formErrors} />
       {notice && (

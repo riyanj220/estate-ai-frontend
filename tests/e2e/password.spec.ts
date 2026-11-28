@@ -74,6 +74,7 @@ test("signed-in header and dashboard link to Change password; a Visitor sees nei
 const sendButton = (page: Page) => page.getByRole("button", { name: /Send reset link|Sending/ });
 
 test("forgot: any address gets the same neutral confirmation; the address is trimmed @smoke", async ({ page, request }) => {
+  await page.clock.install();
   await page.goto("/forgot-password");
   await expect(page.getByRole("heading", { level: 1, name: "Forgot your password?" })).toBeVisible();
   await expect(page.getByLabel("Email address")).toHaveAttribute("autocomplete", "email");
@@ -82,7 +83,14 @@ test("forgot: any address gets the same neutral confirmation; the address is tri
   await expect(page.getByTestId("form-sent")).toHaveText(SENT);
   await expect(page.getByTestId("form-sent")).toBeFocused();
   expect(await last(request, "forgot")).toEqual({ count: 1, body: { email: EMAIL } });
+  // Another link can be asked for only after a short wait, counted down on screen.
+  const timer = page.getByTestId("resend-timer");
+  await expect(timer).toContainText("You can request another link in 40 seconds.");
+  await expect(sendButton(page)).toBeDisabled();
   await page.getByLabel("Email address").fill("nobody@example.org");
+  await expect(sendButton(page)).toBeDisabled();
+  for (let second = 0; second < 40; second += 1) await page.clock.runFor(1_000);
+  await expect(timer).toHaveCount(0);
   await sendButton(page).click();
   await expect(page.getByTestId("form-sent")).toHaveText(SENT);
   await expect(page.locator("body")).not.toContainText(/not registered|no account|does not exist/i);

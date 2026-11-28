@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { EstimateFigure } from "@/components/listing/estimate-figure";
+import { EstimateFigure } from "@/components/valuation/estimate-figure";
 import { FloorPlanView } from "@/components/listing/floor-plan-view";
 import { ListingFacts } from "@/components/listing/listing-facts";
 import { RetryImage } from "@/components/ui/retry-image";

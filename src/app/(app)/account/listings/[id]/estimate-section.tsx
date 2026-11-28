@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { EstimateFigure } from "@/components/listing/estimate-figure";
+import { EstimateFigure } from "@/components/valuation/estimate-figure";
 import { getApi } from "@/lib/http/api";
 import { withCsrf } from "@/lib/http/csrf";
 import { readEstimate, type Estimate } from "@/lib/listing/estimate";

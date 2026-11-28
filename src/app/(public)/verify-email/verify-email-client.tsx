@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getApi } from "@/lib/http/api";
 import { readErrorBody, withTimeout } from "@/lib/forms/forms";
 import { scrubTokenFromHistory } from "@/lib/auth/scrub-token";
 import { RequestLinkForm } from "./request-link-form";
+import { StatusScreen } from "@/components/auth/status-screen";
 
 type State = "pending" | "success" | "link_expired" | "link_used" | "link_invalid" | "missing" | "retry";
 
@@ -64,8 +64,12 @@ export function VerifyEmailClient() {
     if (state !== "pending") headingRef.current?.focus();
   }, [state]);
 
+  const heading = <h1 className="page-title">Email verification</h1>;
+
   if (state === "pending") {
     return (
+      <>
+      {heading}
       <section className="card" aria-labelledby="result-title">
         <h2 id="result-title" className="section-title">
           Confirming your email address
@@ -74,28 +78,22 @@ export function VerifyEmailClient() {
           Please wait a moment.
         </p>
       </section>
+      </>
     );
   }
 
   if (state === "success") {
     return (
-      <section className="card" aria-labelledby="result-title">
-        <h2 id="result-title" tabIndex={-1} ref={headingRef} className="section-title">
-          Email verified
-        </h2>
-        <p role="status" className="muted">
-          Thank you. Your email address is confirmed and your account is ready.
-        </p>
-        <Link href="/sign-in" className="text-link">
-          Sign in
-        </Link>
-      </section>
+      <StatusScreen icon="done" title="Email verified" headingRef={headingRef} action={{ href: "/sign-in", label: "Sign in" }}>
+        <p role="status">Thank you. Your email address is confirmed and your account is ready.</p>
+      </StatusScreen>
     );
   }
 
   if (state === "retry") {
     return (
       <>
+      {heading}
       <section className="card" aria-labelledby="result-title">
         <h2 id="result-title" tabIndex={-1} ref={headingRef} className="section-title">
           We could not confirm your email address
@@ -115,6 +113,7 @@ export function VerifyEmailClient() {
   const failure = FAILURES[state];
   return (
     <>
+      {heading}
       <section className="card" aria-labelledby="result-title">
         <h2 id="result-title" tabIndex={-1} ref={headingRef} className="section-title">
           {failure.title}

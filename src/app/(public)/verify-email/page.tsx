@@ -5,9 +5,6 @@ export const metadata: Metadata = { title: "Verify your email | EstateAI", robot
 
 export default function VerifyEmailPage() {
   return (
-    <>
-      <h1 className="page-title">Email verification</h1>
-      <VerifyEmailClient />
-    </>
+    <VerifyEmailClient />
   );
 }
