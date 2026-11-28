@@ -15,6 +15,10 @@ export function SiteHeader() {
   const [signingOut, setSigningOut] = useState(false);
   const [failure, setFailure] = useState("");
   const pathname = usePathname();
+  // The phone menu belongs to the page it was opened on, so following a link closes it.
+  const [menuAt, setMenuAt] = useState<string | null>(null);
+  const menuOpen = menuAt === pathname;
+  const current = (href: string) => (pathname === href ? ("page" as const) : undefined);
 
   async function onSignOut() {
     if (signingOut) return;
@@ -58,7 +62,12 @@ export function SiteHeader() {
               Browse
             </Link>
           </nav>
-        <nav aria-label="Account" className="account-nav" aria-busy={status === "loading"}>
+        {status === "signed_in" && account && (
+          <button type="button" className="secondary-button sidebar-toggle" aria-expanded={menuOpen} onClick={() => setMenuAt(menuOpen ? null : pathname)}>
+            Menu
+          </button>
+        )}
+        <nav aria-label="Account" className={status === "signed_in" ? `account-nav sidebar${menuOpen ? " sidebar-open" : ""}` : "account-nav"} aria-busy={status === "loading"}>
           {status === "loading" && <span className="nav-placeholder" aria-hidden="true" />}
           {status === "signed_out" && (
             <>
@@ -72,30 +81,35 @@ export function SiteHeader() {
           )}
           {status === "signed_in" && account && (
             <>
-              <span data-testid="account-name">{displayName(account)}</span>
+              <span data-testid="account-name" className="sidebar-name">
+                {displayName(account)}
+              </span>
               {note && (
                 <span className="state-note" data-testid="state-note">
                   {note}
                 </span>
               )}
+              <Link href="/dashboard" className="text-link" aria-current={current("/dashboard")}>
+                Dashboard
+              </Link>
               {profileLinkLabel(account.account_type) && (
-                <Link href="/account/profile" className="text-link">
+                <Link href="/account/profile" className="text-link" aria-current={current("/account/profile")}>
                   {profileLinkLabel(account.account_type)}
                 </Link>
               )}
               {canOwnListings(account.account_type) && (
-                <Link href={LISTINGS_PATH} className="text-link">
+                <Link href={LISTINGS_PATH} className="text-link" aria-current={current(LISTINGS_PATH)}>
                   My listings
                 </Link>
               )}
               {keepsFavourites(account) && (
-                <Link href={FAVOURITES_PATH} className="text-link">
+                <Link href={FAVOURITES_PATH} className="text-link" aria-current={current(FAVOURITES_PATH)}>
                   Favourites
                 </Link>
               )}
               {account.account_type !== "admin" && <MessagesLink accountId={account.id} />}
               <NotificationsLink />
-              <Link href="/account/password" className="text-link">
+              <Link href="/account/password" className="text-link" aria-current={current("/account/password")}>
                 Change password
               </Link>
               <button type="button" className="secondary-button" onClick={onSignOut} disabled={signingOut}>

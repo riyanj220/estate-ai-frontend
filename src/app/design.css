@@ -739,7 +739,7 @@ h2 {
 .page [data-testid="search-box"]:not(.ai-search [data-testid="search-box"]) {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: 0.5rem 0.75rem;
   box-shadow: none;
 }
@@ -992,4 +992,134 @@ form.filter-form.card {
 .auth .password-row button[aria-pressed="true"] {
   background: var(--color-accent-soft);
   color: var(--color-accent);
+}
+
+/* Dropdowns in the search bar: the focus ring goes round the whole field, never across its label. */
+.searchbar-field {
+  display: grid;
+  gap: 0.125rem;
+}
+.searchbar-field select:focus-visible {
+  outline: none;
+}
+.searchbar-field:has(select:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* Browse: the buttons line up with the input. */
+.page .page-head ~ [data-testid="search-box"] {
+  align-items: flex-end;
+}
+.page .page-head ~ [data-testid="search-box"] .field input,
+.page .page-head ~ [data-testid="search-box"] button {
+  min-height: 3rem;
+}
+.page .page-head ~ [data-testid="search-box"] .hint {
+  margin-bottom: 0.5rem;
+}
+
+/* The signed-in menu: a sidebar on wide screens, a panel behind "Menu" on narrow ones. */
+.sidebar-toggle {
+  margin-left: auto;
+}
+.site-header .account-nav.sidebar {
+  display: none;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.25rem;
+  width: 100%;
+}
+.site-header .account-nav.sidebar.sidebar-open {
+  display: flex;
+  order: 4;
+}
+.sidebar .sidebar-name {
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  padding: 0 0.75rem 0.5rem;
+}
+.sidebar .state-note {
+  padding: 0 0.75rem 0.5rem;
+}
+.site-header .sidebar .text-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border-radius: 0.625rem;
+  color: var(--color-text);
+}
+.site-header .sidebar .text-link::before {
+  content: "";
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  background: currentColor;
+  mask: var(--icon) center / contain no-repeat;
+}
+.site-header .sidebar .text-link:hover {
+  background: var(--color-accent-soft);
+}
+.site-header .sidebar .text-link[aria-current="page"] {
+  background: var(--color-accent);
+  color: #fff;
+}
+.sidebar [aria-current="page"] .unread-badge {
+  background: #fff;
+  color: var(--color-accent);
+}
+.sidebar .unread-badge {
+  margin-left: auto;
+}
+.sidebar > button {
+  margin-top: 0.75rem;
+}
+@media (min-width: 1024px) {
+  body:has(.sidebar) {
+    padding-left: 16rem;
+  }
+  .sidebar-toggle {
+    display: none;
+  }
+  .site-header .account-nav.sidebar {
+    display: flex;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: 16rem;
+    justify-content: flex-start;
+    overflow-y: auto;
+    padding: 1.5rem 1rem;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-line);
+  }
+  body:has(.sidebar) .main-nav {
+    margin-inline: 0 auto;
+  }
+}
+.sidebar a[href="/dashboard"] {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M3 3h8v8H3zM13 3h8v5h-8zM13 12h8v9h-8zM3 15h8v6H3z'/%3E%3C/svg%3E");
+}
+.sidebar a[href="/account/profile"] {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M4 21c0-4 4-6 8-6s8 2 8 6'/%3E%3C/svg%3E");
+}
+.sidebar a[href="/account/listings"] {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M3 11.5 12 4l9 7.5M5.5 10v10h13V10'/%3E%3C/svg%3E");
+}
+.sidebar a[href="/account/favourites"] {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M12 20s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 6-8 11-8 11z'/%3E%3C/svg%3E");
+}
+.sidebar a[href="/messages"] {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M4 5h16v11H9l-5 4z'/%3E%3C/svg%3E");
+}
+.sidebar a[href="/account/notifications"] {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M6 16V10a6 6 0 0 1 12 0v6l2 2H4zM10 21h4'/%3E%3C/svg%3E");
+}
+.sidebar a[href="/account/password"] {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M6 11h12v9H6zM9 11V8a3 3 0 0 1 6 0v3'/%3E%3C/svg%3E");
 }
