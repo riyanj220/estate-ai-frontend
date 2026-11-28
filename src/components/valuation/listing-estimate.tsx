@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { AskingVsEstimate } from "@/components/valuation/asking-vs-estimate";
 import { EstimateFigure } from "@/components/valuation/estimate-figure";
 import { ForecastChart } from "@/components/valuation/forecast-chart";
+import { PriceDrivers } from "@/components/valuation/price-drivers";
 import { getApi } from "@/lib/http/api";
 import { withCsrf } from "@/lib/http/csrf";
 import { readEstimate, readListingEstimate, type ListingEstimate } from "@/lib/listing/estimate";
@@ -37,7 +38,8 @@ const EYEBROW = "text-[0.75rem] font-bold tracking-[0.12em] text-muted uppercase
 /**
  * The price insight of a public Listing (Stories 4.6 and 4.7): the total asking price beside the Estimated Property Value, the server's
  * verdict and the 5-Year Price Forecast, with the one info button of `EstimateFigure` for all of them. The owner can recompute.
- * `factors` names the details of this Listing that the model reads.
+ * `factors` names the details of this Listing that the model reads. A Listing with no estimate (rent, a kind or area the model does not
+ * cover) shows nothing at all.
  */
 export function ListingEstimatePanel({ listingId, initial, factors = [] }: { listingId: string; initial: ListingEstimate | null; factors?: string[] }) {
   const [insight, setInsight] = useState(initial);
@@ -80,6 +82,8 @@ export function ListingEstimatePanel({ listingId, initial, factors = [] }: { lis
 
   const estimate = insight?.estimate;
   const { askingTotal = null, comparison = null, forecast = null } = insight ?? {};
+  // A card that was shown stays, so a failed recompute can still be read.
+  if (initial?.estimate.kind !== "value" && estimate?.kind !== "value") return null;
 
   return (
     <section className="price-insight overflow-hidden rounded-large border border-accent/25 bg-surface" aria-labelledby="price-insight-title" data-testid="price-insight">
@@ -122,6 +126,15 @@ export function ListingEstimatePanel({ listingId, initial, factors = [] }: { lis
             {askingTotal !== null && (
               <div className="mt-5">
                 <AskingVsEstimate asking={Number(askingTotal)} estimate={Number(estimate.value)} />
+              </div>
+            )}
+            {insight && insight.drivers.length > 0 && (
+              <div className="mt-6 border-t border-line pt-5">
+                <h3 className={EYEBROW}>What moves this price</h3>
+                <PriceDrivers drivers={insight.drivers} />
+                <p className="mt-3 text-[0.8125rem] text-muted">
+                  Each bar is how the AI’s estimate changes against a typical property with everything else the same. They do not add up to a total.
+                </p>
               </div>
             )}
             <div className="mt-6 border-t border-line pt-5">

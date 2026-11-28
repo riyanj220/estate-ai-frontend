@@ -13519,6 +13519,11 @@ components:
           - $ref: '#/components/schemas/PriceForecast'
           nullable: true
           description: Null when unavailable.
+        drivers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PriceDriver'
+          description: What moves the estimate, largest first; empty when unavailable.
         can_recompute:
           type: boolean
           description: 'True for the signed-in owner: `POST /api/v1/listings/{id}/estimate`.'
@@ -13527,6 +13532,7 @@ components:
       - can_recompute
       - comparison
       - currency
+      - drivers
       - estimated_at
       - estimated_value
       - forecast
@@ -15719,6 +15725,22 @@ components:
       required:
       - percent
       - verdict
+    PriceDriver:
+      type: object
+      description: One detail of the Listing and what it does to the model's estimate,
+        against a typical one.
+      properties:
+        factor:
+          type: string
+          description: '`locality`, `bedrooms`, `bathrooms`, `covered_area`, `building_age`,
+            `condition`, `corner_plot`, `road_width`, `development` or `amenities`.'
+        percent:
+          type: string
+          description: One decimal; positive raises the estimate. Effects do not add
+            up to a total.
+      required:
+      - factor
+      - percent
     PriceForecast:
       type: object
       description: 'The 5-Year Price Forecast: assumed growth scenarios, not a guaranteed

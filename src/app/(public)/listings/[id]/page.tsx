@@ -135,7 +135,6 @@ export default async function ListingPage({ params }: Props) {
                 </p>
               </section>
             )}
-            <ListingEstimatePanel listingId={listing.id} initial={insight} factors={estimateFactors(listing)} />
             <section className="card" aria-labelledby="listing-details-title">
               <h2 id="listing-details-title" className="section-title">
                 Property details
@@ -143,6 +142,7 @@ export default async function ListingPage({ params }: Props) {
               <ListingFacts listing={listing} registry={registry} catalogue={catalogue} cityName={result.cityName} localityName={result.localityName} testId="listing" />
               {registry === null && <p className="state-note">{PREVIEW_DETAILS_FAILED}</p>}
             </section>
+            <ListingEstimatePanel listingId={listing.id} initial={insight} factors={estimateFactors(listing)} />
             {listing.floorPlan && (
               <div className="card">
                 <FloorPlanView url={listing.floorPlan.url} testId="listing-floor-plan" />

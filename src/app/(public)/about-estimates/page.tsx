@@ -34,6 +34,16 @@ export default function AboutEstimatesPage() {
         </ul>
         <p>It does not use the asking price, the street or house number, map coordinates, phone numbers, the title, the description or images.</p>
       </section>
+      <section className="card" aria-labelledby="about-drivers" style={{ marginBottom: "var(--space)" }}>
+        <h2 id="about-drivers" className="section-title">
+          What moves the price
+        </h2>
+        <p>
+          For each detail, the model estimates the same property again with only that detail swapped for a typical one: for example a typical
+          Karachi locality, or a building in good condition. The difference is shown as a percentage. It explains what the model does, not what
+          the market will pay, and the percentages do not add up to a total.
+        </p>
+      </section>
       <section className="card" aria-labelledby="about-forecast" style={{ marginBottom: "var(--space)" }}>
         <h2 id="about-forecast" className="section-title">
           The 5-Year Price Forecast

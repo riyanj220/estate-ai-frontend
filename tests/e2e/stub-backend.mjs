@@ -1209,10 +1209,10 @@ function listingEstimate(mode, recomputed) {
   const canRecompute = mode.startsWith("owner");
   const [asking, comparison] = verdicts[mode] ?? verdicts.below;
   if (unavailable) {
-    return { status: "unavailable", estimated_value: null, currency: "PKR", model_version: null, estimated_at: null, reason: "locality_not_covered", message: "This locality is not covered yet.", asking_total: asking, comparison: null, forecast: null, can_recompute: canRecompute };
+    return { status: "unavailable", estimated_value: null, currency: "PKR", model_version: null, estimated_at: null, reason: "locality_not_covered", message: "This locality is not covered yet.", asking_total: asking, comparison: null, forecast: null, drivers: [], can_recompute: canRecompute };
   }
   const value = mode === "owner" && recomputed ? "2100000.00" : "2000000.00";
-  return { status: "available", estimated_value: value, currency: "PKR", model_version: 1, estimated_at: "2026-11-27T10:00:00Z", reason: null, message: null, asking_total: asking, comparison, forecast: { horizon_years: 5, low: "2433000.00", base: "2939000.00", high: "3525000.00" }, can_recompute: canRecompute };
+  return { status: "available", estimated_value: value, currency: "PKR", model_version: 1, estimated_at: "2026-11-27T10:00:00Z", reason: null, message: null, asking_total: asking, comparison, forecast: { horizon_years: 5, low: "2433000.00", base: "2939000.00", high: "3525000.00" }, drivers: [{ factor: "locality", percent: "18.4" }, { factor: "condition", percent: "-6.0" }, { factor: "amenities", percent: "2.1" }], can_recompute: canRecompute };
 }
 
 // Story 4.4: estimate requests. `estimates` keeps the last one per Listing with the revision it was computed at.

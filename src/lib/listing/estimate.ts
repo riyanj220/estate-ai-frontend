@@ -27,12 +27,16 @@ export function readEstimate(data: unknown): Estimate | null {
 
 export type Forecast = { years: number; low: string; base: string; high: string };
 
+/** One detail's effect on the estimate, in percent; positive raises it. */
+export type Driver = { factor: string; percent: string };
+
 /** A published Listing's estimate beside its total asking price (Stories 4.6 and 4.7). */
 export type ListingEstimate = {
   estimate: Estimate;
   askingTotal: string | null;
   comparison: { verdict: "about_equal" | "above" | "below"; percent: string } | null;
   forecast: Forecast | null;
+  drivers: Driver[];
   canRecompute: boolean;
 };
 
@@ -52,6 +56,14 @@ function readForecast(value: unknown): Forecast | null {
   return low && base && high && years === 5 ? { years, low, base, high } : null;
 }
 
+function readDrivers(value: unknown): Driver[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const { factor, percent } = record(item) ?? {};
+    return typeof factor === "string" && factor && typeof percent === "string" && /^-?\d{1,6}(\.\d)?$/.test(percent) ? [{ factor, percent }] : [];
+  });
+}
+
 /** Null when the body cannot be trusted. A comparison or forecast is only kept beside a value. */
 export function readListingEstimate(data: unknown): ListingEstimate | null {
   const estimate = readEstimate(data);
@@ -63,6 +75,7 @@ export function readListingEstimate(data: unknown): ListingEstimate | null {
     askingTotal: decimal(body.asking_total),
     comparison: known ? readComparison(body.comparison) : null,
     forecast: known ? readForecast(body.forecast) : null,
+    drivers: known ? readDrivers(body.drivers) : [],
     canRecompute: body.can_recompute === true,
   };
 }

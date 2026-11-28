@@ -27,6 +27,8 @@ test("listing estimate: asking price beside the estimate, the forecast range and
   await expect(page.getByTestId("price-comparison")).toHaveText("The asking price is 25.0% below the estimate.");
   await expect(insight(page).getByRole("heading", { name: "5-Year Price Forecast" })).toBeVisible();
   await expect(page.getByTestId("price-forecast")).toHaveText("PKR 2,433,000.00 to PKR 3,525,000.00 in 5 years (middle scenario PKR 2,939,000.00).");
+  const drivers = page.getByTestId("price-drivers").getByRole("listitem");
+  await expect(drivers).toHaveText(["Location↑ raises by 18.4%", "Condition↓ lowers by 6.0%", "Amenities↑ raises by 2.1%"]);
   await expect(page.getByRole("button", { name: "About this estimate" })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Recompute estimate" })).toHaveCount(0);
   await page.getByRole("button", { name: "About this estimate" }).click();
@@ -44,18 +46,13 @@ for (const [value, text] of [
   });
 }
 
-for (const [value, text] of [
-  ["unavailable", "Estimate unavailable. This locality is not covered yet."],
-  ["error", "Estimate unavailable."],
-] as const) {
-  test(`listing estimate: ${value} shows no figure and no forecast, and the page still renders`, async ({ page }) => {
+for (const value of ["unavailable", "error"]) {
+  test(`listing estimate: ${value} shows no price insight card at all, and the page still renders`, async ({ page }) => {
     await mode(page, value);
     await page.goto(LISTING);
-    await expect(page.getByTestId("listing-estimate-unavailable")).toHaveText(text);
-    await expect(insight(page)).toContainText("Forecast unavailable.");
-    await expect(insight(page)).not.toContainText("PKR");
     await expect(page.getByTestId("listing-price")).toBeVisible();
-    await expect(page.locator("main")).not.toContainText("Internal detail");
+    await expect(insight(page)).toHaveCount(0);
+    await expect(page.locator("main")).not.toContainText(/Estimate unavailable|Forecast unavailable|Internal detail/);
   });
 }
 
@@ -85,7 +82,7 @@ for (const viewport of [
   { name: "mobile", width: 375, height: 812 },
   { name: "desktop", width: 1280, height: 800 },
 ]) {
-  test(`axe: listing estimate with the popover open, and unavailable, on ${viewport.name}`, async ({ page }) => {
+  test(`axe: listing estimate with the popover open, and without an estimate, on ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await openAsOwner(page, "owner");
     await page.getByRole("button", { name: "About this estimate" }).focus();
@@ -94,7 +91,7 @@ for (const viewport of [
     await expectNoViolations(page);
     await mode(page, "owner_unavailable");
     await page.goto(LISTING);
-    await expect(page.getByTestId("listing-estimate-unavailable")).toBeVisible();
+    await expect(insight(page)).toHaveCount(0); // for the owner too
     await expectNoViolations(page);
   });
 }

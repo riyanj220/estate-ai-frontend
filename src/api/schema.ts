@@ -3886,6 +3886,8 @@ export interface components {
             comparison: components["schemas"]["PriceComparison"] | null;
             /** @description Null when unavailable. */
             forecast: components["schemas"]["PriceForecast"] | null;
+            /** @description What moves the estimate, largest first; empty when unavailable. */
+            drivers: components["schemas"]["PriceDriver"][];
             /** @description True for the signed-in owner: `POST /api/v1/listings/{id}/estimate`. */
             can_recompute: boolean;
         };
@@ -4831,6 +4833,13 @@ export interface components {
              */
             verdict: components["schemas"]["VerdictEnum"];
             /** @description Percent above or below the estimate, one decimal. */
+            percent: string;
+        };
+        /** @description One detail of the Listing and what it does to the model's estimate, against a typical one. */
+        PriceDriver: {
+            /** @description `locality`, `bedrooms`, `bathrooms`, `covered_area`, `building_age`, `condition`, `corner_plot`, `road_width`, `development` or `amenities`. */
+            factor: string;
+            /** @description One decimal; positive raises the estimate. Effects do not add up to a total. */
             percent: string;
         };
         /** @description The 5-Year Price Forecast: assumed growth scenarios, not a guaranteed return. */
