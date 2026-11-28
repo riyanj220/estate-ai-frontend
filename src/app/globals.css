@@ -223,7 +223,7 @@
   .listing-list {
     @apply list-none mt-0 mx-0 mb-4 p-0;
   }
-  .listing-item {
+  .listing-item:not([class*="grid"]) {
     @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3;
   }
   .listing-item:focus {
@@ -373,16 +373,6 @@
   /* Preview (Story 2.13) */
 
   /* My listings status tabs (Story 2.17) */
-  .status-tab {
-    @apply min-h-11 py-2 px-3.5 border border-border rounded-(--radius) bg-surface text-text;
-    font: inherit;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .status-tab[aria-selected="true"] {
-    @apply bg-accent border-accent text-accent-text;
-  }
-
   /* Admin publication limits (Story 2.20): the usage table wraps long addresses instead of scrolling sideways */
   .usage-table {
     @apply w-full [border-collapse:collapse] mb-4;

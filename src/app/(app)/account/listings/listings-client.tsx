@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { priceText } from "@/components/listing/listing-facts";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { getApi } from "@/lib/http/api";
@@ -262,7 +263,7 @@ export function ListingsClient({ admin }: { admin: boolean }) {
   }
 
   const heading = (
-    <h1 id={HEADING_ID} tabIndex={-1} className="page-title">
+    <h1 id={HEADING_ID} tabIndex={-1} className="page-title mb-0 tracking-[-0.02em]">
       My listings
     </h1>
   );
@@ -285,18 +286,20 @@ export function ListingsClient({ admin }: { admin: boolean }) {
   const nothingAtAll = load.kind === "ready" && counts !== null && totalOf(counts) === 0;
   const tabLoading = loaded !== null && !first;
   return (
-    <>
-      {heading}
-      <p role="status" aria-live="polite" className={flash ? "muted" : "sr-only"} data-testid="listings-flash">
+    <div className="app-wide">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        {heading}
+        {load.kind === "ready" && (
+          <Link href={NEW_LISTING_PATH} className="primary-button inline-flex min-h-12 items-center px-6 no-underline">
+            Create listing
+          </Link>
+        )}
+      </div>
+      <p role="status" aria-live="polite" className={flash ? "mb-4 rounded-xl bg-accent-soft p-4 font-semibold text-accent" : "sr-only"} data-testid="listings-flash">
         {flash}
       </p>
       {load.kind === "ready" && (
         <>
-          <p>
-            <Link href={NEW_LISTING_PATH} className="primary-button inline-flex items-center no-underline">
-              Create listing
-            </Link>
-          </p>
           {/* The one live region of this page: the tab shown and the results and failures of loading more. */}
           <p role="status" aria-live="polite" className={failed ? "state-note" : announcement ? "muted" : "sr-only"} data-testid="listings-status">
             {announcement}
@@ -306,8 +309,8 @@ export function ListingsClient({ admin }: { admin: boolean }) {
       {load.kind !== "ready" && !(load.kind === "error" && known !== undefined) ? (
         <ProfileLoadState load={load} onRetry={retry} noun="listings" />
       ) : nothingAtAll ? (
-        <div className="card" data-testid="listings-empty">
-          <p>You have no listings yet.</p>
+        <div className="card py-16 text-center" data-testid="listings-empty">
+          <p className="mb-3 font-serif text-[1.375rem]">You have no listings yet.</p>
           <p>
             <Link href={NEW_LISTING_PATH} className="text-link">
               Create listing
@@ -316,7 +319,7 @@ export function ListingsClient({ admin }: { admin: boolean }) {
         </div>
       ) : (
         <>
-          <div role="tablist" aria-label="Listing status" className="flex flex-wrap gap-2 mt-0 mx-0 mb-4" data-testid="listing-tabs" onKeyDown={onTabKeyDown}>
+          <div role="tablist" aria-label="Listing status" className="mb-5 flex flex-wrap gap-x-1 border-b border-line" data-testid="listing-tabs" onKeyDown={onTabKeyDown}>
             {TAB_ORDER.map((status) => (
               <button
                 key={status}
@@ -326,7 +329,7 @@ export function ListingsClient({ admin }: { admin: boolean }) {
                 aria-selected={status === active}
                 aria-controls="listings-panel"
                 tabIndex={status === active ? 0 : -1}
-                className="status-tab"
+                className="-mb-px min-h-12 cursor-pointer border-b-3 border-transparent px-4 text-[0.9375rem] font-semibold text-muted hover:text-text aria-selected:border-accent aria-selected:text-accent"
                 data-testid={`tab-${status}`}
                 onClick={() => choose(status)}
               >
@@ -348,7 +351,7 @@ export function ListingsClient({ admin }: { admin: boolean }) {
                 Loading {active ? TAB_LABELS[active].toLowerCase() : ""} listings…
               </p>
             ) : items.length === 0 && !next ? (
-              <p className="card" data-testid="listings-tab-empty">
+              <p className="card py-12 text-center text-muted" data-testid="listings-tab-empty">
                 {noTabListings(TAB_LABELS[first?.status ?? "published"])}
               </p>
             ) : (
@@ -358,15 +361,26 @@ export function ListingsClient({ admin }: { admin: boolean }) {
                     Nothing to show on this page yet.
                   </p>
                 ) : (
-                  <ul className="listing-list" aria-label="My listings">
+                  <ul className="mb-4 grid list-none gap-4 p-0" aria-label="My listings">
                     {items.map((item) => (
-                      <li key={item.id} id={itemId(item.id)} tabIndex={-1} className="card listing-item" data-testid="listing">
-                        <Link href={`${LISTINGS_PATH}/${encodeURIComponent(item.id)}`} className="text-link listing-link font-semibold">
-                          {summaryOf(item.fields)}
-                        </Link>
-                        <span className="status-marker text-[0.8125rem] font-bold border border-muted rounded-(--radius) py-0 px-1.5 text-muted">{label(item.status)}</span>
-                        {item.underReview && <span className="status-marker text-[0.8125rem] font-bold border border-muted rounded-(--radius) py-0 px-1.5 text-muted">Under review</span>}
-                        <Link href={`${LISTINGS_PATH}/${encodeURIComponent(item.id)}/preview`} className="text-link" data-testid="listing-preview-link">
+                      <li key={item.id} id={itemId(item.id)} tabIndex={-1} className="card listing-item mb-0 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-5 gap-y-3 max-[641px]:grid-cols-[minmax(0,1fr)]" data-testid="listing">
+                        <span aria-hidden="true" className="flex size-16 items-center justify-center rounded-2xl bg-accent-soft text-accent max-[641px]:hidden">
+                          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+                            <path d="M3 11.5 12 4l9 7.5M5.5 10v10h13V10M10 20v-5h4v5" />
+                          </svg>
+                        </span>
+                        <div className="min-w-0">
+                          <Link href={`${LISTINGS_PATH}/${encodeURIComponent(item.id)}`} className="listing-link text-[1.0625rem] font-semibold text-accent hover:underline">
+                            {summaryOf(item.fields)}
+                          </Link>
+                          <p className="truncate text-[0.875rem] text-muted">{item.fields.title ?? "No title yet"}</p>
+                          <p className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="status-marker rounded-full bg-sand px-3 py-1 text-[0.75rem] font-bold text-muted">{label(item.status)}</span>
+                            {item.underReview && <span className="status-marker rounded-full bg-sand px-3 py-1 text-[0.75rem] font-bold text-muted">Under review</span>}
+                            {item.fields.asking_price !== null && <span className="text-[0.875rem] font-semibold">{priceText(item.fields)}</span>}
+                          </p>
+                        </div>
+                        <Link href={`${LISTINGS_PATH}/${encodeURIComponent(item.id)}/preview`} className="secondary-button inline-flex items-center justify-center no-underline" data-testid="listing-preview-link">
                           Preview<span className="sr-only">: {summaryOf(item.fields)}</span>
                         </Link>
                       </li>
@@ -379,6 +393,6 @@ export function ListingsClient({ admin }: { admin: boolean }) {
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }
