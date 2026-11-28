@@ -15,7 +15,7 @@ never directly in `src/components` or `src/lib`.
 | `src/app` | Routes only. A piece used by one route sits beside its page. |
 | `src/components/ui` | Shared building blocks that know nothing about a feature (fields, errors, dropdowns). |
 | `src/components/layout` | Header, footer and the navigation links with badges. |
-| `src/components/{auth,listing,valuation,search,messaging,reference,ai}` | Components of one feature. |
+| `src/components/{auth,chat,listing,valuation,search,messaging,reference,ai}` | Components of one feature. |
 | `src/lib/{http,forms,auth,account,listing,search,messaging,reference,ai}` | Logic of one feature, without markup of its own (providers excepted). `http` is the API client; `forms` is form handling. |
 | `src/api` | The generated API client types. |
 

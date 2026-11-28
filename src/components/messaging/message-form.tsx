@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import { Composer } from "@/components/chat/composer";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { MAX_MESSAGE, draftProblem } from "@/lib/messaging/messaging";
 
@@ -8,7 +9,7 @@ import { MAX_MESSAGE, draftProblem } from "@/lib/messaging/messaging";
  * One text box and Send. The Idempotency-Key is kept while the same text is retried, so a lost answer never sends twice. `send` resolves
  * "" when the Message was saved (the box is then cleared), else the sentence to show; the draft stays.
  */
-export function MessageForm({ label, send, onCancel }: { label: string; send: (body: string, key: string) => Promise<string>; onCancel?: () => void }) {
+export function MessageForm({ label, send, onCancel, chat = false }: { label: string; send: (body: string, key: string) => Promise<string>; onCancel?: () => void; chat?: boolean }) {
   const id = useId();
   const [text, setText] = useState("");
   const [problem, setProblem] = useState("");
@@ -37,6 +38,22 @@ export function MessageForm({ label, send, onCancel }: { label: string; send: (b
       attempt.current = null;
       setText("");
     }
+  }
+
+  if (chat) {
+    return (
+      <Composer
+        id={id}
+        label={label}
+        box={box}
+        value={text}
+        onChange={setText}
+        onSubmit={(event) => void submit(event)}
+        problem={problem}
+        hint={`Up to ${MAX_MESSAGE.toLocaleString("en-US")} characters. Enter sends; Shift and Enter starts a new line.`}
+        busy={busy}
+      />
+    );
   }
 
   return (

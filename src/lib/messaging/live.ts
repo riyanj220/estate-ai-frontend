@@ -23,10 +23,60 @@ function parse(data: unknown): LiveEvent | null {
   }
 }
 
+type Subscriber = { onEvent: (event: LiveEvent) => void; onEnded: () => void; onState: (state: LiveState) => void };
+
+// One socket for the page, shared by everything on screen that listens (the conversation list and the open thread).
+const subscribers = new Set<Subscriber>();
+let socket: WebSocket | null = null;
+let timer: number | undefined;
+let attempts = 0;
+let current: LiveState = "connecting";
+
+function setCurrent(state: LiveState) {
+  current = state;
+  for (const subscriber of [...subscribers]) subscriber.onState(state);
+}
+
+function connect() {
+  socket = new WebSocket(`${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`);
+  socket.onmessage = ({ data }) => {
+    const event = parse(data);
+    if (!event) return;
+    if (event.type === "ready") {
+      attempts = 0;
+      setCurrent("live");
+    }
+    for (const subscriber of [...subscribers]) subscriber.onEvent(event);
+  };
+  socket.onclose = ({ code }) => {
+    socket = null;
+    setCurrent("off");
+    if (code === SESSION_ENDED) {
+      for (const subscriber of [...subscribers]) subscriber.onEnded();
+      return;
+    }
+    const delay = code === TOO_MANY ? MAX_DELAY : Math.min(MAX_DELAY, 1000 * 2 ** attempts);
+    attempts += 1;
+    timer = window.setTimeout(connect, delay);
+  };
+}
+
+function disconnect() {
+  window.clearTimeout(timer);
+  attempts = 0;
+  current = "connecting";
+  if (!socket) return;
+  socket.onmessage = null;
+  socket.onclose = null;
+  socket.close();
+  socket = null;
+}
+
 /**
- * Holds one socket while `enabled`, and reconnects after a drop, waiting 1 s, 2 s, 4 s ... up to 30 s. `onEvent` gets `ready` after
- * every (re)connection, which is the moment to read what was missed. `onEnded` runs when the server says the session is over; there
- * is no reconnection after that.
+ * Listens while `enabled`. The first listener opens the socket and the last one to leave closes it; it reconnects after a drop,
+ * waiting 1 s, 2 s, 4 s ... up to 30 s. `onEvent` gets `ready` after every (re)connection, which is the moment to read what was
+ * missed; a listener that joins an open socket gets it at once. `onEnded` runs when the server says the session is over; there is no
+ * reconnection after that.
  */
 export function useLiveEvents(enabled: boolean, onEvent: (event: LiveEvent) => void, onEnded: () => void): LiveState {
   const [state, setState] = useState<LiveState>("connecting");
@@ -37,41 +87,23 @@ export function useLiveEvents(enabled: boolean, onEvent: (event: LiveEvent) => v
 
   useEffect(() => {
     if (!enabled) return;
-    let socket: WebSocket | null = null;
-    let timer: number | undefined;
-    let attempts = 0;
-    let stopped = false;
-
-    function connect() {
-      socket = new WebSocket(`${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`);
-      socket.onmessage = ({ data }) => {
-        const event = parse(data);
-        if (!event) return;
-        if (event.type === "ready") {
-          attempts = 0;
-          setState("live");
-        }
-        handlers.current.onEvent(event);
-      };
-      socket.onclose = ({ code }) => {
-        if (stopped) return;
-        setState("off");
-        if (code === SESSION_ENDED) return handlers.current.onEnded();
-        const delay = code === TOO_MANY ? MAX_DELAY : Math.min(MAX_DELAY, 1000 * 2 ** attempts);
-        attempts += 1;
-        timer = window.setTimeout(connect, delay);
-      };
-    }
-
-    connect();
+    const subscriber: Subscriber = {
+      onEvent: (event) => handlers.current.onEvent(event),
+      onEnded: () => handlers.current.onEnded(),
+      onState: setState,
+    };
+    const first = subscribers.size === 0;
+    subscribers.add(subscriber);
+    // A moment later, so that an effect that is cleaned up at once (strict mode) opens nothing twice.
+    const join = window.setTimeout(() => {
+      if (first && !socket) return connect();
+      setState(current);
+      if (current === "live") subscriber.onEvent({ type: "ready" });
+    }, 0);
     return () => {
-      stopped = true;
-      window.clearTimeout(timer);
-      if (socket) {
-        socket.onmessage = null;
-        socket.onclose = null;
-        socket.close();
-      }
+      window.clearTimeout(join);
+      subscribers.delete(subscriber);
+      if (subscribers.size === 0) disconnect();
     };
   }, [enabled]);
 

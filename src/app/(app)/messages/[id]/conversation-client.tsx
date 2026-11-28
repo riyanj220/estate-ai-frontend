@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { Bubble } from "@/components/chat/bubble";
 import { MessageForm } from "@/components/messaging/message-form";
 import { ReportConversation } from "@/components/messaging/report-conversation";
 import { useLiveEvents } from "@/lib/messaging/live";
@@ -112,15 +113,42 @@ export function ConversationClient({ id }: { id: string }) {
     return "";
   }
 
+  // The newest message stays in view.
+  const scroller = useRef<HTMLDivElement>(null);
+  const count = thread?.messages.length ?? 0;
+  useEffect(() => {
+    const box = scroller.current;
+    if (box) box.scrollTop = box.scrollHeight;
+  }, [count]);
+
   const conversation = thread?.conversation;
   const who = conversation?.counterpart_name ?? "Deleted user";
   return (
     <>
-      <h1 id={HEADING_ID} tabIndex={-1} className="page-title">
-        {conversation ? listingHeading(conversation) : "Conversation"}
-      </h1>
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-line px-5 py-3">
+        <div className="min-w-0">
+          <h1 id={HEADING_ID} tabIndex={-1} className="truncate font-serif text-[1.25rem] font-semibold">
+            {conversation ? listingHeading(conversation) : "Conversation"}
+          </h1>
+          {conversation && (
+            <p className="text-[0.8125rem] text-muted" data-testid="conversation-with">
+              Conversation with {who}
+            </p>
+          )}
+        </div>
+        <p className="flex gap-4 text-[0.875rem]">
+          {conversation && conversation.listing.availability === "available" && (
+            <Link href={`${BROWSE_PATH}/${conversation.listing_id}`} className="text-link inline-flex min-h-11 items-center font-semibold">
+              View listing
+            </Link>
+          )}
+          <Link href={INBOX_PATH} className="text-link inline-flex min-h-11 items-center">
+            All messages
+          </Link>
+        </p>
+      </header>
       {state.kind === "forbidden" && (
-        <p className="card" data-testid="conversation-missing">
+        <p className="p-5" data-testid="conversation-missing">
           Conversation not found.{" "}
           <Link href={BROWSE_PATH} className="text-link">
             Back to browse
@@ -128,54 +156,48 @@ export function ConversationClient({ id }: { id: string }) {
         </p>
       )}
       <ProfileLoadState load={state} onRetry={retry} noun="conversation" determiner="the" />
-      <p>
-        <Link href={INBOX_PATH} className="text-link">
-          All messages
-        </Link>
-      </p>
       {thread && conversation && (
-        <section className="card" aria-label="Messages">
-          <p className="muted" data-testid="conversation-with">
-            Conversation with {who}
-          </p>
-          {conversation.listing.availability === "available" && (
-            <p>
-              <Link href={`${BROWSE_PATH}/${conversation.listing_id}`} className="text-link">
-                View listing
-              </Link>
+        <section className="flex min-h-0 flex-1 flex-col" aria-label="Messages">
+          <div ref={scroller} tabIndex={0} role="group" aria-label="Message history" className="min-h-40 flex-1 overflow-y-auto bg-bg/50 px-5 py-4">
+            <ol className="grid list-none gap-3 p-0" data-testid="messages">
+              {thread.messages.map((message) => (
+                <Bubble
+                  key={message.id}
+                  mine={message.mine}
+                  meta={
+                    <>
+                      {message.mine ? "You" : who} · <time dateTime={message.created_at}>{sentAt.format(new Date(message.created_at))}</time>
+                    </>
+                  }
+                >
+                  {message.body}
+                </Bubble>
+              ))}
+            </ol>
+          </div>
+          <div className="border-t border-line px-5 py-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 text-[0.8125rem] text-muted">
+              <p data-testid="live-status">
+                {live === "live" ? "New messages appear as they arrive." : live === "off" ? "Live updates are paused. Check for new messages below." : "Connecting…"}
+              </p>
+              <button type="button" className="text-link min-h-11 cursor-pointer font-semibold" onClick={() => void update()}>
+                Check for new messages
+              </button>
+            </div>
+            <p role="status" className={notice ? "mb-2 text-[0.8125rem] text-muted" : "sr-only"} data-testid="conversation-status">
+              {notice}
             </p>
-          )}
-          <ol className="chat-list" data-testid="messages">
-            {thread.messages.map((message) => (
-              <li key={message.id}>
-                <p className="muted">
-                  {message.mine ? "You" : who} · <time dateTime={message.created_at}>{sentAt.format(new Date(message.created_at))}</time>
-                </p>
-                <p className="chat-text">{message.body}</p>
-              </li>
-            ))}
-          </ol>
-          <p className="muted" data-testid="live-status">
-            {live === "live" ? "New messages appear as they arrive." : live === "off" ? "Live updates are paused. Check for new messages below." : "Connecting…"}
-          </p>
-          <p>
-            <button type="button" className="secondary-button" onClick={() => void update()}>
-              Check for new messages
-            </button>
-          </p>
-          <p role="status" className={notice ? "muted" : "sr-only"} data-testid="conversation-status">
-            {notice}
-          </p>
-          {conversation.read_only_reason ? (
-            <p className="state-note" data-testid="conversation-read-only">
-              {READ_ONLY_NOTES[conversation.read_only_reason]}
-            </p>
-          ) : (
-            <MessageForm label="Reply" send={send} />
-          )}
+            {conversation.read_only_reason ? (
+              <p className="state-note" data-testid="conversation-read-only">
+                {READ_ONLY_NOTES[conversation.read_only_reason]}
+              </p>
+            ) : (
+              <MessageForm label="Reply" send={send} chat />
+            )}
+            <ReportConversation conversationId={id} messages={thread.messages} who={who} gone={sessionGone} />
+          </div>
         </section>
       )}
-      {thread && conversation && <ReportConversation conversationId={id} messages={thread.messages} who={who} gone={sessionGone} />}
     </>
   );
 }
