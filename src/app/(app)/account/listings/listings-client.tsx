@@ -363,7 +363,7 @@ export function ListingsClient({ admin }: { admin: boolean }) {
                 ) : (
                   <ul className="mb-4 grid list-none gap-4 p-0" aria-label="My listings">
                     {items.map((item) => (
-                      <li key={item.id} id={itemId(item.id)} tabIndex={-1} className="card listing-item mb-0 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-5 gap-y-3 max-[641px]:grid-cols-[minmax(0,1fr)]" data-testid="listing">
+                      <li key={item.id} id={itemId(item.id)} tabIndex={-1} className="card mb-0 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-5 gap-y-3 max-[641px]:grid-cols-[minmax(0,1fr)]" data-testid="listing">
                         <span aria-hidden="true" className="flex size-16 items-center justify-center rounded-2xl bg-accent-soft text-accent max-[641px]:hidden">
                           <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
                             <path d="M3 11.5 12 4l9 7.5M5.5 10v10h13V10M10 20v-5h4v5" />
