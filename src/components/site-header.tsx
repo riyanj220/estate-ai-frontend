@@ -41,16 +41,23 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <div className="account-nav">
           <Link href="/" className="brand">
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+              <path d="M3 11.5 12 4l9 7.5M5.5 10v10h13V10M10 20v-5h4v5" />
+            </svg>
             EstateAI
           </Link>
-          <nav aria-label="Main">
+          <nav aria-label="Main" className="main-nav">
+            <Link href="/listings?purpose=sale" className="text-link">
+              Buy
+            </Link>
+            <Link href="/listings?purpose=rent" className="text-link">
+              Rent
+            </Link>
             <Link href="/listings" className="text-link">
               Browse
             </Link>
           </nav>
-        </div>
         <nav aria-label="Account" className="account-nav" aria-busy={status === "loading"}>
           {status === "loading" && <span className="nav-placeholder" aria-hidden="true" />}
           {status === "signed_out" && (
@@ -58,7 +65,7 @@ export function SiteHeader() {
               <Link href="/sign-in" className="text-link">
                 Sign in
               </Link>
-              <Link href="/register" className="text-link">
+              <Link href="/register" className="text-link header-cta">
                 Create account
               </Link>
             </>
