@@ -86,7 +86,7 @@ test("route groups render their placeholders", async ({ page, request }) => {
   await request.get(`${STUB}/__force-session?kind=admin`);
   await page.context().addCookies([{ name: "estate_session", value: "stub-live", url: APP_URL }]);
   for (const [path, heading] of [
-    ["/", "EstateAI"],
+    ["/", "Find the home that fits your life"],
     ["/dashboard", "Dashboard"],
     ["/admin", "Administration"],
   ]) {

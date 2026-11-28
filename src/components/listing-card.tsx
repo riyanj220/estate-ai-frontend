@@ -15,21 +15,28 @@ export function ListingCard({ card, children, testId = "browse-card" }: { card: 
   const area = areaSummary(fields);
   return (
     <li className="card" data-testid={testId}>
-      {coverUrl ? (
-        <RetryImage url={coverUrl} alt={`Cover image of ${title}`} label={`the cover of ${title}`} className="image-thumb" failedClassName="image-thumb image-failed" />
-      ) : (
-        <div className="image-thumb browse-no-image">No image</div>
-      )}
+      <div className="card-media">
+        {coverUrl ? (
+          <RetryImage url={coverUrl} alt={`Cover image of ${title}`} label={`the cover of ${title}`} className="image-thumb" failedClassName="image-thumb image-failed" />
+        ) : (
+          <div className="image-thumb browse-no-image">No image</div>
+        )}
+        {(fields.purpose === "sale" || fields.purpose === "rent") && (
+          <span className="card-badge" aria-hidden="true">
+            For {fields.purpose}
+          </span>
+        )}
+      </div>
       <h2 className="browse-title">
         <Link href={`${BROWSE_PATH}/${listing.id}`} className="text-link">
           {title}
         </Link>
       </h2>
       <p className="browse-price">{priceText(fields)}</p>
-      <p>{summaryOf(fields)}</p>
-      {area !== NOT_SET && <p>{area}</p>}
-      {rooms && <p>{rooms}</p>}
-      {place && <p>{place}</p>}
+      <p className="card-summary">{summaryOf(fields)}</p>
+      {area !== NOT_SET && <p className="card-area">{area}</p>}
+      {rooms && <p className="card-rooms">{rooms}</p>}
+      {place && <p className="card-place">{place}</p>}
       {card.advertiser && <AdvertiserLine advertiser={card.advertiser} testId="browse-advertiser" />}
       {publishedOn && (
         <p className="hint">
