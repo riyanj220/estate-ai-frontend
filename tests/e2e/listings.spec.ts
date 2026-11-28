@@ -84,20 +84,18 @@ const viewports = [
 
 // ---------------------------------------------------------------- links and guard
 
-test("links: individual and agency see My listings in the header and on the dashboard; administrators and Visitors do not @smoke", async ({ page, request }) => {
+test("links: individual and agency see My listings in the menu; administrators and Visitors do not @smoke", async ({ page, request }) => {
   await page.goto("/");
   await expect(page.getByRole("link", { name: "My listings", exact: true })).toHaveCount(0);
   await startSession(page, request);
   await page.goto("/dashboard");
   await expect(header(page).getByRole("link", { name: "My listings", exact: true })).toHaveAttribute("href", LIST);
-  await expect(main(page).getByRole("link", { name: "My listings", exact: true })).toHaveAttribute("href", LIST);
   await header(page).getByRole("link", { name: "My listings", exact: true }).click();
   await expect(page).toHaveURL(/\/account\/listings$/);
 
   await setMode(request, "me", "agency");
   await page.goto("/dashboard");
   await expect(header(page).getByRole("link", { name: "My listings", exact: true })).toHaveAttribute("href", LIST);
-  await expect(main(page).getByRole("link", { name: "My listings", exact: true })).toHaveAttribute("href", LIST);
 
   await setMode(request, "me", "up");
   await request.get(`${STUB}/__force-session?kind=admin`);
