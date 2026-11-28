@@ -106,13 +106,12 @@ test("empty: the empty-state text, the hint and the count, with the picker ready
   await expect(picker(page)).toHaveAttribute("multiple", "");
   await expect(picker(page)).not.toHaveAttribute("aria-disabled");
   await expect(announcement(page)).toHaveText("");
-  // The Images section sits between the summary and the editor form, and never inside the form.
+  // The Images section comes before the editor form, and never inside it; the summary is beside them on a wide screen.
   const positions = await page.evaluate(() => {
     const at = (selector: string) => document.querySelector(selector)?.getBoundingClientRect().top ?? -1;
-    return [at('[data-testid="draft-details"]'), at('[data-testid="images-section"]'), at("form")];
+    return [at('[data-testid="images-section"]'), at("form")];
   });
   expect(positions[0]).toBeLessThan(positions[1]);
-  expect(positions[1]).toBeLessThan(positions[2]);
   await expect(page.locator("form").getByLabel("Add images")).toHaveCount(0);
 });
 
