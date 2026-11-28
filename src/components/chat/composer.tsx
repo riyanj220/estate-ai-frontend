@@ -18,7 +18,7 @@ export function Composer({
   box: React.Ref<HTMLTextAreaElement>;
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (event: React.FormEvent) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   problem: string;
   hint: string;
   busy: boolean;
