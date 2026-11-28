@@ -421,7 +421,8 @@ export function NotificationsClient({ admin }: { admin: boolean }) {
   }
 
   return (
-    <>
+    <div className="app-wide">
+      <p className="eyebrow mb-2">Your account</p>
       {heading}
       {load.kind !== "loading" && (
         <>
@@ -539,6 +540,6 @@ export function NotificationsClient({ admin }: { admin: boolean }) {
           )}
         </>
       )}
-    </>
+    </div>
   );
 }
