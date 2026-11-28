@@ -24,6 +24,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: `${title} | EstateAI` };
 }
 
+/** The photo mosaic: the first photo is large, and the others fill the grid so that few photos leave no holes. */
+function galleryCell(index: number, count: number): string {
+  if (count === 1) return "col-span-full";
+  if (count === 2) return "col-span-2";
+  if (index === 0) return "col-span-2 row-span-2";
+  return count === 3 || (count === 4 && index === 3) ? "col-span-2" : "";
+}
+
 /** One public Listing (Story 3.1), rendered on the server from the public projection only. */
 export default async function ListingPage({ params }: Props) {
   const { id } = await params;
@@ -65,10 +73,10 @@ export default async function ListingPage({ params }: Props) {
       {back}
       <ViewBeacon listingId={listing.id} />
       <article className="detail">
-        <header className="detail-head">
-          <h1 className="page-title">{fields.title ?? "Untitled listing"}</h1>
+        <header className="mb-6">
+          <h1 className="page-title mb-1 text-[clamp(1.875rem,4vw,2.875rem)] tracking-[-0.02em]">{fields.title ?? "Untitled listing"}</h1>
           {place && <p className="text-muted text-[1.0625rem]">{place}</p>}
-          <p className="muted" data-testid="listing-summary">
+          <p className="muted m-0 text-[0.875rem]" data-testid="listing-summary">
             {summaryOf(fields)}
             {publishedOn && (
               <>
@@ -81,15 +89,15 @@ export default async function ListingPage({ params }: Props) {
         {media.length === 0 ? (
           <p className="bg-sand rounded-2xl py-12 px-6 text-center text-muted mb-8">{PREVIEW_NO_IMAGES}</p>
         ) : (
-          <ul className="list-none p-0 mt-0 mx-0 grid detail-gallery" aria-label="Images" data-testid="listing-images">
+          <ul className="mx-0 mt-0 mb-8 grid list-none grid-cols-4 gap-2.5 p-0 max-[641px]:grid-cols-2" aria-label="Images" data-testid="listing-images">
             {media.map((item, index) => (
-              <li key={item.id}>
+              <li key={item.id} className={`overflow-hidden rounded-[0.875rem] ${galleryCell(index, media.length)}`}>
                 <RetryImage
                   url={item.url}
                   alt={`Image ${index + 1} of ${media.length}${item.isCover ? ", cover image" : ""}`}
                   label={`image ${index + 1}`}
-                  className="image-thumb"
-                  failedClassName="image-thumb image-failed"
+                  className={`image-thumb h-full w-full rounded-none ${media.length === 1 ? "aspect-[21/9]" : "aspect-4/3"}`}
+                  failedClassName="image-thumb image-failed h-full w-full rounded-none"
                 />
               </li>
             ))}
@@ -103,7 +111,7 @@ export default async function ListingPage({ params }: Props) {
                 {priceText(fields)}
               </p>
               {result.advertiser && <AdvertiserLine advertiser={result.advertiser} testId="listing-advertiser" />}
-              <div className="detail-actions">
+              <div className="mt-4 grid gap-2.5 [&_.save-control]:m-0 [&_.save-control>button]:w-full">
                 <MessageSeller listingId={listing.id} />
                 <FavouritesProvider>
                   <SaveButton listingId={listing.id} title={fields.title ?? "Untitled listing"} />

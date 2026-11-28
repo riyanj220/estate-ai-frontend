@@ -17,9 +17,9 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
   const [result, schema, places] = await Promise.all([fetchBrowse(query), fetchFilterSchema(), fetchPlaces(valuesOf(query, "city"))]);
   return (
     <>
-      <header className="page-head">
+      <header className="page-head mb-6">
         <p className="eyebrow">For sale and rent in Karachi</p>
-        <h1 className="page-title">Browse listings</h1>
+        <h1 className="page-title m-0 text-[clamp(2rem,4vw,3rem)] tracking-[-0.02em]">Browse listings</h1>
       </header>
       {/* Story 6.1: an AI entry point, so only where AI features are on. */}
       {process.env.AI_FEATURES === "1" && <SearchBox path={BROWSE_PATH} />}
