@@ -9,7 +9,8 @@ export function Composer({
   problem,
   hint,
   busy,
-  disabled,
+  busyLabel = "Sending…",
+  readOnly,
   maxLength,
 }: {
   id: string;
@@ -21,7 +22,8 @@ export function Composer({
   problem: string;
   hint: string;
   busy: boolean;
-  disabled?: boolean;
+  busyLabel?: string;
+  readOnly?: boolean;
   maxLength?: number;
 }) {
   return (
@@ -36,7 +38,7 @@ export function Composer({
           rows={1}
           maxLength={maxLength}
           value={value}
-          disabled={disabled}
+          readOnly={readOnly}
           placeholder="Type a message…"
           aria-describedby={`${id}-hint ${id}-problem`}
           aria-invalid={problem ? true : undefined}
@@ -49,7 +51,7 @@ export function Composer({
           }}
         />
         <button type="submit" className="primary-button min-h-12 shrink-0 px-6" aria-disabled={busy ? true : undefined}>
-          {busy ? "Sending…" : "Send"}
+          {busy ? busyLabel : "Send"}
         </button>
       </div>
       <p id={`${id}-hint`} className="mt-1 px-2 text-[0.75rem] text-muted">
