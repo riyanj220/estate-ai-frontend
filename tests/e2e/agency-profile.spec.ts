@@ -145,7 +145,7 @@ test("the header and dashboard link an Agency to the Business profile @smoke", a
   await setMode(request, "me", "agency");
   await signIn(page);
   await expect(header(page).getByRole("link", { name: "Business profile", exact: true })).toHaveAttribute("href", PROFILE);
-  await expect(page.getByRole("main").getByRole("link", { name: "Business profile", exact: true })).toHaveAttribute("href", PROFILE);
+  await expect(page.getByRole("banner").getByRole("link", { name: "Business profile", exact: true })).toHaveAttribute("href", PROFILE);
   await expect(page.getByRole("link", { name: "Profile", exact: true })).toHaveCount(0);
   await header(page).getByRole("link", { name: "Business profile", exact: true }).click();
   await expect(page).toHaveURL(/\/account\/profile$/);

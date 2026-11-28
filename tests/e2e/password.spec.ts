@@ -64,7 +64,7 @@ test("signed-in header and dashboard link to Change password; a Visitor sees nei
   await expect(page.getByRole("link", { name: "Change password" })).toHaveCount(0);
   await signIn(page);
   await expect(header(page).getByRole("link", { name: "Change password" })).toHaveAttribute("href", "/account/password");
-  await expect(page.getByRole("main").getByRole("link", { name: "Change password" })).toHaveAttribute("href", "/account/password");
+  await expect(page.getByRole("banner").getByRole("link", { name: "Change password" })).toHaveAttribute("href", "/account/password");
   await header(page).getByRole("link", { name: "Change password" }).click();
   await expect(page).toHaveURL(/\/account\/password$/);
 });

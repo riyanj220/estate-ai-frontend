@@ -36,10 +36,10 @@ export function AllowanceCard() {
   const date = formatResetDate(resetsAt);
   return (
     <section className="card" aria-labelledby={HEADING_ID} data-testid="allowance-card">
-      <h2 id={HEADING_ID} tabIndex={-1} className="section-title">
+      <h2 id={HEADING_ID} tabIndex={-1} className="section-title mb-3">
         Publications this month
       </h2>
-      <p data-testid="allowance-summary">
+      <p className="mb-2 text-[0.9375rem] font-semibold" data-testid="allowance-summary">
         {used} of {limit} used, {remainingText(remaining)}
       </p>
       <progress aria-labelledby={HEADING_ID} aria-valuetext={`${used} of ${limit} used`} max={Math.max(limit, 1)} value={Math.min(used, limit)} data-testid="allowance-progress" />

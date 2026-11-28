@@ -69,15 +69,16 @@ export function AgencyProfileClient() {
   }
   if (load.kind !== "ready") return <ProfileLoadState load={load} onRetry={retry} noun="business profile" />;
   return (
-    <>
-      <p className="muted" data-testid="verification-status">
-        Agency verification: {verificationLabel(load.profile.verification_status)}
-      </p>
-      <p>
-        <Link href="/account/verification" className="text-link">
+    <div className="app-wide grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:sticky lg:top-24">
+      <div className="card flex flex-wrap items-center justify-between gap-3">
+        <p className="font-semibold" data-testid="verification-status">
+          Agency verification: {verificationLabel(load.profile.verification_status)}
+        </p>
+        <Link href="/account/verification" className="text-link font-semibold">
           Verification request
         </Link>
-      </p>
+      </div>
       <ProfileImageSection
         kind="agency"
         image={load.profile.image}
@@ -87,6 +88,8 @@ export function AgencyProfileClient() {
         reread={() => readDetailed(true)}
         onSessionGone={sessionGone}
       />
+      </div>
+      <div className="grid min-w-0 gap-6">
       <AgencyDetailsForm initial={load.profile} onSessionGone={sessionGone} onSaved={() => void read(true)} imageBusy={imageBusy} onPendingChange={setSaving} />
       <EmailChangeForm
         email={load.profile.email}
@@ -94,6 +97,7 @@ export function AgencyProfileClient() {
         onRequested={() => read(true)}
         onSessionGone={sessionGone}
       />
-    </>
+      </div>
+    </div>
   );
 }

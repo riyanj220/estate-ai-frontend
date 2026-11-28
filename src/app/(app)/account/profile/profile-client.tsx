@@ -57,7 +57,8 @@ export function ProfileClient() {
   }
   if (load.kind !== "ready") return <ProfileLoadState load={load} onRetry={retry} noun="profile" />;
   return (
-    <>
+    <div className="app-wide grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:sticky lg:top-24">
       <ProfileImageSection
         kind="individual"
         image={load.profile.image}
@@ -67,6 +68,8 @@ export function ProfileClient() {
         reread={() => readDetailed(true)}
         onSessionGone={sessionGone}
       />
+      </div>
+      <div className="grid min-w-0 gap-6">
       <DetailsForm initial={load.profile} onSessionGone={sessionGone} onSaved={() => void read(true)} imageBusy={imageBusy} onPendingChange={setSaving} />
       <EmailChangeForm
         email={load.profile.email}
@@ -74,6 +77,7 @@ export function ProfileClient() {
         onRequested={() => read(true)}
         onSessionGone={sessionGone}
       />
-    </>
+      </div>
+    </div>
   );
 }

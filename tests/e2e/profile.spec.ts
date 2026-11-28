@@ -81,7 +81,7 @@ test("header and dashboard link to Profile; a Visitor sees neither @smoke", asyn
   await expect(page.getByRole("link", { name: "Profile", exact: true })).toHaveCount(0);
   await signIn(page);
   await expect(header(page).getByRole("link", { name: "Profile", exact: true })).toHaveAttribute("href", PROFILE);
-  await expect(page.getByRole("main").getByRole("link", { name: "Profile", exact: true })).toHaveAttribute("href", PROFILE);
+  await expect(page.getByRole("banner").getByRole("link", { name: "Profile", exact: true })).toHaveAttribute("href", PROFILE);
   await header(page).getByRole("link", { name: "Profile", exact: true }).click();
   await expect(page).toHaveURL(/\/account\/profile$/);
 });
@@ -943,7 +943,7 @@ test("the Profile link is hidden for admin accounts in the header and on the das
   await expect(header(page).getByTestId("account-name")).toBeVisible();
   await expect(page.getByRole("link", { name: "Profile", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Business profile", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("main").getByRole("link", { name: "Change password" })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("link", { name: "Change password" })).toBeVisible();
 });
 
 for (const [label, arrange] of [

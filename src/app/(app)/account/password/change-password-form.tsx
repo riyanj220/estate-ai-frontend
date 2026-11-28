@@ -158,7 +158,7 @@ export function ChangePasswordForm({
         {pending ? "Changing your password." : ""}
       </div>
       {changed && (
-        <p ref={successRef} tabIndex={-1} role="status" className="card" data-testid="form-success">
+        <p ref={successRef} tabIndex={-1} role="status" className="mb-4 rounded-xl bg-accent-soft p-4 font-semibold text-accent" data-testid="form-success">
           {SUCCESS}
         </p>
       )}
@@ -192,7 +192,7 @@ export function ChangePasswordForm({
           {notice}
         </p>
       )}
-      <form method="post" onSubmit={onSubmit} noValidate className="card" aria-busy={pending} style={changed ? { marginTop: "var(--space)" } : undefined}>
+      <form method="post" onSubmit={onSubmit} noValidate className="card" aria-busy={pending}>
         {FIELD_ORDER.map((name) => {
           const errors = fieldErrors[name];
           const errorId = `${name}-error`;
@@ -227,13 +227,13 @@ export function ChangePasswordForm({
                   aria-controls={name}
                   onClick={() => setShown((current) => ({ ...current, [name]: !current[name] }))}
                 >
-                  Show {name === "current_password" ? "current" : "new"} password
+                  Show<span className="sr-only"> {name === "current_password" ? "current" : "new"} password</span>
                 </button>
               </div>
             </div>
           );
         })}
-        <button type="submit" className="primary-button" disabled={pending}>
+        <button type="submit" className="primary-button min-h-12 w-full" disabled={pending}>
           {pending ? "Changing…" : "Change password"}
         </button>
       </form>

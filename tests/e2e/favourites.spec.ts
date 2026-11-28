@@ -67,7 +67,7 @@ test("the favourites page: header and dashboard links, an unavailable row, remov
   await startSession(page, request);
   await request.get(`${STUB_URL}/__favourites-preset?value=some`);
   await page.goto("/dashboard");
-  await expect(page.getByRole("main").getByRole("link", { name: "Favourites" })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("link", { name: "Favourites" })).toBeVisible();
   await page.getByRole("banner").getByRole("link", { name: "Favourites" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Favourites" })).toBeVisible();
   await expect(page.getByTestId("favourite")).toContainText("Corner house with garden");

@@ -14,6 +14,9 @@ const HEADING_ID = "portfolio-title";
 const LIST_HEADING_ID = "portfolio-listings-title";
 const SIGN_IN_PATH = "/sign-in?next=%2Fdashboard";
 const FOCUS_INTERVAL_MS = 5000;
+// A figure under its label: the text still reads "Label: 3".
+const TILE = "rounded-2xl bg-accent-soft p-4 text-[0.8125rem] font-semibold text-muted";
+const FIGURE = "mt-1 block font-serif text-[2rem] leading-none text-accent";
 const day = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeZone: "UTC" });
 
 async function loadTotals(): Promise<ProfileFetch<Totals>> {
@@ -35,25 +38,33 @@ export function AgencySection() {
   return (
     <>
       <section className="card" aria-labelledby={HEADING_ID} data-testid="portfolio-totals">
-        <h2 id={HEADING_ID} tabIndex={-1} className="section-title">
-          Your portfolio
-        </h2>
-        <p data-testid="portfolio-total">Total listings: {totals.total_listings}</p>
-        <ul aria-label="Listings by status" data-testid="portfolio-statuses">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <h2 id={HEADING_ID} tabIndex={-1} className="section-title mb-0">
+            Your portfolio
+          </h2>
+          <Link href={INBOX_PATH} className="text-link font-semibold">
+            Open your inbox
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <p className={TILE} data-testid="portfolio-total">
+            Total listings: <strong className={FIGURE}>{totals.total_listings}</strong>
+          </p>
+          <p className={TILE} data-testid="portfolio-views">
+            Listing views: <strong className={FIGURE}>{totals.views_total}</strong>
+          </p>
+          <p className={TILE} data-testid="portfolio-inquiries">
+            Inquiries received: <strong className={FIGURE}>{totals.inquiries_total}</strong>
+          </p>
+        </div>
+        <ul className="mt-4 flex flex-wrap gap-2" aria-label="Listings by status" data-testid="portfolio-statuses">
           {STATUSES.map((status) => (
-            <li key={status}>
+            <li key={status} className="rounded-full bg-sand px-3 py-1 text-[0.8125rem] font-semibold">
               {label(status)}: {totals.by_status[status]}
             </li>
           ))}
         </ul>
-        <p data-testid="portfolio-inquiries">Inquiries received: {totals.inquiries_total}</p>
-        <p data-testid="portfolio-views">Listing views: {totals.views_total}</p>
-        <p>
-          <Link href={INBOX_PATH} className="text-link">
-            Open your inbox
-          </Link>
-        </p>
-        {stale && <p className="muted">These numbers may be out of date. We could not refresh them.</p>}
+        {stale && <p className="muted mt-3 mb-0">These numbers may be out of date. We could not refresh them.</p>}
       </section>
       <Portfolio sessionGone={sessionGone} />
     </>
@@ -108,7 +119,7 @@ function Portfolio({ sessionGone }: { sessionGone: () => void }) {
       <h2 id={LIST_HEADING_ID} className="section-title">
         Listing performance
       </h2>
-      <p className="muted">A view is counted once per browser in 30 minutes. Your own views are not counted.</p>
+      <p className="muted text-[0.875rem]">A view is counted once per browser in 30 minutes. Your own views are not counted.</p>
       <FilterForm onApply={apply} />
       <p role="status" className={rows.kind === "ready" && rows.results.length > 0 ? "sr-only" : "muted"} data-testid="portfolio-status">
         {rows.kind === "loading"
@@ -128,7 +139,7 @@ function Portfolio({ sessionGone }: { sessionGone: () => void }) {
         </div>
       )}
       {rows.kind === "ready" && rows.results.length > 0 && (
-        <ul className="listing-list" aria-label="Listings">
+        <ul className="mt-4 divide-y divide-line border-t border-line" aria-label="Listings">
           {rows.results.map((row) => (
             <ListingRow key={row.id} row={row} />
           ))}
@@ -147,14 +158,16 @@ function Portfolio({ sessionGone }: { sessionGone: () => void }) {
 function ListingRow({ row }: { row: DashboardRow }) {
   const place = [row.locality?.name, row.city?.name].filter(Boolean).join(", ");
   return (
-    <li className="listing-item" data-testid="portfolio-row">
-      <Link href={`${LISTINGS_PATH}/${row.id}`} className="listing-link font-semibold">
-        {row.title ?? "Untitled listing"}
-      </Link>
-      <p className="muted">
-        {[label(row.status), label(row.category), place, `Created ${day.format(new Date(`${row.created_on}T00:00:00Z`))}`].filter(Boolean).join(" · ")}
-      </p>
-      <p>
+    <li className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 py-4" data-testid="portfolio-row">
+      <div className="min-w-0">
+        <Link href={`${LISTINGS_PATH}/${row.id}`} className="listing-link font-semibold text-accent hover:underline">
+          {row.title ?? "Untitled listing"}
+        </Link>
+        <p className="text-[0.8125rem] text-muted">
+          {[label(row.status), label(row.category), place, `Created ${day.format(new Date(`${row.created_on}T00:00:00Z`))}`].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+      <p className="rounded-full bg-sand px-3 py-1 text-[0.8125rem] font-semibold">
         Views: {row.views} · Inquiries: {row.inquiries}
       </p>
     </li>
@@ -203,7 +216,7 @@ function FilterForm({ onApply }: { onApply: (filters: Filters) => void }) {
   const listFailed = registry.status === "error" || city.status === "error" || locality.status === "error";
 
   return (
-    <form onSubmit={submit} noValidate aria-label="Filter listings">
+    <form onSubmit={submit} noValidate aria-label="Filter listings" className="grid grid-cols-1 items-start gap-x-4 sm:grid-cols-2 xl:grid-cols-3">
       {select("status", "Status", STATUSES.map((status) => [status, label(status)]))}
       {select("category", "Category", (registry.registry?.categories ?? []).map((id) => [id, label(id)]), registry.status !== "ready")}
       {select("city_id", "City", city.items.map((item) => [item.id, item.name]), city.status !== "ready")}
@@ -211,7 +224,7 @@ function FilterForm({ onApply }: { onApply: (filters: Filters) => void }) {
       {date("created_from", "Created from")}
       {date("created_to", "Created to")}
       {listFailed && (
-        <p className="muted">
+        <p className="muted col-span-full">
           Some filter choices could not be loaded.{" "}
           <button
             type="button"
@@ -226,12 +239,13 @@ function FilterForm({ onApply }: { onApply: (filters: Filters) => void }) {
           </button>
         </p>
       )}
-      <p role="alert" className={problem ? "field-error" : "sr-only"}>
+      <p role="alert" className={problem ? "field-error col-span-full" : "sr-only"}>
         {problem}
       </p>
+      <div className="col-span-full flex flex-wrap gap-3">
       <button type="submit" className="primary-button">
         Apply filters
-      </button>{" "}
+      </button>
       <button
         type="button"
         className="secondary-button"
@@ -243,6 +257,7 @@ function FilterForm({ onApply }: { onApply: (filters: Filters) => void }) {
       >
         Clear filters
       </button>
+      </div>
     </form>
   );
 }

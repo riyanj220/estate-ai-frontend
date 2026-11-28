@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PageHeader } from "@/components/ui/page-header";
 import { requireAccount } from "@/lib/auth/current-account";
 import { AgencyProfileClient } from "./agency-profile-client";
 import { ProfileClient } from "./profile-client";
@@ -9,11 +10,11 @@ export const metadata: Metadata = { title: "Profile | EstateAI", robots: { index
 /** Stories 10.1 and 10.9: reachable by every Individual and Agency account, Suspended ones included. */
 function AccountHelpLinks() {
   return (
-    <p>
+    <p className="app-wide mt-6 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-4 text-[0.9375rem]">
       <Link href="/account/support" className="text-link">
         Contact support
-      </Link>{" "}
-      <Link href="/account/closure" className="text-link">
+      </Link>
+      <Link href="/account/closure" className="text-link text-error">
         Close account
       </Link>
     </p>
@@ -28,7 +29,9 @@ export default async function ProfilePage() {
   if (type === "individual") {
     return (
       <>
-        <h1 className="page-title">Profile</h1>
+        <PageHeader title="Profile" eyebrow="Your account">
+          How you appear on EstateAI, and how you sign in.
+        </PageHeader>
         <ProfileClient />
         <AccountHelpLinks />
       </>
@@ -37,7 +40,9 @@ export default async function ProfilePage() {
   if (type === "agency") {
     return (
       <>
-        <h1 className="page-title">Business profile</h1>
+        <PageHeader title="Business profile" eyebrow="Your agency">
+          What buyers see about your agency, and how you sign in.
+        </PageHeader>
         <AgencyProfileClient />
         <AccountHelpLinks />
       </>
