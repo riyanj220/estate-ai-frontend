@@ -2,13 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { STATE_NOTES, canOwnListings, displayName, profileLinkLabel } from "@/lib/account";
 import { MessagesLink } from "@/components/messages-link";
 import { NotificationsLink } from "@/components/notifications-link";
 import { FAVOURITES_PATH, keepsFavourites } from "@/lib/favourites";
 import { LISTINGS_PATH } from "@/lib/listing-messages";
 import { useSession } from "@/lib/session";
+
+/** True while the reader is scrolling down the page: the header gets out of the way, and returns on the first scroll up. */
+function useScrolledAway() {
+  const [away, setAway] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    function onScroll() {
+      const now = Math.max(window.scrollY, 0);
+      // Small jitters are ignored.
+      if (Math.abs(now - last) < 6) return;
+      setAway(now > last && now > 120);
+      last = now;
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return away;
+}
 
 export function SiteHeader() {
   const { status, account, signOut, refresh } = useSession();
@@ -18,6 +36,7 @@ export function SiteHeader() {
   // The phone menu belongs to the page it was opened on, so following a link closes it.
   const [menuAt, setMenuAt] = useState<string | null>(null);
   const menuOpen = menuAt === pathname;
+  const scrolledAway = useScrolledAway();
   const current = (href: string) => (pathname === href ? ("page" as const) : undefined);
 
   async function onSignOut() {
@@ -43,7 +62,7 @@ export function SiteHeader() {
   const note = account ? STATE_NOTES[account.state] : undefined;
 
   return (
-    <header className="site-header">
+    <header className={scrolledAway && !menuOpen ? "site-header site-header-away" : "site-header"}>
       <div className="site-header-inner">
           <Link href="/" className="brand">
             <svg aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">

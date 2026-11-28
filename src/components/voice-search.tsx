@@ -145,7 +145,7 @@ export function VoiceSearch({ withNotice, onTranscript }: { withNotice: (start: 
         <button
           ref={button}
           type="button"
-          className="secondary-button"
+          className={phase === "recording" ? "secondary-button voice-button voice-recording" : "secondary-button voice-button"}
           aria-disabled={waiting || undefined}
           onClick={() => (phase === "recording" ? stop() : phase === "idle" && withNotice(() => void start()))}
         >
@@ -164,12 +164,18 @@ export function VoiceSearch({ withNotice, onTranscript }: { withNotice: (start: 
           </button>
         )}
       </div>
-      <div role="status" data-testid="voice-status">
-        {phase === "starting" && <p>Waiting for the microphone…</p>}
+      <div role="status" data-testid="voice-status" className="composer-status">
+        {phase === "starting" && (
+          <p className="busy-line">
+            <span className="spinner" aria-hidden="true" />
+            Waiting for the microphone…
+          </p>
+        )}
         {phase === "recording" && <p>Recording. Press &ldquo;Stop recording&rdquo; when you have finished (at most 30 seconds).</p>}
         {phase === "transcribing" && (
-          <p>
-            Writing down your words… <progress aria-label="Transcribing" />
+          <p className="busy-line">
+            <span className="spinner" aria-hidden="true" />
+            Writing down your words…
           </p>
         )}
         {message && <p>{message}</p>}

@@ -5,10 +5,16 @@ import { PUBLIC_LOCATION_TEXT } from "@/lib/listing-preview";
 import type { Registry } from "@/lib/registry";
 
 /** "PKR 25,000.00 (Total · Monthly)", or "Not set". */
-export function priceText(fields: ListingView["fields"]): string {
-  if (fields.asking_price === null) return NOT_SET;
+/** The asking price and, apart from it, what it is a price for. */
+export function priceParts(fields: ListingView["fields"]): { amount: string; basis: string } {
+  if (fields.asking_price === null) return { amount: NOT_SET, basis: "" };
   const extra = [fields.price_basis, fields.rental_period].filter((value): value is string => value !== null).map(label).join(" · ");
-  return `PKR ${formatPrice(fields.asking_price)}${extra ? ` (${extra})` : ""}`;
+  return { amount: `PKR ${formatPrice(fields.asking_price)}`, basis: extra ? `(${extra})` : "" };
+}
+
+export function priceText(fields: ListingView["fields"]): string {
+  const { amount, basis } = priceParts(fields);
+  return basis ? `${amount} ${basis}` : amount;
 }
 
 function Declared() {

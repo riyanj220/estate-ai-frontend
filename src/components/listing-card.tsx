@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AdvertiserLine } from "@/components/advertiser-line";
-import { priceText } from "@/components/listing-facts";
+import { priceParts } from "@/components/listing-facts";
 import { RetryImage } from "@/components/retry-image";
 import { NOT_SET, areaSummary, summaryOf } from "@/lib/listing-labels";
 import { BROWSE_PATH, publishedText, type PublicCard } from "@/lib/public-listings";
@@ -13,6 +13,7 @@ export function ListingCard({ card, children, testId = "browse-card" }: { card: 
   const place = [card.localityName, card.cityName].filter(Boolean).join(", ");
   const rooms = [details.bedrooms && `Bedrooms: ${details.bedrooms}`, details.bathrooms && `Bathrooms: ${details.bathrooms}`].filter(Boolean).join(" · ");
   const area = areaSummary(fields);
+  const price = priceParts(fields);
   return (
     <li className="card" data-testid={testId}>
       <div className="card-media">
@@ -32,11 +33,14 @@ export function ListingCard({ card, children, testId = "browse-card" }: { card: 
           {title}
         </Link>
       </h2>
-      <p className="browse-price">{priceText(fields)}</p>
+      <p className="browse-price">
+        {price.amount} <span className="price-basis">{price.basis}</span>
+      </p>
       <p className="card-summary">{summaryOf(fields)}</p>
-      {area !== NOT_SET && <p className="card-area">{area}</p>}
-      {rooms && <p className="card-rooms">{rooms}</p>}
-      {place && <p className="card-place">{place}</p>}
+      {/* Always present, empty or not, so the cards of a row line up. */}
+      <p className="card-area">{area !== NOT_SET ? area : ""}</p>
+      <p className="card-rooms">{rooms}</p>
+      <p className="card-place">{place}</p>
       {card.advertiser && <AdvertiserLine advertiser={card.advertiser} testId="browse-advertiser" />}
       {publishedOn && (
         <p className="hint">

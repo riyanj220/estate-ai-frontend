@@ -97,7 +97,7 @@ export function SearchBox({ path }: { path: string }) {
   const unsupported = outcome.kind === "searched" ? outcome.answer.unsupported : outcome.kind === "failed" ? outcome.unsupported : [];
 
   return (
-    <section className="card filter-form" aria-label="Search by description" data-testid="search-box">
+    <section className="card filter-form search-composer" aria-label="Search by description" data-testid="search-box">
       <form onSubmit={onSubmit} noValidate>
         <div className="field">
           <label htmlFor="search-text">Describe what you are looking for</label>
@@ -109,6 +109,7 @@ export function SearchBox({ path }: { path: string }) {
               Describe what you are looking for.
             </p>
           )}
+          <div className="composer-row">
           <input
             ref={input}
             id="search-text"
@@ -120,16 +121,18 @@ export function SearchBox({ path }: { path: string }) {
             aria-invalid={empty || undefined}
             onChange={(event) => keep(event.target.value)}
           />
+            <VoiceSearch withNotice={withNotice} onTranscript={heard} />
+            <button type="submit" className="primary-button composer-submit" aria-disabled={working || undefined}>
+              Search
+            </button>
+          </div>
         </div>
-        <button type="submit" className="primary-button" aria-disabled={working || undefined}>
-          Search
-        </button>
       </form>
-      <VoiceSearch withNotice={withNotice} onTranscript={heard} />
-      <div role="status">
+      <div role="status" className="composer-status">
         {working && (
-          <p data-testid="search-progress">
-            Reading your request… <progress aria-label="Searching" />
+          <p data-testid="search-progress" className="busy-line">
+            <span className="spinner" aria-hidden="true" />
+            Reading your request…
           </p>
         )}
         {outcome.kind === "failed" && <p data-testid="search-fallback">{outcome.message}</p>}
