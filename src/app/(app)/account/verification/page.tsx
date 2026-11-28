@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/ui/page-header";
 import { requireAccount } from "@/lib/auth/current-account";
 import { VerificationClient } from "./verification-client";
 
@@ -10,9 +11,13 @@ export default async function VerificationPage() {
   const { account } = result;
   return (
     <>
-      <h1 className="page-title">Agency verification</h1>
+      <PageHeader title="Agency verification" eyebrow="Your agency">
+        Get the Verified mark beside your agency name.
+      </PageHeader>
       {account.account_type === "agency" ? (
-        <VerificationClient agencyName={account.agency_name} />
+        <div className="app-wide grid items-start gap-6 lg:grid-cols-2 [&>.card]:mb-0">
+          <VerificationClient agencyName={account.agency_name} />
+        </div>
       ) : (
         <p className="card" data-testid="verification-forbidden">
           Verification is available for agency accounts.

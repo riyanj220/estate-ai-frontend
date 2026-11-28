@@ -62,20 +62,20 @@ export function ClosureClient() {
 
   return (
     <>
-      <p role="status" aria-live="polite" className={announcement && !notice ? "muted" : "sr-only"} data-testid="closure-announcement">
+      <p role="status" aria-live="polite" className={announcement && !notice ? "col-span-full rounded-xl bg-accent-soft p-4 font-semibold text-accent" : "sr-only"} data-testid="closure-announcement">
         {announcement}
       </p>
       {notice && (
-        <p ref={noticeRef} tabIndex={-1} className="state-note" data-testid="closure-notice">
+        <p ref={noticeRef} tabIndex={-1} className="state-note col-span-full" data-testid="closure-notice">
           {notice}
         </p>
       )}
-      <section className="card" aria-labelledby={HEADING_ID} style={{ marginBottom: "var(--space)" }}>
+      <section className="card" aria-labelledby={HEADING_ID}>
         <h2 id={HEADING_ID} tabIndex={-1} className="section-title">
           Request status
         </h2>
         {request ? (
-          <dl className="account-details">
+          <dl className="account-details grid grid-cols-[minmax(8rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2">
             <dt>Request</dt>
             <dd>{KINDS[request.kind]}</dd>
             <dt>Status</dt>
@@ -92,25 +92,25 @@ export function ClosureClient() {
             )}
           </dl>
         ) : (
-          <p data-testid="closure-state">No request</p>
+          <p className="rounded-xl bg-sand px-4 py-8 text-center text-muted" data-testid="closure-state">No request</p>
         )}
       </section>
       {view.can_submit && (
         <form className="card" noValidate onSubmit={submit} aria-label="Request account closure">
-          <h2 className="section-title">Request account closure</h2>
+          <h2 className="section-title mb-3">Request account closure</h2>
           <p className="muted">
             An administrator reviews your request; your account stays as it is until then. If it is approved you can no longer sign in, your personal details are removed and your listings are
             archived. Messages you sent stay with the people who received them. This cannot be undone.
           </p>
-          <fieldset className="field">
-            <legend>What do you want?</legend>
+          <fieldset className="field grid gap-2">
+            <legend className="mb-2 font-semibold">What do you want?</legend>
             {(Object.keys(KINDS) as ClosureKind[]).map((value) => (
-              <label key={value} style={{ display: "block" }}>
-                <input type="radio" name="kind" value={value} checked={kind === value} onChange={() => setKind(value)} /> {KINDS[value]}
+              <label key={value} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-line px-4 has-checked:border-accent has-checked:bg-accent-soft">
+                <input type="radio" name="kind" value={value} checked={kind === value} onChange={() => setKind(value)} className="size-4 accent-accent" /> {KINDS[value]}
               </label>
             ))}
           </fieldset>
-          <button type="submit" className="primary-button" aria-disabled={working || undefined}>
+          <button type="submit" className="primary-button min-h-12 px-8" aria-disabled={working || undefined}>
             {working ? "Sending…" : "Send request"}
           </button>
         </form>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/ui/page-header";
 import { requireAccount } from "@/lib/auth/current-account";
 import { ClosureClient } from "./closure-client";
 
@@ -10,9 +11,13 @@ export default async function ClosurePage() {
   const type = result.account.account_type;
   return (
     <>
-      <h1 className="page-title">Close account</h1>
+      <PageHeader title="Close account" eyebrow="Your account">
+        Ask for your account to be closed, and follow your request.
+      </PageHeader>
       {type === "individual" || type === "agency" ? (
-        <ClosureClient />
+        <div className="app-wide grid items-start gap-6 lg:grid-cols-2 [&>.card]:mb-0">
+          <ClosureClient />
+        </div>
       ) : (
         <p className="card" data-testid="closure-forbidden">
           Closure requests are available for individual and agency accounts.

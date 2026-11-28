@@ -79,7 +79,7 @@ export function DraftClient({ id, admin, ai }: { id: string; admin: boolean; ai:
     document.title = draft ? "Draft | EstateAI" : "Listing | EstateAI";
   }, [draft]);
   const heading = (
-    <h1 id={HEADING_ID} tabIndex={-1} className="page-title">
+    <h1 id={HEADING_ID} tabIndex={-1} className="page-title mb-0 tracking-[-0.02em]">
       {draft ? "Draft" : "Listing"}
     </h1>
   );
@@ -112,22 +112,11 @@ export function DraftClient({ id, admin, ai }: { id: string; admin: boolean; ai:
     );
   }
   return (
-    <>
-      {heading}
-      {ai && draft && (
-        <p>
-          <Link href={`${LISTINGS_PATH}/${id}/assistant`} className="text-link">
-            Continue with the AI assistant
-          </Link>
-        </p>
-      )}
-      {draft && (
-        <p>
-          <Link href={`${LISTINGS_PATH}/${id}/review`} className="text-link">
-            Review and confirm details
-          </Link>
-        </p>
-      )}
+    <div className="app-wide">
+      <div className="mb-5">
+        <p className="eyebrow mb-2">Your listing</p>
+        {heading}
+      </div>
       <DraftEditor
         key={`${load.profile.listing.id}-${load.profile.load}`}
         initial={load.profile.listing}
@@ -136,8 +125,23 @@ export function DraftClient({ id, admin, ai }: { id: string; admin: boolean; ai:
         onNotFound={() => setMissing(true)}
         fetchLatest={fetchLatest}
         onStatusChange={setStatus}
+        links={
+          <>
+            {ai && draft && (
+              <Link href={`${LISTINGS_PATH}/${id}/assistant`} className="primary-button inline-flex items-center justify-center no-underline">
+                <span aria-hidden="true" className="mr-2">✦</span>
+                Continue with the AI assistant
+              </Link>
+            )}
+            {draft && (
+              <Link href={`${LISTINGS_PATH}/${id}/review`} className="secondary-button inline-flex items-center justify-center no-underline">
+                Review and confirm details
+              </Link>
+            )}
+          </>
+        }
       />
-      {back}
-    </>
+      <div className="mt-6 border-t border-line pt-4">{back}</div>
+    </div>
   );
 }

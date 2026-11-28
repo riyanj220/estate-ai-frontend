@@ -792,6 +792,42 @@
   .field select {
     @apply min-h-12;
   }
+  /* The listing form uses the width: single inputs sit two to a row; everything else spans. */
+  .editor-form {
+    @apply grid grid-cols-1 gap-x-5 md:grid-cols-2;
+  }
+  .editor-form > * {
+    @apply min-w-0 md:col-span-2;
+  }
+  .editor-form > div:has(> .field > input, > .field > select, > .field > .money-row) {
+    @apply md:col-span-1;
+  }
+  .editor-form > div:has(> .field > #title) {
+    @apply md:col-span-2;
+  }
+  .editor-main > * {
+    @apply mb-0 min-w-0;
+  }
+  .editor-area,
+  .editor-form .detail-group {
+    @apply grid grid-cols-1 items-start gap-x-5 md:grid-cols-2;
+  }
+  .editor-area > *,
+  .editor-form .detail-group > * {
+    @apply min-w-0 md:col-span-2;
+  }
+  .editor-area > div:has(> .field > input, > .field > select),
+  .editor-form .detail-group > .field:has(> input, > select),
+  .editor-form .detail-group > div:has(> .field > input, > .field > select) {
+    @apply md:col-span-1;
+  }
+  /* The owner's preview: facts in columns, as on the public page. */
+  .preview-article .detail-list {
+    @apply grid-cols-[repeat(auto-fill,minmax(min(100%,12rem),1fr))] gap-x-6 gap-y-0;
+  }
+  .preview-article .detail-list > div {
+    @apply border-t border-t-line py-3;
+  }
   /* The file picker as a button in the theme. */
   input[type="file"] {
     @apply w-full text-[0.875rem] text-muted;

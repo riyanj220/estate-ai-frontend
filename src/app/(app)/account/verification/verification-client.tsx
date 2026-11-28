@@ -93,22 +93,24 @@ export function VerificationClient({ agencyName }: { agencyName: string }) {
 
   return (
     <>
-      <p role="status" aria-live="polite" className={announcement && !notice ? "muted" : "sr-only"} data-testid="verification-announcement">
+      <p role="status" aria-live="polite" className={announcement && !notice ? "col-span-full rounded-xl bg-accent-soft p-4 font-semibold text-accent" : "sr-only"} data-testid="verification-announcement">
         {announcement}
       </p>
       {notice && (
-        <p ref={noticeRef} tabIndex={-1} className="state-note" data-testid="verification-notice">
+        <p ref={noticeRef} tabIndex={-1} className="state-note col-span-full" data-testid="verification-notice">
           {notice}
         </p>
       )}
-      <section className="card" aria-labelledby={HEADING_ID} style={{ marginBottom: "var(--space)" }}>
+      <section className="card" aria-labelledby={HEADING_ID}>
         <h2 id={HEADING_ID} tabIndex={-1} className="section-title">
           Status
         </h2>
-        <p data-testid="verification-state">{LABELS[view.status] ?? "Unknown"}</p>
+        <p className="mb-3 inline-block rounded-full bg-accent-soft px-4 py-1.5 font-semibold text-accent" data-testid="verification-state">
+          {LABELS[view.status] ?? "Unknown"}
+        </p>
         <p className="muted">Verified agencies show a mark on their public profile and listings. You can publish and message without it.</p>
         {request && (
-          <dl className="account-details" data-testid="verification-request">
+          <dl className="account-details grid grid-cols-[minmax(8rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2" data-testid="verification-request">
             <dt>Business name</dt>
             <dd className="account-text">{request.business_name}</dd>
             <dt>Registration or licence number</dt>
@@ -139,11 +141,11 @@ export function VerificationClient({ agencyName }: { agencyName: string }) {
       </section>
       {view.can_submit && (
         <form className="card" noValidate onSubmit={submit} aria-label="Request verification">
-          <h2 className="section-title">Request verification</h2>
+          <h2 className="section-title mb-3">Request verification</h2>
           {field("business_name", "Business name", "The name your business is registered under.")}
           {field("registration_number", "Registration or licence number", "No document is needed.")}
           {field("note", "Note for the reviewer (optional)", "Up to 500 characters.")}
-          <button type="submit" className="primary-button" aria-disabled={working || undefined}>
+          <button type="submit" className="primary-button min-h-12 px-8" aria-disabled={working || undefined}>
             {working ? "Sending…" : "Send request"}
           </button>
         </form>

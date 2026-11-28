@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/ui/page-header";
 import { requireAccount } from "@/lib/auth/current-account";
 import { SupportClient } from "./support-client";
 
@@ -10,9 +11,13 @@ export default async function SupportPage() {
   const type = result.account.account_type;
   return (
     <>
-      <h1 className="page-title">Support</h1>
+      <PageHeader title="Support" eyebrow="Help">
+        Ask a question or contest a decision. We reply to your request here.
+      </PageHeader>
       {type === "individual" || type === "agency" ? (
-        <SupportClient />
+        <div className="app-wide grid items-start gap-6 lg:grid-cols-2 [&>.card]:mb-0">
+          <SupportClient />
+        </div>
       ) : (
         <p className="card" data-testid="support-forbidden">
           Support requests are available for individual and agency accounts.

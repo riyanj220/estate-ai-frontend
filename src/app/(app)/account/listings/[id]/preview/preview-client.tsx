@@ -57,13 +57,13 @@ export function PreviewClient({ id, admin }: { id: string; admin: boolean }) {
   usePageshowRecheck(signInPath, () => void read(false));
 
   const heading = (
-    <h1 id={HEADING_ID} tabIndex={-1} className="page-title">
+    <h1 id={HEADING_ID} tabIndex={-1} className="page-title tracking-[-0.02em]">
       Preview
     </h1>
   );
   const links = (
-    <p>
-      <Link href={isListingId(id) ? draftPath : LISTINGS_PATH} className="text-link" data-testid="preview-back">
+    <p className="mt-5">
+      <Link href={isListingId(id) ? draftPath : LISTINGS_PATH} className="secondary-button inline-flex items-center justify-center no-underline" data-testid="preview-back">
         {isListingId(id) ? "Back to the draft" : "Back to My listings"}
       </Link>
     </p>
@@ -93,11 +93,12 @@ export function PreviewClient({ id, admin }: { id: string; admin: boolean }) {
     );
   }
   return (
-    <>
+    <div className="app-wide">
+      <p className="eyebrow mb-2">As buyers will see it</p>
       {heading}
       <PreviewBody listing={load.profile.listing} estimate={load.profile.estimate} signInPath={signInPath} />
       {links}
-    </>
+    </div>
   );
 }
 
@@ -114,18 +115,18 @@ function PreviewBody({ listing, estimate, signInPath }: { listing: ListingView; 
 
   return (
     <>
-      <p className="notice preview-banner font-bold" data-testid="preview-banner">
+      <p className="preview-banner mb-5 flex items-center gap-3 rounded-xl bg-[#fbf0d9] px-5 py-3 font-semibold text-[#6b4a0f]" data-testid="preview-banner">
         {PREVIEW_BANNER}
       </p>
-      <article className="card" aria-labelledby="preview-listing-title" style={{ marginBottom: "var(--space)" }} data-testid="preview-listing">
-        <h2 id="preview-listing-title" className="section-title" data-testid="preview-title-text">
+      <article className="card preview-article" aria-labelledby="preview-listing-title" data-testid="preview-listing">
+        <h2 id="preview-listing-title" className="mb-1 font-serif text-[clamp(1.5rem,3vw,2.25rem)] leading-tight font-semibold" data-testid="preview-title-text">
           {fields.title ?? "Untitled listing"}
         </h2>
         <p className="muted" data-testid="preview-summary">
           {summaryOf(fields)}
         </p>
         {listing.media.length === 0 ? (
-          <p className="muted" data-testid="preview-no-images">
+          <p className="mb-5 rounded-2xl bg-sand px-6 py-10 text-center text-muted" data-testid="preview-no-images">
             {PREVIEW_NO_IMAGES}
           </p>
         ) : (

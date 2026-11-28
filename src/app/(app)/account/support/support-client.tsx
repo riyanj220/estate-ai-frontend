@@ -69,16 +69,16 @@ export function SupportClient() {
 
   return (
     <>
-      <p role="status" aria-live="polite" className={announcement && !notice ? "muted" : "sr-only"} data-testid="support-announcement">
+      <p role="status" aria-live="polite" className={announcement && !notice ? "col-span-full rounded-xl bg-accent-soft p-4 font-semibold text-accent" : "sr-only"} data-testid="support-announcement">
         {announcement}
       </p>
       {notice && (
-        <p ref={noticeRef} tabIndex={-1} className="state-note" data-testid="support-notice">
+        <p ref={noticeRef} tabIndex={-1} className="state-note col-span-full" data-testid="support-notice">
           {notice}
         </p>
       )}
-      <form className="card" noValidate onSubmit={submit} aria-label="Contact support" style={{ marginBottom: "var(--space)" }}>
-        <h2 className="section-title">Contact support</h2>
+      <form className="card" noValidate onSubmit={submit} aria-label="Contact support">
+        <h2 className="section-title mb-3">Contact support</h2>
         <p className="muted">Ask for help or contest a decision. You can send up to 5 requests a day.</p>
         <Field name="support-category" label="Topic">
           {(props) => (
@@ -94,7 +94,7 @@ export function SupportClient() {
         <Field name="support-message" label="Message" hint={`${MIN} to ${MAX} characters.`} errors={problem ? [problem] : undefined}>
           {(props) => <textarea {...props} rows={6} maxLength={MAX} value={message} onChange={(event) => setMessage(event.target.value)} />}
         </Field>
-        <button type="submit" className="primary-button" aria-disabled={working || undefined}>
+        <button type="submit" className="primary-button min-h-12 px-8" aria-disabled={working || undefined}>
           {working ? "Sending…" : "Send message"}
         </button>
       </form>
@@ -102,11 +102,11 @@ export function SupportClient() {
         <h2 id={HEADING_ID} tabIndex={-1} className="section-title">
           Your requests
         </h2>
-        {requests.length === 0 && <p className="muted">No requests.</p>}
+        {requests.length === 0 && <p className="rounded-xl bg-sand px-4 py-8 text-center text-muted">No requests.</p>}
         {requests.length > 0 && (
-          <ul className="listing-list" aria-label="Your support requests">
+          <ul className="list-none divide-y divide-line p-0" aria-label="Your support requests">
             {requests.map((row) => (
-              <li key={row.id} className="listing-item" data-testid="support-row">
+              <li key={row.id} className="py-3" data-testid="support-row">
                 <p className="muted">
                   {[SUPPORT_CATEGORIES[row.category], STATUS[row.status], `Sent ${formatDate(row.submitted_at)}`].join(" · ")}
                 </p>

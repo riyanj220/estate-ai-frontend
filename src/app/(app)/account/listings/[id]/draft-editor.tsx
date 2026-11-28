@@ -238,6 +238,7 @@ type Conflict = { fields: string[]; kept: string[] };
  * Nothing about the Draft is stored or logged.
  */
 export function DraftEditor({
+  links,
   initial,
   signInPath,
   onSessionGone,
@@ -245,6 +246,8 @@ export function DraftEditor({
   fetchLatest,
   onStatusChange,
 }: {
+  /** Other ways into this listing, shown beside Preview. */
+  links?: React.ReactNode;
   initial: ListingView;
   /** The page title follows the status: told whenever the Listing's status is known or changes. */
   onStatusChange?: (status: string | null) => void;
@@ -1366,16 +1369,17 @@ export function DraftEditor({
 
   return (
     <>
-      <p>
-        <Link href={`${LISTINGS_PATH}/${encodeURIComponent(listing.id)}/preview`} className="text-link" data-testid="draft-preview-link" aria-describedby={dirty ? "preview-hint" : undefined}>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        {links}
+        <Link href={`${LISTINGS_PATH}/${encodeURIComponent(listing.id)}/preview`} className="secondary-button inline-flex items-center justify-center no-underline" data-testid="draft-preview-link" aria-describedby={dirty ? "preview-hint" : undefined}>
           Preview
         </Link>
         {dirty && (
-          <span id="preview-hint" className="hint" data-testid="preview-hint" style={{ marginLeft: "0.75rem" }}>
+          <span id="preview-hint" className="hint mb-0" data-testid="preview-hint">
             {PREVIEW_SAVED_HINT}
           </span>
         )}
-      </p>
+      </div>
       {/* The one announcement of the publish outcome: a visible status that stays mounted, so its text is announced once (it takes no focus). */}
       <p role="status" aria-live="polite" className={publishedNote ? "notice" : "sr-only"} data-testid="publish-live">
         {publishedNote === "done"
@@ -1406,62 +1410,8 @@ export function DraftEditor({
           targets={{ images: "images-add" }}
         />
       )}
-      <section className="card" aria-labelledby="draft-details-title" style={{ marginBottom: "var(--space)" }}>
-        <h2 id="draft-details-title" className="section-title">
-          What exists so far
-        </h2>
-        <dl className="detail-list" data-testid="draft-details">
-          <div>
-            <dt>Status</dt>
-            <dd data-testid="draft-status">{label(listing.status)}</dd>
-          </div>
-          <div>
-            <dt>Revision</dt>
-            <dd data-testid="draft-revision">{listing.revision ?? NOT_SET}</dd>
-          </div>
-          <div>
-            <dt>Registry version</dt>
-            <dd data-testid="draft-registry-version">{listing.registryVersion ?? NOT_SET}</dd>
-          </div>
-          <div>
-            <dt>Purpose</dt>
-            <dd data-testid="draft-purpose">{label(listing.fields.purpose)}</dd>
-          </div>
-          <div>
-            <dt>Category</dt>
-            <dd data-testid="draft-category">{label(listing.fields.category)}</dd>
-          </div>
-          <div>
-            <dt>Subtype</dt>
-            <dd data-testid="draft-subtype">{label(listing.fields.subtype)}</dd>
-          </div>
-          <div>
-            <dt>Asking price</dt>
-            <dd data-testid="draft-price">{price}</dd>
-          </div>
-          <div>
-            <dt>Area</dt>
-            <dd data-testid="draft-area">{areaSummary(listing.fields)}</dd>
-          </div>
-          {registry?.field("amenities")?.type === "amenities" && amenityRows()}
-          {detailSummary.map((item) => (
-            <div key={item.id}>
-              <dt>{item.label}</dt>
-              <dd data-testid={`draft-detail-${item.id}`}>
-                {item.text}
-                {item.sellerDeclared && (
-                  <>
-                    <span className="sr-only">. </span>
-                    <span className="declared-tag declared-tag-inline" data-testid={`draft-detail-${item.id}-seller-declared`}>
-                      {SELLER_DECLARED}
-                    </span>
-                  </>
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </section>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
+      <div className="editor-main grid min-w-0 gap-6">
       {listing.underReview && (
         <p className="state-note" data-testid="under-review">
           {UNDER_REVIEW_NOTE}
@@ -1500,7 +1450,7 @@ export function DraftEditor({
         onSessionGone={onSessionGone}
         onNotFound={onNotFound}
       />
-      <section className="card" aria-labelledby="draft-edit-title" style={{ marginBottom: "var(--space)" }}>
+      <section className="card" aria-labelledby="draft-edit-title">
         <h2 id="draft-edit-title" className="section-title">
           Edit details
         </h2>
@@ -1567,7 +1517,7 @@ export function DraftEditor({
                 {alert.text}
               </p>
             )}
-            <form method="post" onSubmit={onSubmit} noValidate aria-busy={pending}>
+            <form method="post" onSubmit={onSubmit} noValidate aria-busy={pending} className="editor-form">
               {shown
                 .filter((name) => !AREA_FIELDS.includes(name))
                 .map((name) => {
@@ -1575,7 +1525,7 @@ export function DraftEditor({
                   return def ? <div key={name}>{control(name, def)}</div> : null;
                 })}
               {shown.some((name) => AREA_FIELDS.includes(name)) && (
-                <div role="group" aria-labelledby="area-title" data-testid="area-block">
+                <div role="group" aria-labelledby="area-title" data-testid="area-block" className="editor-area">
                   <h3 id="area-title" className="section-title">
                     Area
                   </h3>
@@ -1630,7 +1580,7 @@ export function DraftEditor({
               )}
               <button
                 type="submit"
-                className="primary-button"
+                className="primary-button min-h-12 justify-self-start px-8"
                 aria-disabled={pending || imagesBusy || deleting || publishing || changingStatus ? true : undefined}
                 aria-describedby={imagesBusy ? "save-paused" : undefined}
               >
@@ -1642,6 +1592,64 @@ export function DraftEditor({
       </section>
         </>
       )}
+      </div>
+      <aside className="grid min-w-0 gap-6 [&_.card]:mb-0">
+      <section className="card" aria-labelledby="draft-details-title">
+        <h2 id="draft-details-title" className="section-title">
+          What exists so far
+        </h2>
+        <dl className="detail-list mb-0 gap-0 [&>div]:flex [&>div]:flex-wrap [&>div]:justify-between [&>div]:gap-x-3 [&>div]:border-t [&>div]:border-line [&>div]:py-2 [&_dd]:text-right [&_dd]:text-[0.9375rem]" data-testid="draft-details">
+          <div>
+            <dt>Status</dt>
+            <dd data-testid="draft-status">{label(listing.status)}</dd>
+          </div>
+          <div>
+            <dt>Revision</dt>
+            <dd data-testid="draft-revision">{listing.revision ?? NOT_SET}</dd>
+          </div>
+          <div>
+            <dt>Registry version</dt>
+            <dd data-testid="draft-registry-version">{listing.registryVersion ?? NOT_SET}</dd>
+          </div>
+          <div>
+            <dt>Purpose</dt>
+            <dd data-testid="draft-purpose">{label(listing.fields.purpose)}</dd>
+          </div>
+          <div>
+            <dt>Category</dt>
+            <dd data-testid="draft-category">{label(listing.fields.category)}</dd>
+          </div>
+          <div>
+            <dt>Subtype</dt>
+            <dd data-testid="draft-subtype">{label(listing.fields.subtype)}</dd>
+          </div>
+          <div>
+            <dt>Asking price</dt>
+            <dd data-testid="draft-price">{price}</dd>
+          </div>
+          <div>
+            <dt>Area</dt>
+            <dd data-testid="draft-area">{areaSummary(listing.fields)}</dd>
+          </div>
+          {registry?.field("amenities")?.type === "amenities" && amenityRows()}
+          {detailSummary.map((item) => (
+            <div key={item.id}>
+              <dt>{item.label}</dt>
+              <dd data-testid={`draft-detail-${item.id}`}>
+                {item.text}
+                {item.sellerDeclared && (
+                  <>
+                    <span className="sr-only">. </span>
+                    <span className="declared-tag declared-tag-inline" data-testid={`draft-detail-${item.id}-seller-declared`}>
+                      {SELLER_DECLARED}
+                    </span>
+                  </>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
       {listing.status === "draft" && !listing.restricted && account?.state !== "suspended" && (
         <EstimateSection
           listingId={listing.id}
@@ -1744,6 +1752,8 @@ export function DraftEditor({
           onSessionGone={onSessionGone}
           onConflict={() => void refreshAfterConflict()}
         />
+      </aside>
+      </div>
     </>
   );
 }
