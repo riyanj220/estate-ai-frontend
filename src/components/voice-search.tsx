@@ -132,7 +132,7 @@ export function VoiceSearch({ withNotice, onTranscript }: { withNotice: (start: 
   if (supported === null) return null;
   if (!supported) {
     return (
-      <p className="hint" data-testid="voice-unsupported">
+      <p className="hint order-4 m-0 basis-full" data-testid="voice-unsupported">
         Voice search is not available in this browser. Type your search in the box.
       </p>
     );
@@ -140,12 +140,12 @@ export function VoiceSearch({ withNotice, onTranscript }: { withNotice: (start: 
 
   const waiting = phase === "starting" || phase === "transcribing";
   return (
-    <div data-testid="voice-search">
-      <div className="image-actions">
+    <div data-testid="voice-search" className="contents">
+      <div className="contents">
         <button
           ref={button}
           type="button"
-          className={phase === "recording" ? "secondary-button voice-button voice-recording" : "secondary-button voice-button"}
+          className={`secondary-button voice-button order-2 m-0 min-h-13 whitespace-nowrap max-[641px]:flex-auto${phase === "recording" ? " voice-recording" : ""}`}
           aria-disabled={waiting || undefined}
           onClick={() => (phase === "recording" ? stop() : phase === "idle" && withNotice(() => void start()))}
         >
@@ -154,7 +154,7 @@ export function VoiceSearch({ withNotice, onTranscript }: { withNotice: (start: 
         {phase === "recording" && (
           <button
             type="button"
-            className="secondary-button"
+            className="secondary-button order-2 m-0 min-h-13 whitespace-nowrap max-[641px]:flex-auto"
             onClick={() => {
               button.current?.focus();
               stop(true);
@@ -164,7 +164,7 @@ export function VoiceSearch({ withNotice, onTranscript }: { withNotice: (start: 
           </button>
         )}
       </div>
-      <div role="status" data-testid="voice-status" className="composer-status">
+      <div role="status" data-testid="voice-status" className="order-4 m-0 flex-[0_0_100%] [&_p]:mt-3.5 [&_p]:text-[0.9375rem] [&_p]:text-muted [&_ul]:mt-1">
         {phase === "starting" && (
           <p className="busy-line">
             <span className="spinner" aria-hidden="true" />

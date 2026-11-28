@@ -1,4 +1,5 @@
 /* Layout and surfaces of the redesigned screens. Colours and type come from the tokens in globals.css. */
+@reference "./globals.css";
 @layer components {
   body {
     display: flex;
@@ -73,11 +74,6 @@
   }
 
   /* Shared bits */
-  .home-inner {
-    max-width: var(--width-wide);
-    margin-inline: auto;
-    padding-inline: var(--gutter);
-  }
   .eyebrow {
     color: var(--color-gold);
     font-size: 0.75rem;
@@ -102,94 +98,6 @@
     transform: translateX(4px);
   }
 
-  /* Hero */
-  .hero {
-    padding-top: clamp(2.5rem, 6vw, 4.5rem);
-  }
-  .hero-head {
-    display: grid;
-    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
-    gap: 2rem 4rem;
-    align-items: end;
-    margin-bottom: 2.25rem;
-  }
-  .hero-title {
-    font-family: var(--font-serif);
-    font-size: clamp(2.5rem, 6.2vw, 4.75rem);
-    font-weight: 600;
-    line-height: 1.02;
-    letter-spacing: -0.025em;
-    max-width: 13ch;
-  }
-  .hero-aside {
-    color: var(--color-muted);
-    font-size: 1.0625rem;
-    line-height: 1.7;
-  }
-  .searchbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    background: var(--color-surface);
-    border: 1px solid var(--color-line);
-    border-radius: 999px;
-    box-shadow: 0 10px 40px rgb(23 32 27 / 8%);
-    padding: 0.625rem;
-  }
-  .searchbar-purpose {
-    border: 0;
-    padding: 0;
-    margin: 0;
-  }
-  .segmented {
-    display: flex;
-    gap: 0.25rem;
-    background: var(--color-sand);
-    border-radius: 999px;
-    padding: 0.25rem;
-  }
-  .segmented label {
-    flex: 1;
-    cursor: pointer;
-  }
-  .segmented input {
-    position: absolute;
-    opacity: 0;
-  }
-  .segmented span {
-    display: block;
-    min-width: 5rem;
-    text-align: center;
-    border-radius: 999px;
-    padding: 0.625rem 1rem;
-    font-size: 0.9375rem;
-    font-weight: 600;
-  }
-  .segmented input:checked + span {
-    background: var(--color-accent);
-    color: #fff;
-  }
-  .segmented input:focus-visible + span {
-    outline: 3px solid var(--color-accent);
-    outline-offset: 2px;
-  }
-  .searchbar-field {
-    flex: 1 1 12rem;
-    padding: 0.25rem 1.25rem;
-    border-left: 1px solid var(--color-line);
-  }
-  .searchbar-field label {
-    display: block;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-  .searchbar-field:focus-within {
-    background: var(--color-accent-soft);
-    border-radius: 0.75rem;
-  }
   .searchbar-field select {
     appearance: none;
     background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%231e3a2f' stroke-width='2'%3E%3Cpath d='m1 1 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 0.25rem center;
@@ -202,192 +110,16 @@
     font-size: 0.9375rem;
     cursor: pointer;
   }
-  .searchbar-submit {
-    min-height: 3.25rem;
-    padding-inline: 1.75rem;
-  }
-  .ai-search {
-    margin-top: 0.75rem;
-  }
-  .ai-search > summary {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 2.75rem;
-    padding-inline: 0.75rem;
-    color: var(--color-accent);
-    font-weight: 600;
-    font-size: 0.9375rem;
-    list-style: none;
-    cursor: pointer;
-  }
-  .ai-search > summary::-webkit-details-marker {
-    display: none;
-  }
-  .ai-search > summary::before {
-    content: "✦" / "";
-    color: var(--color-gold);
-  }
-  .ai-search > summary:hover {
-    text-decoration: underline;
-  }
-  .ai-search [data-testid="search-box"] {
-    margin-top: 0.25rem;
-  }
-  .hero-photo {
-    position: relative;
-    height: clamp(18rem, 48vw, 36rem);
-    margin-top: 1.5rem;
-    border-radius: 1.25rem;
-    overflow: hidden;
-    background: var(--color-sand);
-  }
-  .hero-photo img,
-  .photo-tiles img,
-  .feature-photo img,
-  .cta-band img,
-  .auth-visual img {
-    object-fit: cover;
-  }
-  @media (max-width: 860px) {
-    .hero-head {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .searchbar {
-      border-radius: 1.25rem;
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .searchbar-field {
-      flex: none;
-      border-left: 0;
-      border-top: 1px solid var(--color-line);
-      padding: 0.625rem 0.5rem 0.25rem;
-    }
-  }
-
-  /* Sections */
-  .home-section {
-    width: 100%;
-    padding-top: clamp(4rem, 8vw, 6.5rem);
-  }
-  .section-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 1rem 2rem;
-    margin-bottom: 2rem;
-  }
-  .home .section-title {
-    font-size: clamp(1.875rem, 3.5vw, 2.75rem);
-    line-height: 1.1;
-    letter-spacing: -0.02em;
-    margin: 0;
-  }
-
   /* Listing cards */
   .browse-grid {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
     gap: 1.5rem;
   }
   .browse-grid .card {
-    display: flex;
-    flex-direction: column;
-    border-radius: 1rem;
-    box-shadow: none;
-    padding-bottom: 1.25rem;
+    @apply flex flex-col overflow-hidden rounded-2xl px-0 pt-0 pb-5 text-[0.9375rem] wrap-anywhere shadow-none transition-[box-shadow,translate] duration-150 hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgb(23_32_27/12%)];
   }
   .browse-grid .card > * {
-    order: 5;
-    margin-inline: 1.25rem;
-  }
-  .browse-grid .card > .card-media {
-    order: 0;
-    position: relative;
-    margin: 0 0 1rem;
-  }
-  .card-media .image-thumb {
-    display: block;
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
-    border-radius: 0;
-  }
-  .card-media div.browse-no-image {
-    display: flex;
-  }
-  .card-badge {
-    position: absolute;
-    top: 0.875rem;
-    left: 0.875rem;
-    background: rgb(255 255 255 / 94%);
-    border-radius: 999px;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-  }
-  /* Every part of a card has a fixed height, so the same facts sit level across a row. */
-  .browse-grid .card > .browse-price {
-    order: 1;
-    min-height: 3.25rem;
-    line-height: 1.3;
-    font-family: var(--font-serif);
-    font-size: 1.3125rem;
-    font-weight: 600;
-    color: var(--color-accent);
-  }
-  .price-basis {
-    display: block;
-    font-family: var(--font-sans);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--color-muted);
-  }
-  .browse-grid .card > .browse-title {
-    order: 2;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
-    text-wrap: wrap;
-    font-family: var(--font-sans);
-    font-size: 1rem;
-    line-height: 1.5rem;
-    height: 3rem;
-    margin-block: 0.5rem 0.25rem;
-  }
-  .browse-title .text-link:focus-visible {
-    outline-offset: -2px;
-  }
-  .browse-grid .card > .card-place {
-    order: 3;
-    min-height: 1.4rem;
-    line-height: 1.4rem;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    color: var(--color-muted);
-    font-size: 0.875rem;
-  }
-  .browse-grid .card > .card-rooms {
-    order: 4;
-    min-height: 2.25rem;
-    margin-top: 0.875rem;
-    padding-top: 0.875rem;
-    border-top: 1px solid var(--color-line);
-    font-size: 0.875rem;
-    font-weight: 600;
-  }
-  .browse-grid .card > .card-area,
-  .browse-grid .card > .card-summary {
-    min-height: 1.4em;
-    line-height: 1.4;
-    color: var(--color-muted);
-    font-size: 0.8125rem;
-  }
-  .browse-grid .card > .card-area {
-    margin-top: 0.25rem;
+    @apply order-5 mx-5;
   }
   /* Who listed it and when sit at the foot of the card. */
   .browse-grid .card > .advertiser {
@@ -396,203 +128,6 @@
     margin-block: auto 0.5rem;
     padding-top: 0.75rem;
     font-size: 0.875rem;
-  }
-
-  /* Photo tiles */
-  .photo-tiles {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-    gap: 1.25rem;
-  }
-  .photo-tiles a {
-    position: relative;
-    display: flex;
-    align-items: flex-end;
-    height: 21rem;
-    border-radius: 1rem;
-    overflow: hidden;
-    color: #fff;
-    background: var(--color-accent);
-  }
-  .photo-tiles img {
-    transition: transform 0.4s;
-  }
-  .photo-tiles a:hover img {
-    transform: scale(1.05);
-  }
-  .photo-tile-text {
-    position: relative;
-    width: 100%;
-    padding: 4rem 1.25rem 1.25rem;
-    background: linear-gradient(transparent, rgb(10 18 14 / 85%) 55%);
-  }
-  .photo-tile-text strong {
-    display: block;
-    font-family: var(--font-serif);
-    font-size: 1.5rem;
-  }
-  .photo-tile-text span {
-    font-size: 0.875rem;
-  }
-
-  /* How it helps */
-  .feature {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 2.5rem 4.5rem;
-    align-items: center;
-  }
-  .feature-photo {
-    position: relative;
-    height: 100%;
-    min-height: 22rem;
-    border-radius: 1.25rem;
-    overflow: hidden;
-  }
-  .steps {
-    list-style: none;
-    padding: 0;
-    margin-top: 1.75rem;
-    counter-reset: step;
-  }
-  .steps li {
-    counter-increment: step;
-    display: grid;
-    grid-template-columns: 3rem minmax(0, 1fr);
-    padding-block: 1.125rem;
-    border-top: 1px solid var(--color-line);
-  }
-  .steps li::before {
-    content: "0" counter(step);
-    grid-row: span 2;
-    font-family: var(--font-serif);
-    color: var(--color-gold);
-  }
-  .steps span {
-    color: var(--color-muted);
-    font-size: 0.9375rem;
-  }
-  @media (max-width: 900px) {
-    .feature {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
-
-  .area-grid {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
-    column-gap: 2rem;
-  }
-  .area-grid a {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    min-height: 3.5rem;
-    border-bottom: 1px solid var(--color-line);
-    font-family: var(--font-serif);
-    font-size: 1.125rem;
-  }
-  .area-grid a::after {
-    content: "→" / "";
-    color: var(--color-gold);
-  }
-  .area-grid a:hover {
-    color: var(--color-accent);
-    border-color: var(--color-accent);
-  }
-
-  /* Call to action */
-  .cta-band {
-    position: relative;
-    overflow: hidden;
-    border-radius: 1.25rem;
-    background: var(--color-accent-strong);
-    color: #fff;
-    margin: 0;
-    padding: 0;
-  }
-  .cta-content {
-    position: relative;
-    padding: clamp(2rem, 6vw, 4.5rem);
-    background: linear-gradient(90deg, rgb(12 26 20 / 92%) 40%, rgb(12 26 20 / 55%));
-  }
-  .home .cta-band .section-title {
-    max-width: 18ch;
-    margin-bottom: 0.75rem;
-  }
-  .cta-links {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem 1.75rem;
-    margin-top: 1.75rem;
-  }
-  .cta-links a {
-    color: #fff;
-    font-weight: 600;
-    text-decoration: underline;
-    text-underline-offset: 0.3em;
-  }
-  .cta-links a.cta-primary {
-    background: #fff;
-    color: var(--color-accent-strong);
-    border-radius: 999px;
-    padding: 0.75rem 1.5rem;
-    text-decoration: none;
-  }
-  .cta-band :focus-visible {
-    outline-color: #fff;
-  }
-
-  /* Footer */
-  .site-footer {
-    flex-shrink: 0;
-    margin-top: 6rem;
-    background: var(--color-accent-strong);
-    color: #e6ece8;
-  }
-  .site-footer-inner {
-    max-width: var(--width-wide);
-    margin-inline: auto;
-    padding: 3.5rem var(--gutter) 2rem;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-    gap: 2rem;
-  }
-  .footer-name {
-    font-family: var(--font-serif);
-    font-size: 1.5rem;
-    color: #fff;
-    margin-bottom: 0.5rem;
-  }
-  .footer-title {
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 0.75rem;
-  }
-  .site-footer ul {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    gap: 0.5rem;
-  }
-  .site-footer a:hover {
-    text-decoration: underline;
-  }
-  .site-footer :focus-visible {
-    outline-color: #fff;
-  }
-  .footer-note {
-    max-width: var(--width-wide);
-    margin-inline: auto;
-    padding: 1.25rem var(--gutter) 2rem;
-    border-top: 1px solid rgb(255 255 255 / 15%);
-    font-size: 0.8125rem;
-    color: #b9c6bf;
   }
 
   /* Sign in and registration */
@@ -984,17 +519,8 @@
     color: var(--color-accent);
   }
 
-  /* Dropdowns in the search bar: the focus ring goes round the whole field, never across its label. */
-  .searchbar-field {
-    display: grid;
-    gap: 0.125rem;
-  }
   .searchbar-field select:focus-visible {
     outline: none;
-  }
-  .searchbar-field:has(select:focus-visible) {
-    outline: 2px solid var(--color-accent);
-    outline-offset: -2px;
   }
 
   /* The signed-in menu: a sidebar on wide screens, a panel behind "Menu" on narrow ones. */
@@ -1102,69 +628,9 @@
     --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M6 11h12v9H6zM9 11V8a3 3 0 0 1 6 0v3'/%3E%3C/svg%3E");
   }
 
-  /* The described search: one input with its two buttons beside it, and what is happening underneath. */
-  .search-composer.card {
-    max-width: 52rem;
-    padding: 1.5rem;
-  }
-  .search-composer .field {
-    margin: 0;
-  }
-  .search-composer .field label {
-    font-size: 1.0625rem;
-  }
-  .search-composer .field > .hint {
-    margin-bottom: 0.875rem;
-  }
-  .composer-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem;
-  }
-  .search-composer .composer-row > input {
-    order: 1;
-    flex: 1 1 18rem;
-    width: auto;
-    min-height: 3.25rem;
-    padding-inline: 1.125rem;
-    border-radius: 999px;
-    background: #fdfdfb;
-  }
-  .composer-row [data-testid="voice-search"],
-  .composer-row [data-testid="voice-search"] .image-actions {
-    display: contents;
-  }
-  .composer-row .image-actions > button,
-  .composer-row .composer-submit {
-    order: 2;
-    min-height: 3.25rem;
-    margin: 0;
-    white-space: nowrap;
-  }
-  .composer-row .composer-submit {
-    order: 3;
-    min-width: 7.5rem;
-  }
-  .composer-row .composer-status,
-  .composer-row [data-testid="voice-unsupported"] {
-    order: 4;
-    flex: 0 0 100%;
-    margin: 0;
-  }
-  .composer-status p {
-    margin: 0.875rem 0 0;
-    color: var(--color-muted);
-    font-size: 0.9375rem;
-  }
-  .composer-status ul {
-    margin-block: 0.25rem 0;
-  }
+  /* The described search: the microphone mark, the recording dot and the spinner. */
   .voice-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
+    @apply inline-flex items-center justify-center gap-2;
   }
   .voice-button::before {
     content: "";
@@ -1182,39 +648,16 @@
     animation: recording-pulse 1.2s ease-in-out infinite;
   }
   .busy-line {
-    display: flex;
-    align-items: center;
-    gap: 0.625rem;
+    @apply flex items-center gap-2.5;
   }
   .spinner {
-    flex: none;
-    width: 1.125rem;
-    height: 1.125rem;
-    border: 2px solid var(--color-line);
-    border-top-color: var(--color-accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(1turn);
-    }
+    @apply size-4.5 flex-none animate-spin rounded-full border-2 border-line border-t-accent;
   }
   @keyframes recording-pulse {
     50% {
       opacity: 0.3;
     }
   }
-  @media (max-width: 640px) {
-    .search-composer .composer-row > input {
-      flex-basis: 100%;
-    }
-    .composer-row .image-actions > button,
-    .composer-row .composer-submit {
-      flex: 1 1 auto;
-    }
-  }
-
   /* Dropdown lists in the theme, where the browser can style them (elsewhere the native list stays). */
   @supports (appearance: base-select) {
     select:not([multiple]):not([size]),

@@ -97,11 +97,11 @@ export function SearchBox({ path }: { path: string }) {
   const unsupported = outcome.kind === "searched" ? outcome.answer.unsupported : outcome.kind === "failed" ? outcome.unsupported : [];
 
   return (
-    <section className="card filter-form search-composer" aria-label="Search by description" data-testid="search-box">
+    <section className="card filter-form max-w-208" aria-label="Search by description" data-testid="search-box">
       <form onSubmit={onSubmit} noValidate>
-        <div className="field">
-          <label htmlFor="search-text">Describe what you are looking for</label>
-          <p className="hint" id="search-hint">
+        <div className="field m-0">
+          <label className="text-[1.0625rem]" htmlFor="search-text">Describe what you are looking for</label>
+          <p className="hint mb-3.5" id="search-hint">
             For example: house for sale in Clifton under 5 crore, at least 4 bedrooms, near a park.
           </p>
           {empty && (
@@ -109,11 +109,12 @@ export function SearchBox({ path }: { path: string }) {
               Describe what you are looking for.
             </p>
           )}
-          <div className="composer-row">
+          <div className="flex flex-wrap items-center gap-3">
           <input
             ref={input}
             id="search-text"
             type="text"
+            className="order-1 min-h-13 w-auto flex-[1_1_18rem] rounded-full bg-[#fdfdfb] px-4.5 max-[641px]:basis-full"
             maxLength={SEARCH_MAX_CHARS}
             autoComplete="off"
             enterKeyHint="search"
@@ -122,13 +123,13 @@ export function SearchBox({ path }: { path: string }) {
             onChange={(event) => keep(event.target.value)}
           />
             <VoiceSearch withNotice={withNotice} onTranscript={heard} />
-            <button type="submit" className="primary-button composer-submit" aria-disabled={working || undefined}>
+            <button type="submit" className="primary-button order-3 m-0 min-h-13 min-w-30 whitespace-nowrap max-[641px]:flex-auto" aria-disabled={working || undefined}>
               Search
             </button>
           </div>
         </div>
       </form>
-      <div role="status" className="composer-status">
+      <div role="status" className="[&_p]:mt-3.5 [&_p]:text-[0.9375rem] [&_p]:text-muted [&_ul]:mt-1">
         {working && (
           <p data-testid="search-progress" className="busy-line">
             <span className="spinner" aria-hidden="true" />

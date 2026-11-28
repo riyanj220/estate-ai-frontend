@@ -854,25 +854,6 @@
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
     gap: var(--space);
   }
-  .browse-grid .card {
-    overflow-wrap: anywhere;
-    overflow: hidden;
-    padding: 0 0 1rem;
-    font-size: 0.9375rem;
-    transition: box-shadow 0.15s, transform 0.15s;
-  }
-  .browse-grid .card:hover {
-    box-shadow: 0 12px 32px rgb(23 32 27 / 12%);
-    transform: translateY(-2px);
-  }
-  .browse-grid .card > * {
-    margin-inline: 1.125rem;
-  }
-  .browse-grid .card > .image-thumb {
-    margin: 0 0 0.75rem;
-    width: 100%;
-    border-radius: 0;
-  }
   .browse-title {
     font-family: var(--font-serif);
     font-size: 1.1875rem;
@@ -886,18 +867,6 @@
   }
   .browse-title .text-link:hover {
     text-decoration: underline;
-  }
-  .browse-price {
-    color: var(--color-accent);
-    font-size: 1.125rem;
-    font-weight: 700;
-  }
-  .browse-no-image {
-    background: var(--color-sand);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-muted);
   }
   .browse-pages {
     display: flex;

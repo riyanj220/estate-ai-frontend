@@ -11,7 +11,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="auth">
       <div className="auth-visual">
-        <Image src="/images/auth.jpg" alt="" fill sizes="(max-width: 900px) 0px, 50vw" loading="eager" />
+        <Image src="/images/auth.jpg" alt="" fill sizes="(max-width: 900px) 0px, 50vw" loading="eager" className="object-cover" />
         <div className="auth-visual-text">
           <p className="auth-headline">Your next move starts here</p>
           <ul>
