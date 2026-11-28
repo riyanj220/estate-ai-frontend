@@ -54,9 +54,11 @@ export function FilterPanel({ path, schema, places, query, problems }: Props) {
         </div>
         <details open={refused} data-testid="filter-panel">
           <summary className="filter-toggle">{chips.length > 0 ? `Filters (${chips.length} active)` : "Filters"}</summary>
-          {schema.filters.map((filter) => (
-            <Control key={filter.id} filter={filter} places={places} query={query} problems={problems} />
-          ))}
+          <div className="filter-grid">
+            {schema.filters.map((filter) => (
+              <Control key={filter.id} filter={filter} places={places} query={query} problems={problems} />
+            ))}
+          </div>
           <p className="filter-actions">
             <button type="submit" className="primary-button">
               Apply filters
@@ -133,7 +135,7 @@ function Control({ filter, places, query, problems }: { filter: FilterDef } & Pi
   }
 
   return (
-    <fieldset className="filter-group">
+    <fieldset className={filter.match === "amenities" || filter.reference === "locality" ? "filter-group filter-wide" : "filter-group"}>
       <legend>
         {filterTitle(filter.id)}
         {filter.sellerDeclared && <span className="declared-tag declared-tag-inline">Seller-declared</span>}

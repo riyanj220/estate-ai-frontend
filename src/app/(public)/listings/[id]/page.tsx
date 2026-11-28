@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { AdvertiserLine } from "@/components/advertiser-line";
 import { ListingEstimatePanel } from "@/components/listing-estimate";
 import { FloorPlanView } from "@/components/floor-plan-view";
-import { ListingFacts } from "@/components/listing-facts";
+import { ListingFacts, priceText } from "@/components/listing-facts";
 import { MessageSeller } from "@/components/message-seller";
 import { ReportListing } from "@/components/report-listing";
 import { RetryImage } from "@/components/retry-image";
@@ -54,6 +54,7 @@ export default async function ListingPage({ params }: Props) {
   }
   const { listing, publishedOn } = result;
   const { fields, media } = listing;
+  const place = [result.localityName, result.cityName].filter(Boolean).join(", ");
   const [insight, registry, catalogue] = await Promise.all([
     fetchListingEstimate(listing.id),
     fetchPublicRegistry(),
@@ -63,27 +64,24 @@ export default async function ListingPage({ params }: Props) {
     <>
       {back}
       <ViewBeacon listingId={listing.id} />
-      <article className="card">
-        <h1 className="page-title">{fields.title ?? "Untitled listing"}</h1>
-        <p className="muted" data-testid="listing-summary">
-          {summaryOf(fields)}
-          {publishedOn && (
-            <>
-              {" · Published "}
-              <time dateTime={publishedOn}>{publishedText(publishedOn)}</time>
-            </>
-          )}
-        </p>
-        {result.advertiser && <AdvertiserLine advertiser={result.advertiser} testId="listing-advertiser" />}
-        <FavouritesProvider>
-          <SaveButton listingId={listing.id} title={fields.title ?? "Untitled listing"} />
-        </FavouritesProvider>
-        <MessageSeller listingId={listing.id} />
-        <ReportListing listingId={listing.id} />
+      <article className="detail">
+        <header className="detail-head">
+          <h1 className="page-title">{fields.title ?? "Untitled listing"}</h1>
+          {place && <p className="detail-place">{place}</p>}
+          <p className="muted" data-testid="listing-summary">
+            {summaryOf(fields)}
+            {publishedOn && (
+              <>
+                {" · Published "}
+                <time dateTime={publishedOn}>{publishedText(publishedOn)}</time>
+              </>
+            )}
+          </p>
+        </header>
         {media.length === 0 ? (
-          <p className="muted">{PREVIEW_NO_IMAGES}</p>
+          <p className="detail-no-images">{PREVIEW_NO_IMAGES}</p>
         ) : (
-          <ul className="preview-gallery" aria-label="Images" data-testid="listing-images">
+          <ul className="preview-gallery detail-gallery" aria-label="Images" data-testid="listing-images">
             {media.map((item, index) => (
               <li key={item.id}>
                 <RetryImage
@@ -97,20 +95,51 @@ export default async function ListingPage({ params }: Props) {
             ))}
           </ul>
         )}
-        {listing.floorPlan && <FloorPlanView url={listing.floorPlan.url} testId="listing-floor-plan" />}
-        <ListingEstimatePanel listingId={listing.id} initial={insight} />
-        <ListingFacts listing={listing} registry={registry} catalogue={catalogue} cityName={result.cityName} localityName={result.localityName} testId="listing" />
-        {registry === null && <p className="state-note">{PREVIEW_DETAILS_FAILED}</p>}
-        {fields.description !== null && (
-          <section aria-labelledby="listing-description-title">
-            <h2 id="listing-description-title" className="section-title">
-              Description
-            </h2>
-            <p style={{ whiteSpace: "pre-line" }} data-testid="listing-description">
-              {fields.description}
-            </p>
-          </section>
-        )}
+        <div className="detail-columns">
+          {/* First in the document so a phone shows the price and the actions before the long details. */}
+          <div className="detail-side">
+            <div className="card">
+              <p className="detail-price" data-testid="listing-headline-price">
+                {priceText(fields)}
+              </p>
+              {result.advertiser && <AdvertiserLine advertiser={result.advertiser} testId="listing-advertiser" />}
+              <div className="detail-actions">
+                <MessageSeller listingId={listing.id} />
+                <FavouritesProvider>
+                  <SaveButton listingId={listing.id} title={fields.title ?? "Untitled listing"} />
+                </FavouritesProvider>
+                <ReportListing listingId={listing.id} />
+              </div>
+            </div>
+          </div>
+          <div className="detail-main">
+            {fields.description !== null && (
+              <section className="card" aria-labelledby="listing-description-title">
+                <h2 id="listing-description-title" className="section-title">
+                  Description
+                </h2>
+                <p style={{ whiteSpace: "pre-line" }} data-testid="listing-description">
+                  {fields.description}
+                </p>
+              </section>
+            )}
+            <section className="card" aria-labelledby="listing-details-title">
+              <h2 id="listing-details-title" className="section-title">
+                Property details
+              </h2>
+              <ListingFacts listing={listing} registry={registry} catalogue={catalogue} cityName={result.cityName} localityName={result.localityName} testId="listing" />
+              {registry === null && <p className="state-note">{PREVIEW_DETAILS_FAILED}</p>}
+            </section>
+            <div className="card">
+              <ListingEstimatePanel listingId={listing.id} initial={insight} />
+            </div>
+            {listing.floorPlan && (
+              <div className="card">
+                <FloorPlanView url={listing.floorPlan.url} testId="listing-floor-plan" />
+              </div>
+            )}
+          </div>
+        </div>
       </article>
     </>
   );
