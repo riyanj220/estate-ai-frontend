@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { canOwnListings } from "@/lib/account";
-import { requireAccount } from "@/lib/current-account";
-import { LISTINGS_UNAVAILABLE } from "@/lib/listing-messages";
+import { canOwnListings } from "@/lib/account/account";
+import { requireAccount } from "@/lib/auth/current-account";
+import { LISTINGS_UNAVAILABLE } from "@/lib/listing/listing-messages";
 import { CreateListingForm } from "./create-listing-form";
 
 export const metadata: Metadata = { title: "Create listing | EstateAI", robots: { index: false, follow: false } };

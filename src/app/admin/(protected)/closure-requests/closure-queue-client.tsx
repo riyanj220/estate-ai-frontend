@@ -2,15 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Field } from "@/components/form-field";
+import { Field } from "@/components/ui/form-field";
 import type { components } from "@/api/schema";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { readErrorBody, withTimeout } from "@/lib/forms";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
-import { useFormFeedback } from "@/lib/use-form-feedback";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
 import { CHANGE_REASON, checkReason, reasonMessage } from "../accounts/accounts-api";
 
 type Row = components["schemas"]["AdminClosureQueue"]["results"][number];

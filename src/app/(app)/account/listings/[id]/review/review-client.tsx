@@ -4,15 +4,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
-import { useAiNotice } from "@/components/ai-notice";
-import { getApi } from "@/lib/api";
-import { TURN_TIMEOUT_MS } from "@/lib/assistant";
-import { withCsrf } from "@/lib/csrf";
-import { readErrorBody, withTimeout } from "@/lib/forms";
-import { detailLabel } from "@/lib/listing-details";
-import { isListingId, readListing, type ListingView } from "@/lib/listing-labels";
-import { LISTINGS_PATH, LISTING_NOT_FOUND, signInPathFor } from "@/lib/listing-messages";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
+import { useAiNotice } from "@/components/ai/ai-notice";
+import { getApi } from "@/lib/http/api";
+import { TURN_TIMEOUT_MS } from "@/lib/ai/assistant";
+import { withCsrf } from "@/lib/http/csrf";
+import { readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { detailLabel } from "@/lib/listing/listing-details";
+import { isListingId, readListing, type ListingView } from "@/lib/listing/listing-labels";
+import { LISTINGS_PATH, LISTING_NOT_FOUND, signInPathFor } from "@/lib/listing/listing-messages";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
 import {
   CHANGED_ELSEWHERE,
   CONFIRM_REFUSED,
@@ -30,11 +30,11 @@ import {
   reviewFields,
   reviewName,
   reviewValue,
-} from "@/lib/review";
-import { usePageshowRecheck } from "@/lib/use-pageshow-recheck";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
-import { useAmenityCatalogue, useLocationLists } from "@/lib/use-reference";
-import { useRegistry, type Registry } from "@/lib/use-registry";
+} from "@/lib/listing/review";
+import { usePageshowRecheck } from "@/lib/auth/use-pageshow-recheck";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
+import { useAmenityCatalogue, useLocationLists } from "@/lib/reference/use-reference";
+import { useRegistry, type Registry } from "@/lib/listing/use-registry";
 
 const HEADING_ID = "review-title";
 

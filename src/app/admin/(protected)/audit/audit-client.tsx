@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { components } from "@/api/schema";
-import { getApi } from "@/lib/api";
+import { getApi } from "@/lib/http/api";
 import { cursorOf, useAdminRead } from "../moderation-shared";
 
 type Page = components["schemas"]["AuditPage"];

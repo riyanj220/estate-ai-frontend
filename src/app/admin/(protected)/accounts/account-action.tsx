@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Field } from "@/components/form-field";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { readErrorBody, withTimeout } from "@/lib/forms";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
+import { Field } from "@/components/ui/form-field";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
 import { CHANGED_ELSEWHERE, CHANGE_REASON, GONE_ACCOUNT, checkReason, reasonMessage, type AccountStatus, type AdminAccount } from "./accounts-api";
 
 /** Suspend or Reactivate, whichever the account's state allows: a reason, then a confirmation dialog. */

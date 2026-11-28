@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ListingCard } from "@/components/listing-card";
-import { SearchBox } from "@/components/search-box";
-import { SearchSelect } from "@/components/search-select";
-import { BROWSE_PATH, fetchBrowse, fetchPlaces } from "@/lib/public-listings";
+import { ListingCard } from "@/components/listing/listing-card";
+import { SearchBox } from "@/components/search/search-box";
+import { SearchSelect } from "@/components/ui/search-select";
+import { BROWSE_PATH, fetchBrowse, fetchPlaces } from "@/lib/listing/public-listings";
 
 export const metadata: Metadata = { title: "EstateAI | Property for sale and rent in Karachi" };
 export const dynamic = "force-dynamic";

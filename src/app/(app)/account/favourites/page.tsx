@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { canOwnListings } from "@/lib/account";
-import { requireAccount } from "@/lib/current-account";
+import { canOwnListings } from "@/lib/account/account";
+import { requireAccount } from "@/lib/auth/current-account";
 import { FavouritesClient } from "./favourites-client";
 
 export const metadata: Metadata = { title: "Favourites | EstateAI", robots: { index: false, follow: false } };

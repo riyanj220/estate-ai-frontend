@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireAccount } from "@/lib/current-account";
+import { requireAccount } from "@/lib/auth/current-account";
 import { AssistantClient } from "./assistant-client";
 
 export const metadata: Metadata = { title: "Listing assistant | EstateAI", robots: { index: false, follow: false } };

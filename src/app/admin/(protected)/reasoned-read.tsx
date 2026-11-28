@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Field } from "@/components/form-field";
+import { Field } from "@/components/ui/form-field";
 import { LOOKUP_REASON, checkReason, reasonMessage } from "./accounts/accounts-api";
 import { useAdminWrite } from "./moderation-shared";
 

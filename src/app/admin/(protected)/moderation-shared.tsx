@@ -2,10 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { withCsrf } from "@/lib/csrf";
-import { readErrorBody, withTimeout } from "@/lib/forms";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
+import { withCsrf } from "@/lib/http/csrf";
+import { readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
 
 /** Shared by the Reports and Listings administration screens (Epic 9). */
 export const STATUS_LABELS = { draft: "Draft", published: "Published", archived: "Archived", sold: "Sold", rented: "Rented", removed: "Removed" } as const;

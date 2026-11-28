@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { requireAccount } from "@/lib/current-account";
+import { requireAccount } from "@/lib/auth/current-account";
 import { ListingsClient } from "./listings-client";
 
 // The title never carries a count or any listing content.

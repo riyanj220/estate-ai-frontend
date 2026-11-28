@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckYourEmail } from "@/components/check-your-email";
-import { FormErrors } from "@/components/form-errors";
-import { CityField } from "@/components/city-field";
-import { Field, PasswordField } from "@/components/form-field";
-import { getApi } from "@/lib/api";
+import { CheckYourEmail } from "@/components/auth/check-your-email";
+import { FormErrors } from "@/components/ui/form-errors";
+import { CityField } from "@/components/reference/city-field";
+import { Field, PasswordField } from "@/components/ui/form-field";
+import { getApi } from "@/lib/http/api";
 import {
   NETWORK_ERROR,
   REJECTED_ERROR,
@@ -15,11 +15,11 @@ import {
   rateLimitMessage,
   readErrorBody,
   withTimeout,
-} from "@/lib/forms";
-import { mapFieldMessages } from "@/lib/password-messages";
-import { AGENCY_FIELD_MESSAGES, GENERAL_FIELD_MESSAGES } from "@/lib/registration-messages";
-import { cityRequiredMessage, useCities } from "@/lib/use-cities";
-import { useFormFeedback } from "@/lib/use-form-feedback";
+} from "@/lib/forms/forms";
+import { mapFieldMessages } from "@/lib/forms/password-messages";
+import { AGENCY_FIELD_MESSAGES, GENERAL_FIELD_MESSAGES } from "@/lib/forms/registration-messages";
+import { cityRequiredMessage, useCities } from "@/lib/reference/use-cities";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
 
 type FieldName = "agency_name" | "email" | "phone" | "office_address" | "city_id" | "password";
 type Fields = Record<string, string[]>;

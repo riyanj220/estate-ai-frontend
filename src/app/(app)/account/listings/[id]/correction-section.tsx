@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
-import { ErrorSummary } from "@/components/error-summary";
-import { Field } from "@/components/form-field";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { readErrorBody, withTimeout } from "@/lib/forms";
-import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/image-lock";
-import { readEligibility, type Eligibility } from "@/lib/listing-correction";
-import { NOT_ANSWERED } from "@/lib/listing-details";
-import { areaKey, choiceLabel, isMarlaUnit, readListing, type ListingView } from "@/lib/listing-labels";
+import { ErrorSummary } from "@/components/ui/error-summary";
+import { Field } from "@/components/ui/form-field";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/listing/image-lock";
+import { readEligibility, type Eligibility } from "@/lib/listing/listing-correction";
+import { NOT_ANSWERED } from "@/lib/listing/listing-details";
+import { areaKey, choiceLabel, isMarlaUnit, readListing, type ListingView } from "@/lib/listing/listing-labels";
 import {
   CORRECTION_BASIS_ONLY,
   CORRECTION_CHECK_FAILED,
@@ -38,11 +38,11 @@ import {
   SAVED_CHOICE_GONE,
   correctionUntilText,
   mapLocationCodes,
-} from "@/lib/listing-messages";
-import { GENERIC_FIELD_MESSAGE, mapKnownCodes } from "@/lib/password-messages";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import type { RefState } from "@/lib/use-reference";
-import type { Registry } from "@/lib/use-registry";
+} from "@/lib/listing/listing-messages";
+import { GENERIC_FIELD_MESSAGE, mapKnownCodes } from "@/lib/forms/password-messages";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import type { RefState } from "@/lib/reference/use-reference";
+import type { Registry } from "@/lib/listing/use-registry";
 
 const NAMES = ["locality", "area_value", "area_unit", "marla_basis"] as const;
 type Name = (typeof NAMES)[number];

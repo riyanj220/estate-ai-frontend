@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { getApi } from "@/lib/api";
-import { readErrorBody, withTimeout } from "@/lib/forms";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { scrubTokenFromHistory } from "@/lib/scrub-token";
-import { useSession } from "@/lib/session";
+import { getApi } from "@/lib/http/api";
+import { readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { scrubTokenFromHistory } from "@/lib/auth/scrub-token";
+import { useSession } from "@/lib/auth/session";
 
 type LinkFailure = "link_expired" | "link_used" | "link_invalid" | "missing";
 type State = "init" | "ready" | "success" | LinkFailure;

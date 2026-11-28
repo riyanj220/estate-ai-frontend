@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchRows, fetchTotals, STATUSES, type DashboardPage, type DashboardRow, type Filters, type Totals } from "@/lib/agency-dashboard";
-import { label } from "@/lib/listing-labels";
-import { LISTINGS_PATH } from "@/lib/listing-messages";
-import { INBOX_PATH } from "@/lib/messaging";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
-import { useLocationLists } from "@/lib/use-reference";
-import { useRegistry } from "@/lib/use-registry";
+import { fetchRows, fetchTotals, STATUSES, type DashboardPage, type DashboardRow, type Filters, type Totals } from "@/lib/account/agency-dashboard";
+import { label } from "@/lib/listing/listing-labels";
+import { LISTINGS_PATH } from "@/lib/listing/listing-messages";
+import { INBOX_PATH } from "@/lib/messaging/messaging";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
+import { useLocationLists } from "@/lib/reference/use-reference";
+import { useRegistry } from "@/lib/listing/use-registry";
 
 const HEADING_ID = "portfolio-title";
 const LIST_HEADING_ID = "portfolio-listings-title";

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { components } from "@/api/schema";
-import { getApi } from "@/lib/api";
+import { getApi } from "@/lib/http/api";
 import { useAdminRead, useAdminWrite, words } from "../moderation-shared";
 
 type City = components["schemas"]["AdminCityList"]["items"][number];

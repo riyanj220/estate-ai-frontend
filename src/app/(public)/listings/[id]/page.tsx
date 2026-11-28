@@ -1,20 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AdvertiserLine } from "@/components/advertiser-line";
-import { ListingEstimatePanel } from "@/components/listing-estimate";
-import { FloorPlanView } from "@/components/floor-plan-view";
-import { ListingFacts, priceText } from "@/components/listing-facts";
-import { MessageSeller } from "@/components/message-seller";
-import { ReportListing } from "@/components/report-listing";
-import { RetryImage } from "@/components/retry-image";
-import { SaveButton } from "@/components/save-button";
-import { ViewBeacon } from "@/components/view-beacon";
-import type { AmenityCatalogueList } from "@/lib/amenities";
-import { FavouritesProvider } from "@/lib/favourites";
-import { summaryOf } from "@/lib/listing-labels";
-import { PREVIEW_DETAILS_FAILED, PREVIEW_NO_IMAGES } from "@/lib/listing-messages";
-import { BROWSE_PATH, fetchDetail, fetchListingEstimate, fetchPublicAmenities, fetchPublicRegistry, publishedText } from "@/lib/public-listings";
+import { AdvertiserLine } from "@/components/listing/advertiser-line";
+import { ListingEstimatePanel } from "@/components/listing/listing-estimate";
+import { FloorPlanView } from "@/components/listing/floor-plan-view";
+import { ListingFacts, priceText } from "@/components/listing/listing-facts";
+import { MessageSeller } from "@/components/messaging/message-seller";
+import { ReportListing } from "@/components/listing/report-listing";
+import { RetryImage } from "@/components/ui/retry-image";
+import { SaveButton } from "@/components/listing/save-button";
+import { ViewBeacon } from "@/components/listing/view-beacon";
+import type { AmenityCatalogueList } from "@/lib/listing/amenities";
+import { FavouritesProvider } from "@/lib/listing/favourites";
+import { summaryOf } from "@/lib/listing/listing-labels";
+import { PREVIEW_DETAILS_FAILED, PREVIEW_NO_IMAGES } from "@/lib/listing/listing-messages";
+import { BROWSE_PATH, fetchDetail, fetchListingEstimate, fetchPublicAmenities, fetchPublicRegistry, publishedText } from "@/lib/listing/public-listings";
 
 type Props = { params: Promise<{ id: string }> };
 

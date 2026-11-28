@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
-import { useAiNotice } from "@/components/ai-notice";
-import { ErrorSummary } from "@/components/error-summary";
-import { Field } from "@/components/form-field";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { REJECTED_ERROR, readErrorBody, withTimeout } from "@/lib/forms";
-import { label } from "@/lib/listing-labels";
+import { useAiNotice } from "@/components/ai/ai-notice";
+import { ErrorSummary } from "@/components/ui/error-summary";
+import { Field } from "@/components/ui/form-field";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { REJECTED_ERROR, readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { label } from "@/lib/listing/listing-labels";
 import {
   CREATE_FORBIDDEN,
   DRAFT_CAP,
@@ -18,13 +18,13 @@ import {
   LISTING_FIELD_MESSAGES,
   NEW_LISTING_PATH,
   signInPathFor,
-} from "@/lib/listing-messages";
-import { mapKnownCodes } from "@/lib/password-messages";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
-import { useFormFeedback } from "@/lib/use-form-feedback";
-import { usePageshowRecheck } from "@/lib/use-pageshow-recheck";
-import { useRegistry, type Registry } from "@/lib/use-registry";
+} from "@/lib/listing/listing-messages";
+import { mapKnownCodes } from "@/lib/forms/password-messages";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
+import { usePageshowRecheck } from "@/lib/auth/use-pageshow-recheck";
+import { useRegistry, type Registry } from "@/lib/listing/use-registry";
 
 type FieldName = "purpose" | "category" | "subtype";
 type Values = Record<FieldName, string>;

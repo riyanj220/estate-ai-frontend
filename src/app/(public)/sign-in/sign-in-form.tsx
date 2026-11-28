@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { FormErrors, focusFirstError } from "@/components/form-errors";
+import { FormErrors } from "@/components/ui/form-errors";
+import { focusFirstError } from "@/lib/forms/focus-first-error";
 import {
   NETWORK_ERROR,
   REJECTED_ERROR,
   SERVER_ERROR,
   TIMEOUT_ERROR,
-} from "@/lib/forms";
-import { useSession } from "@/lib/session";
+} from "@/lib/forms/forms";
+import { useSession } from "@/lib/auth/session";
 
 type FieldName = "email" | "password";
 type Fields = Record<string, string[]>;

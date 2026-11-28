@@ -2,10 +2,10 @@
 
 import { useCallback, useState } from "react";
 import type { components } from "@/api/schema";
-import { getApi } from "@/lib/api";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { SUPPORT_CATEGORIES } from "@/lib/support";
-import { useFormFeedback } from "@/lib/use-form-feedback";
+import { getApi } from "@/lib/http/api";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { SUPPORT_CATEGORIES } from "@/lib/account/support";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
 import { cursorOf, useAdminRead, useAdminWrite } from "../moderation-shared";
 import { ReasonedRead } from "../reasoned-read";
 

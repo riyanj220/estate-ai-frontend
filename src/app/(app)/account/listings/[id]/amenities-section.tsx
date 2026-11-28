@@ -11,10 +11,10 @@ import {
   withAmenity,
   type AmenityState,
   type CatalogueItem,
-} from "@/lib/amenities";
-import { AMENITIES_HELP, NEARBY_HELP, OTHER_AMENITIES, OTHER_AMENITIES_HELP, SELLER_DECLARED, detailLabel } from "@/lib/listing-details";
-import { AMENITIES_EMPTY, AMENITIES_FAILED, AMENITIES_LOADED, AMENITIES_LOADING } from "@/lib/listing-messages";
-import type { AmenityCatalogue } from "@/lib/use-reference";
+} from "@/lib/listing/amenities";
+import { AMENITIES_HELP, NEARBY_HELP, OTHER_AMENITIES, OTHER_AMENITIES_HELP, SELLER_DECLARED, detailLabel } from "@/lib/listing/listing-details";
+import { AMENITIES_EMPTY, AMENITIES_FAILED, AMENITIES_LOADED, AMENITIES_LOADING } from "@/lib/listing/listing-messages";
+import type { AmenityCatalogue } from "@/lib/reference/use-reference";
 
 const OPTIONS: { state: AmenityState | ""; text: string }[] = [
   { state: "present", text: STATE_TEXT.present },

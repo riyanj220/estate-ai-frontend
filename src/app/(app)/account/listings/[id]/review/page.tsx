@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAccount } from "@/lib/current-account";
+import { requireAccount } from "@/lib/auth/current-account";
 import { ReviewClient } from "./review-client";
 
 export const metadata: Metadata = { title: "Review your listing | EstateAI", robots: { index: false, follow: false } };

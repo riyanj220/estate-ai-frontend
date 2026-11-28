@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ListingCard } from "@/components/listing-card";
-import { getApi } from "@/lib/api";
-import { FAVOURITES_PATH, changeFavourite } from "@/lib/favourites";
-import { withTimeout } from "@/lib/forms";
-import { BROWSE_PATH, publishedText, readCard, type PublicCard } from "@/lib/public-listings";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
+import { ListingCard } from "@/components/listing/listing-card";
+import { getApi } from "@/lib/http/api";
+import { FAVOURITES_PATH, changeFavourite } from "@/lib/listing/favourites";
+import { withTimeout } from "@/lib/forms/forms";
+import { BROWSE_PATH, publishedText, readCard, type PublicCard } from "@/lib/listing/public-listings";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
 
 /** `card` is null for a Listing that is no longer available: nothing about it is shown. */
 type Item = { listingId: string; savedOn: string | null; card: PublicCard | null };

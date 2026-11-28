@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Field } from "@/components/form-field";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { readErrorBody, withTimeout } from "@/lib/forms";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
+import { Field } from "@/components/ui/form-field";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
 import { fetchPolicy, NOT_AVAILABLE, SIGN_IN_PATH, TYPE_LABELS, type AccountType, type Policy } from "./quota-api";
 
 const HEADING_ID = "limits-title";

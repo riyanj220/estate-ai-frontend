@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { getApi } from "@/lib/api";
+import { getApi } from "@/lib/http/api";
 import {
   NETWORK_ERROR,
   REJECTED_ERROR,
@@ -12,8 +12,8 @@ import {
   rateLimitMessage,
   readErrorBody,
   withTimeout,
-} from "@/lib/forms";
-import { EMAIL_MESSAGES, mapFieldMessages } from "@/lib/password-messages";
+} from "@/lib/forms/forms";
+import { EMAIL_MESSAGES, mapFieldMessages } from "@/lib/forms/password-messages";
 
 // One confirmation for every address: nothing here says whether the address has an account.
 const SENT = "If that address has an account, we have sent a link. It works once and expires in 1 hour.";

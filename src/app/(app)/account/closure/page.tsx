@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAccount } from "@/lib/current-account";
+import { requireAccount } from "@/lib/auth/current-account";
 import { ClosureClient } from "./closure-client";
 
 export const metadata: Metadata = { title: "Close account | EstateAI", robots: { index: false, follow: false } };

@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { RetryImage } from "@/components/retry-image";
-import { getApi } from "@/lib/api";
-import { CsrfFetchError, withCsrf } from "@/lib/csrf";
-import { UPLOAD_TIMEOUT_MS, anySignal, withTimeout } from "@/lib/forms";
-import { acquireImageLock, imageLockHeld, profileSaveHeld, releaseImageLock } from "@/lib/image-lock";
-import { IMAGES_FORBIDDEN, MAX_UPLOAD_BYTES, UPLOAD_FILE_MESSAGES } from "@/lib/listing-messages";
+import { RetryImage } from "@/components/ui/retry-image";
+import { getApi } from "@/lib/http/api";
+import { CsrfFetchError, withCsrf } from "@/lib/http/csrf";
+import { UPLOAD_TIMEOUT_MS, anySignal, withTimeout } from "@/lib/forms/forms";
+import { acquireImageLock, imageLockHeld, profileSaveHeld, releaseImageLock } from "@/lib/listing/image-lock";
+import { IMAGES_FORBIDDEN, MAX_UPLOAD_BYTES, UPLOAD_FILE_MESSAGES } from "@/lib/listing/listing-messages";
 import {
   PROFILE_IMAGE_BUSY,
   PROFILE_IMAGE_CAP,
@@ -19,14 +19,14 @@ import {
   readOwnerImage,
   type OwnerImage,
   type ProfileImageKind,
-} from "@/lib/profile-image";
-import { nextStamp } from "@/lib/read-stamp";
-import { thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
-import { uploadErrorMessage } from "@/lib/upload-errors";
-import { useFormFeedback } from "@/lib/use-form-feedback";
-import { usePageshowRecheck } from "@/lib/use-pageshow-recheck";
-import { PROFILE_PATH } from "@/lib/use-profile-load";
+} from "@/lib/account/profile-image";
+import { nextStamp } from "@/lib/messaging/read-stamp";
+import { thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
+import { uploadErrorMessage } from "@/lib/forms/upload-errors";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
+import { usePageshowRecheck } from "@/lib/auth/use-pageshow-recheck";
+import { PROFILE_PATH } from "@/lib/account/use-profile-load";
 
 type Notice = { kind: "error" | "wait" | "ok"; text: string };
 type Shown = { image: OwnerImage | null; stamp: number; version: number; mine: boolean };

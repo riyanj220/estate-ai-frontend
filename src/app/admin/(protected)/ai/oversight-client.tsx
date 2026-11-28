@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import type { components } from "@/api/schema";
-import { getApi } from "@/lib/api";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
+import { getApi } from "@/lib/http/api";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
 import { useAdminRead, useAdminWrite, words } from "../moderation-shared";
 
 type Oversight = components["schemas"]["AiOversight"];

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { checkAccount } from "@/lib/current-account";
-import { safeNext } from "@/lib/next-target";
+import { checkAccount } from "@/lib/auth/current-account";
+import { safeNext } from "@/lib/auth/next-target";
 import { SignInForm } from "./sign-in-form";
 
 export const metadata: Metadata = { title: "Sign in | EstateAI", robots: { index: false, follow: false } };

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { ListingResults } from "@/components/listing-results";
-import { SearchBox } from "@/components/search-box";
-import { browseHref, canonicalQuery, valuesOf } from "@/lib/listing-filters";
-import { BROWSE_PATH, fetchBrowse, fetchFilterSchema, fetchPlaces } from "@/lib/public-listings";
+import { ListingResults } from "@/components/listing/listing-results";
+import { SearchBox } from "@/components/search/search-box";
+import { browseHref, canonicalQuery, valuesOf } from "@/lib/search/listing-filters";
+import { BROWSE_PATH, fetchBrowse, fetchFilterSchema, fetchPlaces } from "@/lib/listing/public-listings";
 
 export const metadata: Metadata = { title: "Browse listings | EstateAI" };
 

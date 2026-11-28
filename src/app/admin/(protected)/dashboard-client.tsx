@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback } from "react";
 import type { components } from "@/api/schema";
-import { getApi } from "@/lib/api";
+import { getApi } from "@/lib/http/api";
 import { STATUS_LABELS, useAdminRead } from "./moderation-shared";
 
 type Counts = components["schemas"]["AdminDashboard"];

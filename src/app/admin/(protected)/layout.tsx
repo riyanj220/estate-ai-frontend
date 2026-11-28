@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/current-account";
+import { requireAdmin } from "@/lib/auth/current-account";
 import { AdminShell, AdminUnavailable } from "./admin-shell";
 
 // A neutral default title (no admin wording: the redirect body sent to non-administrators carries it) and noindex.

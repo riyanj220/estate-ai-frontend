@@ -1,6 +1,6 @@
 "use client";
 
-import { Field } from "@/components/form-field";
+import { Field } from "@/components/ui/form-field";
 import {
   NOT_ANSWERED,
   NOT_OFFERED_HINT,
@@ -17,8 +17,8 @@ import {
   notOffered,
   splitTerms,
   termsTitle,
-} from "@/lib/listing-details";
-import { choiceLabel, isIsoDate, isListingId } from "@/lib/listing-labels";
+} from "@/lib/listing/listing-details";
+import { choiceLabel, isIsoDate, isListingId } from "@/lib/listing/listing-labels";
 import {
   CHOOSE_CITY_FIRST,
   CITIES_EMPTY,
@@ -28,9 +28,9 @@ import {
   LOCALITIES_FAILED,
   LOCALITIES_LOADING,
   SAVED_CHOICE_GONE,
-} from "@/lib/listing-messages";
-import type { AmenityCatalogue, LocationLists, RefState } from "@/lib/use-reference";
-import type { FieldDef } from "@/lib/use-registry";
+} from "@/lib/listing/listing-messages";
+import type { AmenityCatalogue, LocationLists, RefState } from "@/lib/reference/use-reference";
+import type { FieldDef } from "@/lib/listing/use-registry";
 import { AmenitiesSection } from "./amenities-section";
 
 /** The id of the note the editor shows above the form while identity fields are locked. */

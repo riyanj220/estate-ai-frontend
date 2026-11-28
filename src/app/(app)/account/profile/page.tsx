@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAccount } from "@/lib/current-account";
+import { requireAccount } from "@/lib/auth/current-account";
 import { AgencyProfileClient } from "./agency-profile-client";
 import { ProfileClient } from "./profile-client";
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AccountTypeSwitch } from "@/components/account-type-switch";
+import { AccountTypeSwitch } from "@/components/auth/account-type-switch";
 import { RegisterForm } from "./register-form";
 
 export const metadata: Metadata = { title: "Create an account | EstateAI" };

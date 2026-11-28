@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { getApi } from "@/lib/api";
-import { clearCsrfToken, getCsrfToken } from "@/lib/csrf";
-import { readErrorBody, withTimeout } from "@/lib/forms";
-import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/image-lock";
-import { readListing, type ListingView } from "@/lib/listing-labels";
+import { getApi } from "@/lib/http/api";
+import { clearCsrfToken, getCsrfToken } from "@/lib/http/csrf";
+import { readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/listing/image-lock";
+import { readListing, type ListingView } from "@/lib/listing/listing-labels";
 import {
   DASHBOARD_PATH,
   PUBLISH_ALLOWANCE_CHECKING,
@@ -38,10 +38,10 @@ import {
   REPUBLISH_WORKING,
   VERIFY_EMAIL_PATH,
   quotaExhaustedText,
-} from "@/lib/listing-messages";
-import { newIdempotencyKey } from "@/lib/idempotency";
-import { formatResetDate, readAllowance, remainingText, type Allowance } from "@/lib/publication-allowance";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
+} from "@/lib/listing/listing-messages";
+import { newIdempotencyKey } from "@/lib/http/idempotency";
+import { formatResetDate, readAllowance, remainingText, type Allowance } from "@/lib/account/publication-allowance";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
 
 /** What the allowance read answers: the numbers, a failure (never blocks publishing), or a session that is gone. */
 async function readOwnAllowance(): Promise<Allowance | "failed" | "gone"> {

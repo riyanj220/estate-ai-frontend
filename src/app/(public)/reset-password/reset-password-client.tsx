@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { getApi } from "@/lib/api";
-import { clearCsrfToken } from "@/lib/csrf";
+import { getApi } from "@/lib/http/api";
+import { clearCsrfToken } from "@/lib/http/csrf";
 import {
   NETWORK_ERROR,
   REJECTED_ERROR,
@@ -13,10 +13,10 @@ import {
   rateLimitMessage,
   readErrorBody,
   withTimeout,
-} from "@/lib/forms";
-import { RESET_PASSWORD_MESSAGES, mapFieldMessages } from "@/lib/password-messages";
-import { scrubTokenFromHistory } from "@/lib/scrub-token";
-import { useSession } from "@/lib/session";
+} from "@/lib/forms/forms";
+import { RESET_PASSWORD_MESSAGES, mapFieldMessages } from "@/lib/forms/password-messages";
+import { scrubTokenFromHistory } from "@/lib/auth/scrub-token";
+import { useSession } from "@/lib/auth/session";
 
 type LinkFailure = "link_expired" | "link_used" | "link_invalid" | "missing";
 type State = "init" | "form" | "success" | LinkFailure;

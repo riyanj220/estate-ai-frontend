@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAccount } from "@/lib/current-account";
+import { requireAccount } from "@/lib/auth/current-account";
 import { PreviewClient } from "./preview-client";
 
 // The title never carries the id or any listing content.

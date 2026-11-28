@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
-import { ErrorSummary } from "@/components/error-summary";
-import { Field } from "@/components/form-field";
+import { ErrorSummary } from "@/components/ui/error-summary";
+import { Field } from "@/components/ui/form-field";
 import {
   CATALOGUE_LOADING_LINE,
   CATALOGUE_UNAVAILABLE_LINE,
@@ -18,11 +18,11 @@ import {
   otherCodes,
   pruneStale,
   type AmenityMap,
-} from "@/lib/amenities";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { REJECTED_ERROR, SERVER_ERROR, readErrorBody, withTimeout } from "@/lib/forms";
-import { CROSS_FIELD_GROUPS, NOT_ANSWERED, SELLER_DECLARED, SELLER_DECLARED_HELP, answeredDetails, detailLabel, latestDetail, sameDetail, sentDetail, shownDetails } from "@/lib/listing-details";
+} from "@/lib/listing/amenities";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { REJECTED_ERROR, SERVER_ERROR, readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { CROSS_FIELD_GROUPS, NOT_ANSWERED, SELLER_DECLARED, SELLER_DECLARED_HELP, answeredDetails, detailLabel, latestDetail, sameDetail, sentDetail, shownDetails } from "@/lib/listing/listing-details";
 import {
   NOT_SET,
   areaKey,
@@ -38,7 +38,7 @@ import {
   priceKey,
   readListing,
   type ListingView,
-} from "@/lib/listing-labels";
+} from "@/lib/listing/listing-labels";
 import {
   ALREADY_SAVED,
   CONFLICT_BANNER,
@@ -96,14 +96,14 @@ import {
   PREVIEW_SAVED_HINT,
   SAVE_PAUSED,
   SAVE_WAIT,
-} from "@/lib/listing-messages";
-import { GENERIC_FIELD_MESSAGE, mapKnownCodes } from "@/lib/password-messages";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
-import { useFormFeedback } from "@/lib/use-form-feedback";
-import { useAmenityCatalogue, useLocationLists } from "@/lib/use-reference";
-import { useRegistry, type FieldDef, type Registry } from "@/lib/use-registry";
-import { isEditableListing, targetsFor, type StatusTarget } from "@/lib/listing-status";
+} from "@/lib/listing/listing-messages";
+import { GENERIC_FIELD_MESSAGE, mapKnownCodes } from "@/lib/forms/password-messages";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
+import { useAmenityCatalogue, useLocationLists } from "@/lib/reference/use-reference";
+import { useRegistry, type FieldDef, type Registry } from "@/lib/listing/use-registry";
+import { isEditableListing, targetsFor, type StatusTarget } from "@/lib/listing/listing-status";
 import { CorrectionSection } from "./correction-section";
 import { DeleteDraft } from "./delete-draft";
 import { DetailsSection, IDENTITY_NOTE_ID } from "./details-section";

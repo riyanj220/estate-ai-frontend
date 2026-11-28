@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAccount } from "@/lib/current-account";
+import { requireAccount } from "@/lib/auth/current-account";
 import { VerificationClient } from "./verification-client";
 
 export const metadata: Metadata = { title: "Agency verification | EstateAI", robots: { index: false, follow: false } };

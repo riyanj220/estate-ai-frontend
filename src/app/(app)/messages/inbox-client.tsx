@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useLiveEvents } from "@/lib/live";
-import { INBOX_PATH, UNREAD_CHANGED, conversationPath, fetchInbox, listingHeading, type Conversation, type Inbox } from "@/lib/messaging";
-import { BROWSE_PATH } from "@/lib/public-listings";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
+import { useLiveEvents } from "@/lib/messaging/live";
+import { INBOX_PATH, UNREAD_CHANGED, conversationPath, fetchInbox, listingHeading, type Conversation, type Inbox } from "@/lib/messaging/messaging";
+import { BROWSE_PATH } from "@/lib/listing/public-listings";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
 
 const HEADING_ID = "inbox-title";
 const activeAt = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Karachi" });

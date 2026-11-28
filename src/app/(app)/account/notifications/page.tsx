@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AdminShell } from "@/app/admin/(protected)/admin-shell";
-import { requireAccount } from "@/lib/current-account";
+import { requireAccount } from "@/lib/auth/current-account";
 import { NotificationsClient } from "./notifications-client";
 
 // The title never carries a count or any notification content.

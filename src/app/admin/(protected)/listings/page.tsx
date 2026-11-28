@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/current-account";
+import { requireAdmin } from "@/lib/auth/current-account";
 import { ListingsReview } from "./listings-client";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };

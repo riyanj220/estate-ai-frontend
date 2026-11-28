@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
-import { getApi } from "@/lib/api";
-import { withTimeout } from "@/lib/forms";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
+import { getApi } from "@/lib/http/api";
+import { withTimeout } from "@/lib/forms/forms";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
 import { STATUS_LABELS, useSessionGone } from "../moderation-shared";
 
 type Flag = components["schemas"]["ListingFlag"];

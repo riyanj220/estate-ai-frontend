@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/current-account";
+import { requireAdmin } from "@/lib/auth/current-account";
 import { AiOversight } from "./oversight-client";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };

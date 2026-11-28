@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { getApi } from "@/lib/api";
-import { clearFlash, peekFlash } from "@/lib/flash";
-import { withTimeout } from "@/lib/forms";
-import { label, readListing, summaryOf, type ListingView } from "@/lib/listing-labels";
+import { getApi } from "@/lib/http/api";
+import { clearFlash, peekFlash } from "@/lib/auth/flash";
+import { withTimeout } from "@/lib/forms/forms";
+import { label, readListing, summaryOf, type ListingView } from "@/lib/listing/listing-labels";
 import {
   SHOWING_TAB,
   noTabListings,
@@ -16,12 +16,12 @@ import {
   LOAD_MORE_FAILED,
   NEW_LISTING_PATH,
   signInPathFor,
-} from "@/lib/listing-messages";
-import { TAB_LABELS, TAB_ORDER, defaultTab, isListingStatus, readCounts, totalOf, type Counts, type ListingStatus } from "@/lib/listing-status";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useFormFeedback } from "@/lib/use-form-feedback";
-import { usePageshowRecheck } from "@/lib/use-pageshow-recheck";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
+} from "@/lib/listing/listing-messages";
+import { TAB_LABELS, TAB_ORDER, defaultTab, isListingStatus, readCounts, totalOf, type Counts, type ListingStatus } from "@/lib/listing/listing-status";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
+import { usePageshowRecheck } from "@/lib/auth/use-pageshow-recheck";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
 
 const HEADING_ID = "listings-title";
 const itemId = (id: string) => `listing-${id}`;
@@ -103,7 +103,7 @@ type More = { source: Page; items: ListingView[]; next: string | null };
  * per status with the live counts, the chosen tab kept in the address (`?status=`, so back, forward and reload keep it), the first page of
  * the tab, then load more with the server cursor (appended, deduplicated by id). The tab opened without a choice is the first that is not
  * empty, in the order Published, Draft, Archived, Sold, Rented, Removed. The frontend only renders what the backend returns; labels come
- * from the ids (`src/lib/listing-labels.ts`). Nothing about a Listing is stored or logged.
+ * from the ids (`src/lib/listing/listing-labels.ts`). Nothing about a Listing is stored or logged.
  */
 export function ListingsClient({ admin }: { admin: boolean }) {
   const signInPath = signInPathFor(LISTINGS_PATH, admin);

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAccount } from "@/lib/current-account";
+import { requireAccount } from "@/lib/auth/current-account";
 import { DraftClient } from "./draft-client";
 
 // The title never carries the id or any listing content; it is neutral until the page knows the status (a draft then says "Draft").

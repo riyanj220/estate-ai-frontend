@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { withTimeout } from "@/lib/forms";
-import { describeNotification } from "@/lib/notification-kinds";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useFormFeedback } from "@/lib/use-form-feedback";
-import { ProfileLoadState, useProfileLoad, type ProfileFetch } from "@/lib/use-profile-load";
-import { useUnreadCount } from "@/lib/use-unread-count";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { withTimeout } from "@/lib/forms/forms";
+import { describeNotification } from "@/lib/messaging/notification-kinds";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
+import { ProfileLoadState, useProfileLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
+import { useUnreadCount } from "@/lib/messaging/use-unread-count";
 
 type Item = components["schemas"]["Notification"];
 type Filter = "all" | "unread";
@@ -96,7 +96,7 @@ const noun = (count: number) => (count === 1 ? "notification" : "notifications")
 /**
  * Loads the signed-in account's notifications on the client (the page stays behind the server guard): the list, the
  * All/Unread filter, load more with the server cursor, mark one read and mark all read. The frontend only renders what the
- * backend returns; kinds map to text in `src/lib/notification-kinds.ts`. Nothing about a notification is stored or logged.
+ * backend returns; kinds map to text in `src/lib/messaging/notification-kinds.ts`. Nothing about a notification is stored or logged.
  *
  * State: the loaded list is the authority for what the buttons do (the header count is only a hint). `listRef` and
  * `filterRef` mirror state and are assigned in the same step as it (`commit`, `chooseFilter`). Every request that edits the

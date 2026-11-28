@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { MessageForm } from "@/components/message-form";
-import { ReportConversation } from "@/components/report-conversation";
-import { useLiveEvents } from "@/lib/live";
-import { INBOX_PATH, READ_ONLY_NOTES, conversationPath, fetchThread, listingHeading, markRead, mergeMessages, resumeSeq, sendReply, type Message, type Thread } from "@/lib/messaging";
-import { BROWSE_PATH } from "@/lib/public-listings";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
+import { MessageForm } from "@/components/messaging/message-form";
+import { ReportConversation } from "@/components/messaging/report-conversation";
+import { useLiveEvents } from "@/lib/messaging/live";
+import { INBOX_PATH, READ_ONLY_NOTES, conversationPath, fetchThread, listingHeading, markRead, mergeMessages, resumeSeq, sendReply, type Message, type Thread } from "@/lib/messaging/messaging";
+import { BROWSE_PATH } from "@/lib/listing/public-listings";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
 
 const HEADING_ID = "conversation-title";
 const sentAt = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Karachi" });

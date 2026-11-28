@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { SiteHeader } from "@/components/site-header";
-import { SessionProvider } from "@/lib/session";
-import { UnreadCountProvider } from "@/lib/use-unread-count";
+import { SiteHeader } from "@/components/layout/site-header";
+import { SessionProvider } from "@/lib/auth/session";
+import { UnreadCountProvider } from "@/lib/messaging/use-unread-count";
 import "@fontsource-variable/fraunces";
 import "@fontsource-variable/inter";
 import "./globals.css";

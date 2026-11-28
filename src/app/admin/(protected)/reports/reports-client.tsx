@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
-import { Field } from "@/components/form-field";
-import { getApi } from "@/lib/api";
-import { withTimeout } from "@/lib/forms";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { REPORT_REASONS, type ReportReason } from "@/lib/reports";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
+import { Field } from "@/components/ui/form-field";
+import { getApi } from "@/lib/http/api";
+import { withTimeout } from "@/lib/forms/forms";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { REPORT_REASONS, type ReportReason } from "@/lib/listing/reports";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
 import { AccountAction } from "../accounts/account-action";
 import { shown, useAdminWrite, useSessionGone, words } from "../moderation-shared";
 

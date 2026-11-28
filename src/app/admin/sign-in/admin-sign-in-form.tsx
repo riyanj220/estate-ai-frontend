@@ -7,8 +7,8 @@ import {
   REJECTED_ERROR,
   SERVER_ERROR,
   TIMEOUT_ERROR,
-} from "@/lib/forms";
-import { useSession } from "@/lib/session";
+} from "@/lib/forms/forms";
+import { useSession } from "@/lib/auth/session";
 
 type FieldName = "email" | "password" | "code";
 type Fields = Record<string, string[]>;

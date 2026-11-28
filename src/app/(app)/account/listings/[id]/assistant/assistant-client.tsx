@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { useAiNotice } from "@/components/ai-notice";
-import { getApi } from "@/lib/api";
+import { useAiNotice } from "@/components/ai/ai-notice";
+import { getApi } from "@/lib/http/api";
 import {
   ASSISTANT_FORBIDDEN,
   FAILED_OUTCOME_MESSAGES,
@@ -24,17 +24,17 @@ import {
   readTurn,
   type AssistantSession,
   type AssistantTurn,
-} from "@/lib/assistant";
-import { withCsrf } from "@/lib/csrf";
-import { withTimeout } from "@/lib/forms";
-import { newIdempotencyKey } from "@/lib/idempotency";
-import { detailLabel } from "@/lib/listing-details";
-import { isListingId } from "@/lib/listing-labels";
-import { LISTINGS_PATH, LISTING_NOT_FOUND, signInPathFor } from "@/lib/listing-messages";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
-import { usePageshowRecheck } from "@/lib/use-pageshow-recheck";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
+} from "@/lib/ai/assistant";
+import { withCsrf } from "@/lib/http/csrf";
+import { withTimeout } from "@/lib/forms/forms";
+import { newIdempotencyKey } from "@/lib/http/idempotency";
+import { detailLabel } from "@/lib/listing/listing-details";
+import { isListingId } from "@/lib/listing/listing-labels";
+import { LISTINGS_PATH, LISTING_NOT_FOUND, signInPathFor } from "@/lib/listing/listing-messages";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
+import { usePageshowRecheck } from "@/lib/auth/use-pageshow-recheck";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
 
 const HEADING_ID = "assistant-title";
 

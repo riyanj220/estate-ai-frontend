@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
 import { fetchUsage, NOT_AVAILABLE, SIGN_IN_PATH, TYPE_LABELS, type AccountType, type Usage, type UsagePage } from "./quota-api";
 
 const HEADING_ID = "usage-title";

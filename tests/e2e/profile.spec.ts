@@ -792,7 +792,7 @@ test("next.config headers: confirm-email-change is no-referrer and no-store; acc
 });
 
 test("PROFILE_MESSAGES maps the profile codes", async () => {
-  const { PROFILE_MESSAGES } = await import("../../src/lib/registration-messages");
+  const { PROFILE_MESSAGES } = await import("../../src/lib/forms/registration-messages");
   expect(PROFILE_MESSAGES.phone.invalid_phone).toBe("Enter a valid Pakistani mobile or international number.");
   expect(PROFILE_MESSAGES.new_email.invalid_email).toBe("Enter a valid email address.");
 });

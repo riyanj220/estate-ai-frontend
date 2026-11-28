@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { components } from "@/api/schema";
-import { getApi } from "@/lib/api";
-import { withTimeout } from "@/lib/forms";
-import { readProfileImage, validAgencyIdentifiers } from "@/lib/profile-image";
-import { nextStamp } from "@/lib/read-stamp";
-import { ProfileLoadState, useProfileLoad, type ProfileFetch } from "@/lib/use-profile-load";
+import { getApi } from "@/lib/http/api";
+import { withTimeout } from "@/lib/forms/forms";
+import { readProfileImage, validAgencyIdentifiers } from "@/lib/account/profile-image";
+import { nextStamp } from "@/lib/messaging/read-stamp";
+import { ProfileLoadState, useProfileLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
 import { AgencyDetailsForm } from "./agency-details-form";
 import { EmailChangeForm } from "./email-change-form";
 import { ProfileImageSection } from "./image-section";

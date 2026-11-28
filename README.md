@@ -5,6 +5,25 @@ property marketplace. The backend lives in
 [estate-ai-backend](https://github.com/riyanj220/estate-ai-backend); planning documents
 (PRD, architecture, epics, story specs) are kept there under `_bmad-output/`.
 
+## Source layout
+
+The code is grouped by feature, with the same names in `components` and `lib`. Put a new file in its feature's folder;
+never directly in `src/components` or `src/lib`.
+
+| Folder | Holds |
+| --- | --- |
+| `src/app` | Routes only. A piece used by one route sits beside its page. |
+| `src/components/ui` | Shared building blocks that know nothing about a feature (fields, errors, dropdowns). |
+| `src/components/layout` | Header, footer and the navigation links with badges. |
+| `src/components/{auth,listing,search,messaging,reference,ai}` | Components of one feature. |
+| `src/lib/{http,forms,auth,account,listing,search,messaging,reference,ai}` | Logic of one feature, without markup of its own (providers excepted). `http` is the API client; `forms` is form handling. |
+| `src/api` | The generated API client types. |
+
+Imports go one way: routes → feature components → `components/ui` and `lib`. `lib` never imports components, `ui` never
+imports a feature's components (ESLint enforces both).
+
+Styling is Tailwind: classes in the component that uses them; `globals.css` keeps only what is shared.
+
 ## Setup
 
 Requires Node 24 (`.nvmrc`) and npm.
@@ -74,17 +93,17 @@ Use `PW_CHANNEL=chrome` when the Playwright Chromium is not downloaded.
 | `BACKEND_URL` | Backend origin for the proxy and server-side client (see above) |
 | `BACKEND_OPENAPI_PATH` | Path to the backend `openapi.yaml` for `npm run api:sync` (default `../estate-ai-backend/openapi.yaml`) |
 | `BACKEND_OPENAPI_URL` | Raw URL of the backend `main` `openapi.yaml` used by the online `api:check` |
-| `AI_FEATURES` | `1` shows the AI entry points: search by description on `/listings` (stub `/__search-mode`, `/__search-requests`; `tests/e2e/natural-search.spec.ts`), a voice button beside it that fills the same box with a transcript (`MediaRecorder`; needs https or localhost, and no `Permissions-Policy` that blocks the microphone; stub `/__voice-mode`, `/__voice-requests`; `tests/e2e/voice-search.spec.ts`), "Create with AI" on Create listing and the assistant chat at `/account/listings/{id}/assistant` (also linked from a Draft). Every AI feature starts through `useAiNotice` (`src/components/ai-notice.tsx`, the one-time external-service notice). Replies are plain text. Off by default; the Playwright config turns it on. Playwright stub: `/__assistant-mode`, `/__assistant-requests`, `/__assistant-release`; tests `tests/e2e/assistant-chat.spec.ts`. Each turn lists what it saved to the Draft and any notices, and the chat shows the next missing detail or offers review (stub modes `extract`, `review`; `tests/e2e/assistant-extraction.spec.ts`). The chat also lists what the Listing holds. `/account/listings/{id}/review` (linked from every Draft) confirms assistant values one by one and writes (AI on only) or saves the description; publishing stays on the Draft page (stub mode `describe_fail`, listing set `publish_ai_price`; `tests/e2e/assistant-review.spec.ts`) |
+| `AI_FEATURES` | `1` shows the AI entry points: search by description on `/listings` (stub `/__search-mode`, `/__search-requests`; `tests/e2e/natural-search.spec.ts`), a voice button beside it that fills the same box with a transcript (`MediaRecorder`; needs https or localhost, and no `Permissions-Policy` that blocks the microphone; stub `/__voice-mode`, `/__voice-requests`; `tests/e2e/voice-search.spec.ts`), "Create with AI" on Create listing and the assistant chat at `/account/listings/{id}/assistant` (also linked from a Draft). Every AI feature starts through `useAiNotice` (`src/components/ai/ai-notice.tsx`, the one-time external-service notice). Replies are plain text. Off by default; the Playwright config turns it on. Playwright stub: `/__assistant-mode`, `/__assistant-requests`, `/__assistant-release`; tests `tests/e2e/assistant-chat.spec.ts`. Each turn lists what it saved to the Draft and any notices, and the chat shows the next missing detail or offers review (stub modes `extract`, `review`; `tests/e2e/assistant-extraction.spec.ts`). The chat also lists what the Listing holds. `/account/listings/{id}/review` (linked from every Draft) confirms assistant values one by one and writes (AI on only) or saves the description; publishing stays on the Draft page (stub mode `describe_fail`, listing set `publish_ai_price`; `tests/e2e/assistant-review.spec.ts`) |
 | `PW_CHANNEL` | e.g. `chrome`: run Playwright against an installed browser instead of the downloaded Chromium |
 
 ## AI Price Estimates
 
 "Get estimate" on a Draft asks the backend only when pressed, from the saved details, and never changes the asking price. Every place that
-shows an estimated figure uses `src/components/estimate-figure.tsx` (the value with its one info button and popover). `/about-estimates`
+shows an estimated figure uses `src/components/listing/estimate-figure.tsx` (the value with its one info button and popover). `/about-estimates`
 explains the figures; keep it in step with the backend's `docs/valuation.md`. No user-facing string may say "demo" or "demonstration"
 (`tests/e2e/estimate.spec.ts` scans `src/`).
 
-On a public Listing page `src/components/listing-estimate.tsx` shows the total asking price beside the Estimated Property Value, the
+On a public Listing page `src/components/listing/listing-estimate.tsx` shows the total asking price beside the Estimated Property Value, the
 backend's verdict (about equal, above or below) and the 5-Year Price Forecast, under the one info button; the owner also gets
 "Recompute estimate". The figures come from `GET /api/v1/public/listings/{id}/estimate` (stub: `/__listing-estimate-mode`; tests
 `tests/e2e/listing-estimate.spec.ts`).
@@ -92,7 +111,7 @@ backend's verdict (about equal, above or below) and the 5-Year Price Forecast, u
 ## Two-repo workflow
 
 The contract is the backend's committed `openapi.yaml`. `src/api/` holds a committed copy of it
-and the generated client (`schema.ts`); never edit those by hand. `src/lib/api.ts` is the only
+and the generated client (`schema.ts`); never edit those by hand. `src/lib/http/api.ts` is the only
 place the client is built.
 
 After a backend change to the API:
@@ -135,11 +154,11 @@ It posts exactly `{agency_name, email, phone, office_address, city_id, password}
   required check on the city. The sent value is the city `id`; no list is hard-coded.
 - **Required checks** are the only client rule: an empty field shows an error in the focused summary and sends nothing.
   Everything else is the server's: a `400` maps `fields` to the form fields with human text for the known codes
-  (`src/lib/registration-messages.ts`, password codes from `src/lib/password-messages.ts`), shows other static server
+  (`src/lib/forms/registration-messages.ts`, password codes from `src/lib/forms/password-messages.ts`), shows other static server
   sentences as sent and anything else as "Enter a valid value."; `non_field_errors` and unknown keys go to the summary. The
   password is cleared after a `400`, the other values are kept. `invalid_city` also clears the selection and re-fetches the
   list (the usual cause is a city deactivated since the page loaded).
-- `202` shows the same generic "Check your email" state as the Individual form (`src/components/check-your-email.tsx`), so
+- `202` shows the same generic "Check your email" state as the Individual form (`src/components/auth/check-your-email.tsx`), so
   nothing says whether the address was registered. `429` shows the wait from `Retry-After`; `403` (a signed-in caller)
   shows "You are already signed in. Sign out to register another account."; `5xx`, timeout, network failure and a rejected
   request each have their own message. Password, email, phone and address live in component state only.
@@ -155,10 +174,10 @@ It posts exactly `{agency_name, email, phone, office_address, city_id, password}
   On success only the password is cleared, so "Use a different email address" keeps the other fields.
 - **Follow-up (not done)**: the Individual form does not yet have the agency form's timeout and 403 messages, code maps, 202-only
   success or kept-values behaviour (it still clears the phone on success); porting them is a separate change.
-- **Shared code** extracted from the Individual form (whose behaviour and tests are unchanged): `src/components/form-field.tsx`
-  (`Field`, `PasswordField` with the show/hide control), `src/components/error-summary.tsx`,
-  `src/components/check-your-email.tsx` and `src/lib/use-form-feedback.ts` (announcement, notice and summary focus).
-- **Display name**: `displayName(account)` (`src/lib/account.ts`) is the `agency_name` for agency accounts, else the full
+- **Shared code** extracted from the Individual form (whose behaviour and tests are unchanged): `src/components/ui/form-field.tsx`
+  (`Field`, `PasswordField` with the show/hide control), `src/components/ui/error-summary.tsx`,
+  `src/components/auth/check-your-email.tsx` and `src/lib/forms/use-form-feedback.ts` (announcement, notice and summary focus).
+- **Display name**: `displayName(account)` (`src/lib/account/account.ts`) is the `agency_name` for agency accounts, else the full
   name, else the email; the header and the dashboard use it, and the dashboard shows the account type ("Agency",
   "Individual") as plain text. `GET /api/v1/me` now carries `agency_name`.
 - Playwright stub: `/__agency-mode` (`accepted`, `existing`, `ok_200`, `email_sentence`, `fields`, `required`, `sentences`, `invalid_city`, `mixed`,
@@ -181,29 +200,29 @@ generic retry state (network, timeout, `5xx`, unknown code) with a "Try again" b
 memory. Every link failure shows a request-a-new-link form (`request-link-form.tsx`, `POST
 /api/v1/email-verification-requests`): `202` always shows the same generic confirmation, `429` shows the wait from
 `Retry-After`, `400` shows the server's message. `next.config.ts` sends `Referrer-Policy: no-referrer` and
-`Cache-Control: no-store` for the route. Helpers shared with the registration page live in `src/lib/forms.ts`.
+`Cache-Control: no-store` for the route. Helpers shared with the registration page live in `src/lib/forms/forms.ts`.
 The Playwright stub has `/__confirm-mode` and `/__resend-mode` (see `tests/e2e/stub-backend.mjs`).
 
 ## Sign-in, sign-out and the signed-in area
 
 Story 1.17 (frontend half). The contract is the backend's `docs/sessions.md`.
 
-- `src/lib/csrf.ts`: `getCsrfToken()` fetches `GET /api/v1/csrf` once and keeps the token in memory only; concurrent
+- `src/lib/http/csrf.ts`: `getCsrfToken()` fetches `GET /api/v1/csrf` once and keeps the token in memory only; concurrent
   callers share one fetch. `clearCsrfToken()` drops it (done after sign-in and sign-out, because the backend rotates
   it). `withCsrf(call)` sends it as `X-CSRFToken`; a `403` refetches the token and retries that call once, a second
   `403` is returned as a failure.
-- `src/lib/session.tsx`: `SessionProvider` (mounted in the root layout) restores the session with `GET /api/v1/me` and
+- `src/lib/auth/session.tsx`: `SessionProvider` (mounted in the root layout) restores the session with `GET /api/v1/me` and
   exposes `{status: "loading" | "signed_out" | "signed_in" | "error", account, signIn, signOut, refresh}`. `401` is
   signed out; any other failure is `error` (the header says "Could not check your session" with Retry, never a false
   signed-out claim). The account summary lives in memory only; the session cookie is HttpOnly and never touched by script.
-- `src/components/site-header.tsx`: brand link; Sign in and Create account for a Visitor; display name, a state note
+- `src/components/layout/site-header.tsx`: brand link; Sign in and Create account for a Visitor; display name, a state note
   ("Email not verified", "Account restricted", driven only by `state`) and Sign out for a signed-in account.
 - `/sign-in` (`src/app/(public)/sign-in/`): email and password, same accessibility pattern as `/register`. One message for
   every credential failure (`401 invalid_credentials`); field messages from a `400` envelope; separate generic messages for
   a rejected request (`403` after the retry), `5xx`, timeout and network failure. A signed-in visitor is redirected to
-  `/dashboard`. `?next=` is validated by `src/lib/next-target.ts` (single leading `/`, no `//`, no backslash, no control
+  `/dashboard`. `?next=` is validated by `src/lib/auth/next-target.ts` (single leading `/`, no `//`, no backslash, no control
   characters, at most 200 characters); anything else goes to `/dashboard`.
-- Guard (`src/lib/current-account.ts`, `src/components/guarded.tsx`): the `(app)` and `admin` layouts call the backend
+- Guard (`src/lib/auth/current-account.ts`, `src/components/auth/guarded.tsx`): the `(app)` and `admin` layouts call the backend
   `GET /api/v1/me` on the server with the forwarded cookie. `401` redirects to `/sign-in?next=<requested path>`; a backend
   failure renders "Temporarily unavailable" and no protected content. The areas are dynamic and sent `Cache-Control:
   no-store`. `src/proxy.ts` (Next.js 16 name for middleware) copies the requested path into the `x-requested-path` request
@@ -248,10 +267,10 @@ Story 1.18 (frontend half). The contract is the backend's `docs/password-reset.m
   The production check above (`next build && next start`, then `curl -si` on `/reset-password?token=...`) is manual; the
   Playwright header assertions run against `next dev`, which also sends `no-store`, so `password.spec.ts` additionally
   asserts the `headers()` rules in `next.config.ts` directly.
-- `src/lib/password-messages.ts`: the one map from backend codes to human text. The backend sends its own static field
+- `src/lib/forms/password-messages.ts`: the one map from backend codes to human text. The backend sends its own static field
   messages (never echoing input) rather than bare codes, so a value that is not a known code but is a sentence is shown
   as sent; anything else becomes "Enter a valid value." The Individual register form shows server messages directly; the agency form maps its codes
-  (`src/lib/registration-messages.ts`).
+  (`src/lib/forms/registration-messages.ts`).
 - Playwright stub: `/__forgot-mode` (`accepted`, `field`, `rate_limited`, `error`, `broken`, `hang`), `/__reset-mode`
   (`ok`, `expired`, `used`, `invalid`, `weak`, `weak_once`, `weak_messages`, `rate_limited`, `forbidden`, `error`, `broken`,
   `hang`) and `/__change-mode` (`ok`, `wrong_current`, `same`, `weak`, `server_messages`, `session_gone`, `csrf_once`,
@@ -307,13 +326,13 @@ Story 1.20 (frontend half). The contract is the backend's `docs/profile.md`.
   change again" link to `/account/profile` and drop the token; a missing or blank token shows the invalid state; 429, 5xx,
   timeout, network and unknown codes keep the button and the token with a generic message (a 410 or 409 with an unknown code
   is deliberately the generic message, not a link state: only the documented code and status pairs end the link). The
-  scrub (`src/lib/scrub-token.ts`) also rewrites the router's `history.state`, which otherwise keeps the token in
+  scrub (`src/lib/auth/scrub-token.ts`) also rewrites the router's `history.state`, which otherwise keeps the token in
   `renderedSearch`, so Back never restores it. `next.config.ts` sends
   `Referrer-Policy: no-referrer` and `Cache-Control: no-store` for the route and the page is statically prerendered (no
   `force-dynamic`), so the token never reaches the served HTML. Check against the production build:
   `BACKEND_URL=http://127.0.0.1:4010 npm run build`, `node tests/e2e/stub-backend.mjs`, `npx next start -p 3100`, then
   `curl -si "http://127.0.0.1:3100/confirm-email-change?token=abc"` shows both headers and no `abc` in the body.
-- Shared code: `PROFILE_MESSAGES` in `src/lib/registration-messages.ts`, `mapKnownCodes` in `src/lib/password-messages.ts`, `src/lib/request-errors.ts` (generic messages for a
+- Shared code: `PROFILE_MESSAGES` in `src/lib/forms/registration-messages.ts`, `mapKnownCodes` in `src/lib/forms/password-messages.ts`, `src/lib/http/request-errors.ts` (generic messages for a
   failed answer or a thrown error), and `PasswordField` takes an `autoComplete` prop. The check-your-email component is not
   reused: its text is registration-specific.
 - Playwright stub: `/__profile-mode` (`ok`, `forbidden`, `flaky`, `session_gone`, `malformed`, `error`, `broken`, `hang`),
@@ -336,7 +355,7 @@ Story 1.21 (frontend half). The contract is the backend's `docs/profile.md` (Age
   session's `account_type`: `individual` renders the Story 1.20 `ProfileClient` unchanged, `agency` renders
   `agency-profile-client.tsx` ("Business profile"), anything else (admin, unknown) shows "Profile editing is available for
   individual and agency accounts." with no form. The header and dashboard link ("Profile" for individuals, "Business profile"
-  for agencies) come from `profileLinkLabel` in `src/lib/account.ts`; admins get none.
+  for agencies) come from `profileLinkLabel` in `src/lib/account/account.ts`; admins get none.
 - `agency-profile-client.tsx` loads `GET /api/v1/me/agency-profile` (`{agency_name, description, city_id, business_phone,
   office_address, email, pending_email, verification_status}`) with the same loading, Retry, silent re-read on focus and
   visibility, `403` ("Business profile editing is available for agency accounts.") and `401` (sign in again, back to the page)
@@ -348,7 +367,7 @@ Story 1.21 (frontend half). The contract is the backend's `docs/profile.md` (Age
   `withCsrf` with only the fields that changed (nothing changed: no request and "No changes to save."; an emptied description
   sends `""`). `200` shows "Your business profile was saved.", refreshes the baseline from the answer for untouched fields
   only and refreshes the session provider (the header agency name). `400` maps the codes through `AGENCY_PROFILE_MESSAGES`
-  (`src/lib/registration-messages.ts`) with `mapKnownCodes` (unknown codes, prototype keys and unknown field keys are generic
+  (`src/lib/forms/registration-messages.ts`) with `mapKnownCodes` (unknown codes, prototype keys and unknown field keys are generic
   text, never the server's); `contains_contact_details` explains that descriptions cannot contain phone numbers, email
   addresses or street addresses and that the phone and address are kept private; `invalid_city` clears the selection and
   re-fetches the cities. 429, 5xx, timeout, network and a second 403 each have a generic message; a 2xx with an unreadable
@@ -362,9 +381,9 @@ Story 1.21 (frontend half). The contract is the backend's `docs/profile.md` (Age
 - **Email**: `EmailChangeForm` is reused unchanged (it already posts `{new_email, current_password}`); the client passes it
   `email` and `pending_email` and re-reads the business profile after an accepted request. The emailed
   `/confirm-email-change` page already works for agencies.
-- **Shared code** (the Individual page behaviour and tests are unchanged): `src/lib/use-cities.ts` (the cities loader hook, the
-  required-city text and the focus target) and `src/components/city-field.tsx` (the City select with its loading, empty and
-  failed states), both now also used by `register/agency`; `src/lib/use-profile-load.tsx` (initial read, quiet re-reads,
+- **Shared code** (the Individual page behaviour and tests are unchanged): `src/lib/reference/use-cities.ts` (the cities loader hook, the
+  required-city text and the focus target) and `src/components/reference/city-field.tsx` (the City select with its loading, empty and
+  failed states), both now also used by `register/agency`; `src/lib/account/use-profile-load.tsx` (initial read, quiet re-reads,
   Retry that stays mounted, focus to the heading after Retry, session-gone redirect, and the loading and error states) used by
   both profile clients.
 - Playwright stub: `/__agency-profile-mode` (`ok`, `forbidden`, `flaky`, `session_gone`, `malformed`, `inactive_city`,
@@ -397,12 +416,12 @@ The frontend decides nothing about administration: it shows what the backend ans
   `src/app/admin/(protected)/` (dashboard `page.tsx`, a `[...rest]` catch-all so unknown deep paths hit the same guard
   and an administrator gets a plain 404). `src/app/admin/layout.tsx` only forces dynamic rendering; `next.config.ts` sends
   `Cache-Control: no-store` for `/admin/:path*` (which covers `/admin` and `/admin/sign-in`).
-- **Guard** (`requireAdmin()` in `src/lib/current-account.ts`, memoised per render by `checkAdmin`): server side, calls
+- **Guard** (`requireAdmin()` in `src/lib/auth/current-account.ts`, memoised per render by `checkAdmin`): server side, calls
   `GET /api/v1/admin/me` with the forwarded cookie. `200` is an administrator; `401` (Visitor) and `404` (non-administrator,
   expired or disabled administrator) are one answer and redirect to `/admin/sign-in?next=<requested /admin path>`; any
   other answer or a failure renders "Temporarily unavailable" and no admin content. The protected layout AND every
   protected page call it (layouts are not re-run on client navigation). `requireAccount()` is unchanged for the other pages.
-- **`next`**: `safeAdminNext` (`src/lib/next-target.ts`) is `safeNext` plus "normalised path is `/admin` or below, not
+- **`next`**: `safeAdminNext` (`src/lib/auth/next-target.ts`) is `safeNext` plus "normalised path is `/admin` or below, not
   `/admin/sign-in`"; anything else becomes `/admin`.
 - **Sign-in page**: same accessibility pattern as `/sign-in` (the form is a copy adapted to the admin door), posting
   `POST /api/v1/admin-session` through `withCsrf` via `useSession().signIn(email, password, "admin")`. One generic message
@@ -429,9 +448,9 @@ The frontend decides nothing about administration: it shows what the backend ans
   non-administrator account, replaces the content with a short message and hard-navigates to
   `/admin/sign-in?next=<current path>`; the server guard does the same on the next guarded navigation.
 - **Password change**: `/account/password` works for administrators; the three administrator policy codes have human
-  text in `src/lib/password-messages.ts`, the page offers "Back to administration", and a lost session returns to the
+  text in `src/lib/forms/password-messages.ts`, the page offers "Back to administration", and a lost session returns to the
   admin sign-in.
-- **Server fetch deadline** (`src/lib/api.ts`): the 5 second server-side timeout is an explicit timer that aborts and
+- **Server fetch deadline** (`src/lib/http/api.ts`): the 5 second server-side timeout is an explicit timer that aborts and
   rejects with a `TimeoutError` (cleared when the request settles, combined with the request's own signal), because
   `AbortSignal.timeout` alone was seen to leave a hung backend holding a dev render.
 - **Playwright stub**: `/api/v1/admin-session` (POST) and `/api/v1/admin/me` (`401` for a Visitor, `404` for an ordinary
@@ -503,7 +522,7 @@ returns: it decides nothing about who is notified or what is private.
   - **Empty**: "You have no notifications." (Unread filter: "You have no unread notifications.").
   - **One live region** (`role="status"`, via `useFormFeedback`, which clears before it sets so an identical message announces
     again) announces results and failures once; failures use the error colour and no `role="alert"`.
-- **Kind catalogue** (`src/lib/notification-kinds.ts`): the one place a backend `kind` becomes text. `KINDS` maps a kind to
+- **Kind catalogue** (`src/lib/messaging/notification-kinds.ts`): the one place a backend `kind` becomes text. `KINDS` maps a kind to
   `{ title, text }`, each a string or a function of the payload for kinds that carry payload keys. Shipped:
   `account.password_changed`, `account.email_changed`, `account.suspended`, `account.reactivated` and
   `listing.draft_expiring`. An unregistered kind renders "You have a notification." with no
@@ -511,10 +530,10 @@ returns: it decides nothing about who is notified or what is private.
   (through `field`), as plain text (React escapes it; there is no raw HTML anywhere). **How a later epic adds a kind**: register the
   kind and its payload schema in the backend, then add one entry to `KINDS` here (and a Playwright case if it has payload keys);
   nothing else changes.
-- **Header link and unread count**: `NotificationsLink` (`src/components/notifications-link.tsx`) is shown for every signed-in
+- **Header link and unread count**: `NotificationsLink` (`src/components/layout/notifications-link.tsx`) is shown for every signed-in
   account in the site header and in the admin chrome ("Administrator account" navigation). With unread items the count is
   visible text and the accessible name is "Notifications, 3 unread" ("99+" above 99); at zero or unknown it is just
-  "Notifications". `UnreadCountProvider` / `useUnreadCount()` (`src/lib/use-unread-count.tsx`, mounted in the root layout inside the
+  "Notifications". `UnreadCountProvider` / `useUnreadCount()` (`src/lib/messaging/use-unread-count.tsx`, mounted in the root layout inside the
   `SessionProvider`) reads `GET /api/v1/notifications/unread-count` once when the session becomes signed in, quietly on window
   focus and `visibilitychange`, and after the page marks something read (`refresh()`); it clears when signed out and never
   asks for a Visitor. There is no polling timer. The count is held per account id (an account switch without a signed-out step
@@ -554,10 +573,10 @@ Frontend half of Story 2.1. The contract is the backend's `docs/listings.md` and
   `/account/:path*` rule): `/account/listings` ("My listings", `listings-client.tsx`), `/account/listings/new` ("Create listing",
   `new/create-listing-form.tsx`) and `/account/listings/[id]` (the Draft page, `[id]/draft-client.tsx`; the dynamic `params` are a
   promise in this version of Next.js and are awaited in the page). The header and the dashboard link to "My listings" for individual
-  and agency accounts only (`canOwnListings` in `src/lib/account.ts`). An administrator who opens a route directly sees "Listings
+  and agency accounts only (`canOwnListings` in `src/lib/account/account.ts`). An administrator who opens a route directly sees "Listings
   are available for individual and agency accounts." and no form (the list page shows the server's `403`; the create page is not
   given a form for an administrator; the Draft page answers like any other 404).
-- **Registry hook** (`src/lib/use-registry.tsx`): `useRegistry()` reads `GET /api/v1/registry` once per page load (the browser
+- **Registry hook** (`src/lib/listing/use-registry.tsx`): `useRegistry()` reads `GET /api/v1/registry` once per page load (the browser
   revalidates it by the server's ETag) and answers `{status: "loading" | "ready" | "error", registry, retry, retrying}`.
   `registry` has `purposes`, `categories`, `subtypesOf(category)` and `version`. The shape is validated defensively
   (`readRegistry`): anything malformed, or no usable purpose or Category, is an error with a Retry that stays mounted, never a crash.
@@ -565,9 +584,9 @@ Frontend half of Story 2.1. The contract is the backend's `docs/listings.md` and
   can never break an element id. A `401` ends the session like on the other pages, and `refetch()` revalidates the registry
   (used once after the server refused a choice, since a stale registry is the likely cause; the user's other valid choices stay). The
   frontend owns no taxonomy: purposes, Categories and Subtypes are rendered only from this answer.
-- **Labels** (`src/lib/listing-labels.ts`): the registry carries ids only, so `label(id)` turns `plot_file` into "Plot file" (a
+- **Labels** (`src/lib/listing/listing-labels.ts`): the registry carries ids only, so `label(id)` turns `plot_file` into "Plot file" (a
   missing or unknown value is "Not set"); `summaryOf(fields)` builds "Sale · House · House"; `readListing` reads a Listing from a
-  response defensively. Error texts are in `src/lib/listing-messages.ts`.
+  response defensively. Error texts are in `src/lib/listing/listing-messages.ts`.
 - **Create listing**: Purpose (radio group), Category and Subtype (selects; the Subtype is disabled until a Category is chosen,
   lists only that Category's Subtypes and is cleared when the Category changes to one that does not contain it). Only "required" is
   checked on the client (nothing is sent when a choice is missing). It posts exactly `{purpose, category, subtype}` through
@@ -581,7 +600,7 @@ Frontend half of Story 2.1. The contract is the backend's `docs/listings.md` and
   sign-in with `next`; 5xx, timeout and network failures have their own messages and keep the form. After a `201` the form never submits again
   (Create stays `aria-disabled` and reads "Draft created"); if the Draft page has not opened after about 8 seconds, or the id
   cannot be read, a notice points to My listings instead of freezing. A page restored from the back-forward cache re-checks the
-  session (`src/lib/use-pageshow-recheck.ts`) and resets a frozen form. Controls use `aria-disabled` (not `disabled`) so focus is
+  session (`src/lib/auth/use-pageshow-recheck.ts`) and resets a frozen form. Controls use `aria-disabled` (not `disabled`) so focus is
   kept; the Subtype stays reachable with a "Choose a category first." hint; field errors clear when the field is edited.
 - **My listings**: the first page of `GET /api/v1/me/listings` (newest first, as the server orders it), a summary line and a
   "Draft" marker per item linking to its page, "Load more" with the server cursor (appended, deduplicated by id, hidden at the
@@ -639,7 +658,7 @@ Frontend half of Story 2.2. The contract is the backend's `docs/listings.md` (th
   `{base_revision, fields}`: `base_revision` is the revision last loaded and `fields` holds only the fields that changed (an emptied
   field is `null`; no origin, confirmed or status is ever sent). Nothing changed sends nothing and says "No changes to save." The price
   is sent as the text typed (trimmed) and is never converted to a number: it is shown formatted from the server's string by string
-  work only (`formatPrice`, `priceKey` in `src/lib/listing-labels.ts`; "1500000" and "1500000.00" are the same amount when deciding
+  work only (`formatPrice`, `priceKey` in `src/lib/listing/listing-labels.ts`; "1500000" and "1500000.00" are the same amount when deciding
   whether something changed). Commas and currency signs are not valid in the price (the server answers `invalid`); the message says
   digits only with an optional decimal point, and the bounds hint prints the plain digits so it does not invite commas. Text fields are
   compared as the server normalises them (NFC, collapsed whitespace, trimmed), so a value the server would collapse is not a difference. On `200` the answer becomes the new baseline (a field typed while the save ran keeps what was typed),
@@ -719,7 +738,7 @@ applicability by Subtype; integer bounds are served as text, "0" and "50").
 - **A generic registry-driven section**: `[id]/details-section.tsx` renders every registry field that applies to the Draft's purpose,
   Category and Subtype and is not hand-built (not title, description, the price fields, the area fields or identity, never a derived field),
   in registry order, grouped by requirement in fieldsets with legends: "Required before you publish", "Recommended", "More details" (an
-  empty group is not shown; a Plot has no applicable detail, so no section). The pure rules live in `src/lib/listing-details.ts`: the label
+  empty group is not shown; a Plot has no applicable detail, so no section). The pure rules live in `src/lib/listing/listing-details.ts`: the label
   map (`DETAIL_LABELS` by registry id, fallback the humanised id), the hint from the registry (its description, then "Whole number from 0 to 50.",
   the decimal and money limits; the requirement is the group's, not repeated), the comparison, the value sent and the "Latest saved" text.
   **Adding a registry field (Stories 2.5 and 2.6) needs only a label entry (and not even that: without one its label is the humanised id)**; its
@@ -853,7 +872,7 @@ joins `terms` and `details`, class `public` | `private`). The contract is the ba
   City, Locality, Society, Phase, Sector, Block) and "Private address (only you can see this)" (own heading, a 2px border, helper "Never
   shown to buyers. Only you can see this.": Street, House number, Latitude, Longitude). The location is not part of the "What exists so far"
   summary (nothing of the location, public or private, is listed there).
-- **Reference lists** (`src/lib/use-reference.ts`): cities from `/api/v1/reference/cities`, the localities of the form's current city from
+- **Reference lists** (`src/lib/reference/use-reference.ts`): cities from `/api/v1/reference/cities`, the localities of the form's current city from
   `/api/v1/reference/cities/{city_id}/localities` (requested only for a canonical uuid, Areas and Societies as `optgroup`s). Fail-closed
   parsing: an item needs a canonical uuid, a name of 1 to 80 code points (trimmed) and (localities) kind `area` | `society`; unusable items are
   dropped, a list with nothing usable is a failure. Each list has loading, empty (a `404` counts as empty only when the body is the backend's
@@ -875,7 +894,7 @@ joins `terms` and `details`, class `public` | `private`). The contract is the ba
   coordinate pairing error appears on the field that is empty ("Enter a decimal number such as 24.860000. Latitude and longitude go
   together."); `invalid` on a locality reads "Choose a locality from the list." while a city is chosen and "Choose a city first." otherwise.
 - **The real wire is sentences, not codes**: the backend reports `error.fields` as arrays of static SENTENCES (`FIELD_MESSAGES` in
-  `apps/kernel/errors.py`). `src/lib/error-sentences.ts` holds the complete reverse table (sentence to code; where two codes share a
+  `apps/kernel/errors.py`). `src/lib/http/error-sentences.ts` holds the complete reverse table (sentence to code; where two codes share a
   sentence the first, the one the mappers key on, is kept) and `readErrorBody` (`forms.ts`) applies it once, so a known sentence becomes its code
   before any mapper of any page runs; a value that is already a code, or a sentence not in the table, passes through unchanged. The register, resend-link and admin sign-in forms, which show the server's own sentence, read the body raw (`readErrorBody(body, true)`). The stub sends
   the real sentences by default (`/__wire-mode?value=codes` switches to codes; `tests/e2e/field-sentences.json` is the forward table) and
@@ -904,14 +923,14 @@ The contract is the backend's `docs/registry.md`, `docs/listings.md` and `docs/r
   top-level `amenities: []` key of the Listing resource is gone and nothing reads it. `readListing` parses the map fail-closed: a state other
   than exactly `present`/`none`, a code that is not a lowercase token or a non-object makes the whole Listing unusable (the page shows its
   load error with Retry) rather than a form that would replace a map it could not read. Unknown codes are NOT an error (see Other below).
-- **One value in the form**: the editor keeps the map as one text (canonical JSON with sorted keys, "" for none: `src/lib/amenities.ts`), so
+- **One value in the form**: the editor keeps the map as one text (canonical JSON with sorted keys, "" for none: `src/lib/listing/amenities.ts`), so
   the generic compare, "Latest saved", Keep mine / Use latest, dirty tracking and the "No changes to save" rule work on it unchanged. The
   value sent is the whole map, or `null` when nothing is answered. Two maps with the same answers in another order are no change.
 - **Generic renderer**: `AmenitiesSection` (`amenities-section.tsx`) is rendered by `DetailsSection` for every registry field of type
   `amenities` whose id and section are also `amenities` (all three must say so, checked before every other rule; after the Details, a "Amenities" h3). `splitTerms` returns them as `amenities`; a field of that type in
   another section, or any other type or id, gets no control. Without the field in the registry nothing is shown and the catalogue is
   never requested.
-- **Catalogue** (`useAmenityCatalogue` in `src/lib/use-reference.ts`): public `GET /api/v1/reference/amenities` (`{items:[{code,label,kind,group}]}`),
+- **Catalogue** (`useAmenityCatalogue` in `src/lib/reference/use-reference.ts`): public `GET /api/v1/reference/amenities` (`{items:[{code,label,kind,group}]}`),
   requested once the registry gives the Draft the field; the backend sets no Cache-Control and the client relies on none. Fail-closed parsing:
   a code and a group must match the backend's `^[a-z][a-z0-9_]{1,47}$`, a label is 2 to 80 characters with no surrounding space, a kind one of
   `on_property` / `community` / `nearby`; ONE item that fails (or a repeated code) makes the whole load a failure, because dropping it would turn an
@@ -992,7 +1011,7 @@ the field form's Save.
 - **Exclusion and races**: an image action (upload batch, reorder, cover, delete) and a field save never run together. While images change, Save
   is `aria-disabled` with the text "Saving is paused while images are being changed." (`aria-describedby`; a click announces "Wait for the image
   changes to finish, then save."); while a field save is in flight the image actions and the picker are `aria-disabled`. A module-level lock
-  (`src/lib/image-lock.ts`) also stops a second batch after a remount (for example a back-forward cache restore). The editor never moves the
+  (`src/lib/listing/image-lock.ts`) also stops a second batch after a remount (for example a back-forward cache restore). The editor never moves the
   revision or the images back to an older answer (a late field-save answer keeps the newer revision and media; a stale conflict answer is
   ignored), and without the registry an image answer only moves the revision and media, never typed values. A conflict that also changed
   fields raises the editor's own alert, which takes focus (its effect runs after this section's focus move); the images notice stays in the
@@ -1039,8 +1058,8 @@ shared Save. Backend routes: `PUT`/`DELETE /api/v1/me/profile/image` and `GET ..
 - **Errors**: known codes only (`file`: `too_large`, `unsupported_type`, `too_large_dimensions`, `too_small`, `invalid_image`, `required`; `409
   storage_cap_exceeded` ("You have reached your storage limit. Free up space and try again."); `503 busy` with the wait; `429` in minutes; 401 goes to sign-in; 403 says "Your account cannot change images right now." only
   when the session itself is Suspended, else the generic text; network and timeout text). The mapping is shared with the Draft's Images section
-  (`src/lib/upload-errors.ts`), as are the busy lock (`src/lib/image-lock.ts`, now keyed by scope: "listing" and "profile") and the `<img>` with its
-  load-failure Retry (`src/components/retry-image.tsx`). A 5xx or a lost answer may have changed the image: the profile is read again and the text
+  (`src/lib/forms/upload-errors.ts`), as are the busy lock (`src/lib/listing/image-lock.ts`, now keyed by scope: "listing" and "profile") and the `<img>` with its
+  load-failure Retry (`src/components/ui/retry-image.tsx`). A 5xx or a lost answer may have changed the image: the profile is read again and the text
   says "It may have been saved: check the image shown." (a removal that meets 404 or 409 also reads the profile and says "We loaded the latest image."; a 503 means nothing changed and gets no such suffix). A read that a newer read superseded is not a failure.
 - **One live region** (`role="status"`) holds the result or failure and the sr-only "Uploading your picture." announcement. Controls are
   `aria-disabled` (never `disabled`) while an action runs. Focus: the picker after an upload or a removal, Cancel when asking, Remove (or the
@@ -1049,7 +1068,7 @@ shared Save. Backend routes: `PUT`/`DELETE /api/v1/me/profile/image` and `GET ..
   changed." and does nothing (it announces "Wait for the image changes to finish, then save."); while a text save is in flight the picture actions
   wait ("Wait for your changes to be saved, then change the image."). A module-level lock (scope "profile") is held for the whole action; when the section unmounts the request is aborted and the lock is released (so a remount can start a new action at once), and a stale instance that finishes later no longer holds the lock and does not touch the page's busy flag. The text save sets its own module-level flag synchronously in the submit, so a choice made in the very next event already waits. A second choice, a double click on "Yes, remove" or a too-large file while an action of this very section runs is ignored quietly (no notice, focus stays); a request blocked by a text save or another action says why; `beforeunload` asks first while an upload runs; a back-forward cache restore checks the session,
   closes an open prompt and reads the profile again.
-- **Never regress**: every profile read takes a stamp before it asks (`src/lib/read-stamp.ts`) and a finished change takes one when its answer
+- **Never regress**: every profile read takes a stamp before it asks (`src/lib/messaging/read-stamp.ts`) and a finished change takes one when its answer
   arrives; an older read never replaces a newer picture, a read started after a change does (a change made in another tab appears). The shown
   address carries a counter (`?r=N`) after a change, because the owner route itself never changes and a browser would reuse the old bytes. The
   PATCH answer's `image` is ignored (a text save never touches the image). The wire carries no identity of the bytes, so the first read that is newer than a change this page made itself mounts the image afresh (one extra image request); this also catches a same-size replacement made in another tab right after, but a same-size replacement in another tab with no change of our own is only noticed when the type, size or dimensions differ (accepted limitation).
@@ -1091,17 +1110,17 @@ shared Save. Backend routes: `PUT`/`DELETE /api/v1/me/profile/image` and `GET ..
   This cannot be undone." Confirming sends `DELETE /api/v1/listings/{id}` with the CSRF token (`withCsrf`, one retry). `204` and `404` (already
   gone) go to My listings with a polite confirmation ("Draft deleted." or "That draft was already deleted."). A `404` counts as "already gone"
   only when its body is the backend's `not_found` envelope; any other 404 (a proxy, a missing route) is a failure that keeps the page. The
-  confirmation is handed over in memory by `src/lib/flash.ts` (one target path, valid for 5 seconds, cleared once shown and when the list read
+  confirmation is handed over in memory by `src/lib/auth/flash.ts` (one target path, valid for 5 seconds, cleared once shown and when the list read
   ends the session; never in the URL or storage); the `role="status"` line on My listings is rendered empty and filled shortly after mounting so
   a screen reader announces it. `409` closes the dialog with "A published listing cannot be deleted here.", reads the Listing again (the status
   flips, Delete and the edit form disappear and a note says it is no longer a draft); `403` says "Your account cannot delete listings right now." for a Suspended owner (else the generic text); `401`
   signs in again; every other failure is shown in the dialog and on the page (the platform can close the dialog, for example with a second Escape; the state
   follows it, Delete opens it again and focus returns to the button) with the generic error and a retry. If the navigation after a success does
   not leave the page within 4 seconds, the locks are released and a message says the draft was deleted. Unsaved edits are discarded without a
-  second prompt. **Locks**: the delete takes the module-wide image lock (`src/lib/image-lock.ts`), so it never starts while an upload or an image
+  second prompt. **Locks**: the delete takes the module-wide image lock (`src/lib/listing/image-lock.ts`), so it never starts while an upload or an image
   action runs (and none starts while it runs), and it never starts while a field save is in flight; while it runs Save and the image actions
   are paused ("Saving and image changes are paused while the draft is deleted.") and Escape does not cancel it.
-- **Notification** `listing.draft_expiring` (payload `listing_id`, `days_left`): rendered from `src/lib/notification-kinds.ts` as the fixed
+- **Notification** `listing.draft_expiring` (payload `listing_id`, `days_left`): rendered from `src/lib/messaging/notification-kinds.ts` as the fixed
   sentence "Your draft has had no activity for a long time and will be deleted in N days unless you open it." (singular for 1 day) with an
   "Open the draft" link (its name carries the sentence for screen readers) to `/account/listings/{listing_id}`. A `days_left` that is not an integer from 0 to 365 gives the generic line; a
   `listing_id` that is not a UUID gives the sentence without a link. A kind entry may now carry `href` and `linkText`; unknown kinds are unchanged.
@@ -1141,7 +1160,7 @@ only shows it; nothing here publishes or enforces the quota (Story 2.15).
   it). A `401` (also on a quiet re-read) takes the same session-gone path as the other pages: the session provider is
   refreshed and the browser goes to `/sign-in?next=%2Fdashboard`. A `403` shows no card. Any other failure or an
   unusable answer shows "We could not load your publication allowance" with Retry; the rest of the dashboard is unaffected.
-- **Fail-closed parsing** (`src/lib/publication-allowance.ts`): exactly the six documented keys; counts are non-negative safe
+- **Fail-closed parsing** (`src/lib/account/publication-allowance.ts`): exactly the six documented keys; counts are non-negative safe
   integers; `remaining` is exactly `max(limit - used, 0)`; both datetimes are ISO 8601 with an explicit offset and fall on the
   first midnight of a Karachi month, `resets_at` the month after `period_start`; `timezone` is `Asia/Karachi`.
 - **Stub**: `/__allowance-mode` (`ok`, `empty`, `last`, `exhausted`, `over`, `year_end`, `cacheable`, `error`, `broken`, `hang`,
@@ -1160,7 +1179,7 @@ Story 2.15 (frontend half). The contract is the backend's `POST /api/v1/listings
   `aria-disabled` (never `disabled`) while a save, an image action or a delete runs, or while the form has unsaved changes, with the
   reason as its description ("Save your changes before publishing"). Publishing takes the module-wide image lock (`image-lock.ts`) like
   the delete flow, and the editor pauses Save, the images and Delete meanwhile.
-- **Idempotency**: the key (`src/lib/idempotency.ts`, a random UUID) is made per attempt. A retry of the same attempt (a network error, a
+- **Idempotency**: the key (`src/lib/http/idempotency.ts`, a random UUID) is made per attempt. A retry of the same attempt (a network error, a
   server error, a response that cannot be read) reuses it, so the server never publishes twice; an edit, a save or a new revision starts a
   new attempt with a new key. A `422 idempotency_key_reused` (refused with no effect) is retried once, automatically, with a new key; a
   second one shows a generic message.
@@ -1172,7 +1191,7 @@ Story 2.15 (frontend half). The contract is the backend's `POST /api/v1/listings
   `403 email_not_verified` links to `/verify-email`; `403 publishing_unavailable` says the account cannot publish; `409 stale_revision` runs
   the editor's conflict flow (`handleStale`, shared with Save); `409 conflict` reads the Listing again and shows it published; a network
   failure, a timeout or a server error shows Retry.
-- **Sentences**: `images_required` and `confirm_required` joined `src/lib/error-sentences.ts` and `tests/e2e/field-sentences.json` (the drift
+- **Sentences**: `images_required` and `confirm_required` joined `src/lib/http/error-sentences.ts` and `tests/e2e/field-sentences.json` (the drift
   test against the backend's `errors.py` stays green).
 - **Stub** (`tests/e2e/stub-backend.mjs`): the publish route mirrors the backend's order and rules (key shape, body, replay or `422`, owner
   `404`, stale, not a draft, account state, required items computed from the stub's own registry and the Draft's data, images, Assistant
@@ -1191,7 +1210,7 @@ Story 2.17 (frontend half). The contract is the backend's `GET /api/v1/me/listin
 `POST /api/v1/listings/{id}/status` (body `{base_revision, status: archived | sold | rented}`, CSRF) and the widened owner rules of
 `PATCH` and the image routes (client synced with `npm run api:sync`). No quota is used by any of this.
 
-- **My listings by status** (`listings-client.tsx`, `src/lib/listing-status.ts`): an accessible tablist (Draft, Published, Archived, Sold,
+- **My listings by status** (`listings-client.tsx`, `src/lib/listing/listing-status.ts`): an accessible tablist (Draft, Published, Archived, Sold,
   Rented, Removed) with the live count of each status from the counts route, arrow keys, Home and End move the focus and Enter or Space
   opens the focused tab. The chosen tab is in the address (`?status=`, pushed with `history.pushState`, so Back, Forward and a reload keep
   it; an unknown value is ignored). Without a usable `status` the first tab that is not empty opens, in the order Published, Draft,
@@ -1288,21 +1307,21 @@ decides, the page only reports.
 
 ## Browse and listing detail (`/listings`, Story 3.1)
 
-Public pages, no sign-in, linked by "Browse" in the header. Both are rendered on the server (`src/lib/public-listings.ts`) from
+Public pages, no sign-in, linked by "Browse" in the header. Both are rendered on the server (`src/lib/listing/public-listings.ts`) from
 `GET /api/v1/public/listings` and `/api/v1/public/listings/{id}`, forwarding the incoming cookie, and work without JavaScript.
 
 - `/listings` shows cards (cover, title, price, type, area, rooms, place, publication date), newest first. "Next page" is a plain link
   keeping the filters and sort and adding the `cursor` of the backend's absolute `next` URL. It has empty, error ("Try again"),
   invalid-page-link and refused-filter (`400`) states.
 - `/listings/[id]` shows the images, the facts, amenities (nearby marked "Seller-declared"), public location and description. The facts
-  are the same component as the owner's preview (`src/components/listing-facts.tsx`), with labels from the registry. A hidden, unknown or
+  are the same component as the owner's preview (`src/components/listing/listing-facts.tsx`), with labels from the registry. A hidden, unknown or
   malformed id is one not-found page (`404`). Only values read by name are shown.
 
 ## Filtering and sorting (`/listings`, Story 3.5)
 
 The URL query is the whole state, so a filtered page can be shared and everything works without JavaScript.
 
-- The panel (`src/components/filter-panel.tsx`) is a plain GET form generated from `GET /api/v1/public/filters`: checkboxes for choices,
+- The panel (`src/components/listing/filter-panel.tsx`) is a plain GET form generated from `GET /api/v1/public/filters`: checkboxes for choices,
   minimum and maximum for ranges, a select for booleans, amenities grouped by kind (nearby marked "Seller-declared"). A new registry
   filter appears without a frontend change. Areas and societies are listed for the chosen cities (after applying), or at once when there
   is only one city. The panel is a `details` element, closed unless a value in it was refused.
@@ -1313,11 +1332,11 @@ The URL query is the whole state, so a filtered page can be shared and everythin
 - Each active filter is a link that removes it (removing a city also removes its areas). Every change starts at the first page.
 - A `400` names each refused parameter with the server's sentence and a Remove link. If the filter schema cannot be read, the listings
   are still shown with a note instead of the panel.
-- Logic: `src/lib/listing-filters.ts`. **Tests**: `tests/e2e/listing-filters.spec.ts`.
+- Logic: `src/lib/search/listing-filters.ts`. **Tests**: `tests/e2e/listing-filters.spec.ts`.
 
 ## Listing provenance (Story 3.6)
 
-- Cards and the detail say who advertises (`src/components/advertiser-line.tsx`): "Listed by an individual", or "Listed by agency:
+- Cards and the detail say who advertises (`src/components/listing/advertiser-line.tsx`): "Listed by an individual", or "Listed by agency:
   <name>" with the public logo (`/api/v1/agencies/{agency_id}/logo`, decorative: the name is the text) and "Verified agency" only
   when `advertiser.verified` is true (never before Epic 8). Nothing else about the owner is shown.
 - Legal, approval and possession statements (registry `seller_declared`) carry the "Seller-declared" text and never a platform mark.
@@ -1325,9 +1344,9 @@ The URL query is the whole state, so a filtered page can be shared and everythin
 
 ## Favourites (`/account/favourites`, Story 3.7)
 
-- Public cards and the detail have a Save / Saved button (`src/components/save-button.tsx`). A Visitor is asked to sign in or create
+- Public cards and the detail have a Save / Saved button (`src/components/listing/save-button.tsx`). A Visitor is asked to sign in or create
   an account and nothing is stored; administrators have no button; a Suspended account can only remove. The saved ids are read once
-  per page (`GET /api/v1/me/favourites/ids`, `src/lib/favourites.tsx`).
+  per page (`GET /api/v1/me/favourites/ids`, `src/lib/listing/favourites.tsx`).
 - The page (header and dashboard link, Individual and Agency accounts) lists them with Remove and Load more. A Listing that is no
   longer public reads "No longer available" with the saved date only. At 500 the cap message is shown (`429` without `Retry-After`).
 - **Stub**: the four `/api/v1/me/favourites` routes, `/__favourites-preset?value=empty|some`, `/__favourites-mode?value=ok|full`.
@@ -1338,7 +1357,7 @@ The URL query is the whole state, so a filtered page can be shared and everythin
 Public and server-rendered, from `GET /api/v1/public/agencies/{agency_id}` and `.../listings`.
 
 - Shows the name, logo, description and "Verified agency" or "Not verified" only, then the agency's published listings with the
-  filter panel, sort, paging and states of `/listings` (both use `src/components/listing-results.tsx`).
+  filter panel, sort, paging and states of `/listings` (both use `src/components/listing/listing-results.tsx`).
 - A hidden, unknown or malformed id is one not-found page (`404`).
 - The agency name on listing cards and the detail links here.
 - **Stub**: two agencies (`6666...` with two listings, one per page; `7777...` verified with none); `__public-mode?value=error` applies.

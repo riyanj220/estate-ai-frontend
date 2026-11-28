@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { readErrorBody, withTimeout } from "@/lib/forms";
-import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/image-lock";
-import { readListing, type ListingView } from "@/lib/listing-labels";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/listing/image-lock";
+import { readListing, type ListingView } from "@/lib/listing/listing-labels";
 import {
   ARCHIVE_ENDED_TEXT,
   REPUBLISH_ARCHIVE_FIRST,
@@ -18,10 +18,10 @@ import {
   STATUS_TITLE,
   STATUS_UNSURE,
   STATUS_WAIT,
-} from "@/lib/listing-messages";
-import { targetsFor, type StatusTarget } from "@/lib/listing-status";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
+} from "@/lib/listing/listing-messages";
+import { targetsFor, type StatusTarget } from "@/lib/listing/listing-status";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
 
 /**
  * The Actions section of a Listing that has been published (Story 2.17): Archive for a Published, Sold or Rented one, "Mark as sold" or

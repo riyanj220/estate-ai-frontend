@@ -1,11 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Field } from "@/components/form-field";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { SUPPORT_CATEGORIES, fetchSupportRequests, sendSupportRequest, type SupportCategory, type SupportRequest } from "@/lib/support";
-import { useFormFeedback } from "@/lib/use-form-feedback";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
+import { Field } from "@/components/ui/form-field";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { SUPPORT_CATEGORIES, fetchSupportRequests, sendSupportRequest, type SupportCategory, type SupportRequest } from "@/lib/account/support";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
 
 const HEADING_ID = "support-title";
 const SIGN_IN_PATH = `/sign-in?next=${encodeURIComponent("/account/support")}`;

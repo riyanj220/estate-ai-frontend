@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useFormFeedback } from "@/lib/use-form-feedback";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
 import { PolicySection } from "./policy-section";
 import type { AccountType } from "./quota-api";
 import { UsageSection } from "./usage-section";

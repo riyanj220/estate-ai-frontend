@@ -1,15 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ErrorSummary } from "@/components/error-summary";
-import { Field, PasswordField } from "@/components/form-field";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { REJECTED_ERROR, readErrorBody, withTimeout } from "@/lib/forms";
-import { CURRENT_PASSWORD_MESSAGES, mapKnownCodes } from "@/lib/password-messages";
-import { GENERAL_FIELD_MESSAGES, PROFILE_MESSAGES } from "@/lib/registration-messages";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useFormFeedback } from "@/lib/use-form-feedback";
+import { ErrorSummary } from "@/components/ui/error-summary";
+import { Field, PasswordField } from "@/components/ui/form-field";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { REJECTED_ERROR, readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { CURRENT_PASSWORD_MESSAGES, mapKnownCodes } from "@/lib/forms/password-messages";
+import { GENERAL_FIELD_MESSAGES, PROFILE_MESSAGES } from "@/lib/forms/registration-messages";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
 
 type Fields = Record<string, string[]>;
 

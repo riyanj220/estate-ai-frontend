@@ -1,4 +1,4 @@
-import { Guarded } from "@/components/guarded";
+import { Guarded } from "@/components/auth/guarded";
 
 // Every request is checked against the backend; nothing signed-in is cached or served statically.
 export const dynamic = "force-dynamic";

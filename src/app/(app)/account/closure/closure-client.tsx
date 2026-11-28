@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { fetchClosure, requestClosure, type Closure, type ClosureKind } from "@/lib/closure";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
-import { useFormFeedback } from "@/lib/use-form-feedback";
+import { fetchClosure, requestClosure, type Closure, type ClosureKind } from "@/lib/account/closure";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
 
 const HEADING_ID = "closure-title";
 const SIGN_IN_PATH = `/sign-in?next=${encodeURIComponent("/account/closure")}`;

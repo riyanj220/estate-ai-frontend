@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getApi } from "@/lib/api";
-import { NETWORK_ERROR, SERVER_ERROR, rateLimitMessage, readErrorBody, withTimeout } from "@/lib/forms";
+import { getApi } from "@/lib/http/api";
+import { NETWORK_ERROR, SERVER_ERROR, rateLimitMessage, readErrorBody, withTimeout } from "@/lib/forms/forms";
 
 const SENT = "If that address needs verification, we have sent a new link. Check your inbox and spam folder.";
 const REJECTED = "We could not send a new link. Please try again.";

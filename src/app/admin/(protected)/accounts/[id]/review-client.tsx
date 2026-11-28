@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import type { components } from "@/api/schema";
-import { STATE_LABELS, typeLabel } from "@/lib/account";
-import { getApi } from "@/lib/api";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { REPORT_REASONS } from "@/lib/reports";
+import { STATE_LABELS, typeLabel } from "@/lib/account/account";
+import { getApi } from "@/lib/http/api";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { REPORT_REASONS } from "@/lib/listing/reports";
 import { STATUS_LABELS, useAdminRead, words } from "../../moderation-shared";
 import { ReasonedRead } from "../../reasoned-read";
 import { AccountAction } from "../account-action";

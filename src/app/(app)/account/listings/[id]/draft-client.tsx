@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { getApi } from "@/lib/api";
-import { rateLimitMessage, withTimeout } from "@/lib/forms";
-import { isListingId, readListing, type ListingView } from "@/lib/listing-labels";
-import { LISTINGS_PATH, LISTING_NOT_FOUND, signInPathFor } from "@/lib/listing-messages";
-import { isListingStatus } from "@/lib/listing-status";
-import { usePageshowRecheck } from "@/lib/use-pageshow-recheck";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
+import { getApi } from "@/lib/http/api";
+import { rateLimitMessage, withTimeout } from "@/lib/forms/forms";
+import { isListingId, readListing, type ListingView } from "@/lib/listing/listing-labels";
+import { LISTINGS_PATH, LISTING_NOT_FOUND, signInPathFor } from "@/lib/listing/listing-messages";
+import { isListingStatus } from "@/lib/listing/listing-status";
+import { usePageshowRecheck } from "@/lib/auth/use-pageshow-recheck";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
 import { DraftEditor, type Latest } from "./draft-editor";
 
 const HEADING_ID = "draft-title";

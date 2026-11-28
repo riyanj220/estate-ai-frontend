@@ -2218,7 +2218,7 @@ test("details: a label-less registry field gets a humanised label in its error a
 });
 
 test("details: the three lists of hand-built ids agree (the client's two and the stub's)", async ({ request }) => {
-  const { HAND_BUILT_KEYS } = await import("../../src/lib/listing-labels");
+  const { HAND_BUILT_KEYS } = await import("../../src/lib/listing/listing-labels");
   const stub = (await (await request.get(`${STUB}/__hand-ids`)).json()).ids as string[];
   expect([...HAND_BUILT_KEYS].sort()).toEqual([...stub].sort());
 });

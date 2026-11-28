@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AdminShell } from "@/app/admin/(protected)/admin-shell";
-import { requireAccount } from "@/lib/current-account";
+import { requireAccount } from "@/lib/auth/current-account";
 import { ChangePasswordForm } from "./change-password-form";
 
 export const metadata: Metadata = { title: "Change password | EstateAI", robots: { index: false, follow: false } };

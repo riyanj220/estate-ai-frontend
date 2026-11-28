@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { NotificationsLink } from "@/components/notifications-link";
-import { useSession } from "@/lib/session";
+import { NotificationsLink } from "@/components/layout/notifications-link";
+import { useSession } from "@/lib/auth/session";
 import { AdminSessionWatch } from "./admin-session-watch";
 
 // The administration screens that exist.

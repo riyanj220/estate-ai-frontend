@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from "react";
 import type { components } from "@/api/schema";
-import { Field, PasswordField } from "@/components/form-field";
-import { getApi } from "@/lib/api";
+import { Field, PasswordField } from "@/components/ui/form-field";
+import { getApi } from "@/lib/http/api";
 import { useAdminRead, useAdminWrite } from "../moderation-shared";
 
 type Status = components["schemas"]["SecondFactor"];

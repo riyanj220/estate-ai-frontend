@@ -1,7 +1,7 @@
 import type { components } from "@/api/schema";
-import { getApi } from "@/lib/api";
-import { withTimeout } from "@/lib/forms";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
+import { getApi } from "@/lib/http/api";
+import { withTimeout } from "@/lib/forms/forms";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
 
 export type Policy = components["schemas"]["QuotaPolicy"];
 export type Usage = components["schemas"]["QuotaUsage"];

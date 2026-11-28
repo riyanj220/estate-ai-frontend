@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { getApi } from "@/lib/api";
-import { CsrfFetchError, withCsrf } from "@/lib/csrf";
+import { getApi } from "@/lib/http/api";
+import { CsrfFetchError, withCsrf } from "@/lib/http/csrf";
 import {
   NETWORK_ERROR,
   REJECTED_ERROR,
@@ -13,9 +13,9 @@ import {
   rateLimitMessage,
   readErrorBody,
   withTimeout,
-} from "@/lib/forms";
-import { CURRENT_PASSWORD_MESSAGES, NEW_PASSWORD_MESSAGES, mapFieldMessages } from "@/lib/password-messages";
-import { useSession } from "@/lib/session";
+} from "@/lib/forms/forms";
+import { CURRENT_PASSWORD_MESSAGES, NEW_PASSWORD_MESSAGES, mapFieldMessages } from "@/lib/forms/password-messages";
+import { useSession } from "@/lib/auth/session";
 
 type FieldName = "current_password" | "new_password";
 type Fields = Partial<Record<FieldName, string[]>>;

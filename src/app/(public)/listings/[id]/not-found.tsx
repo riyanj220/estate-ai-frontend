@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LISTING_NOT_FOUND } from "@/lib/listing-messages";
+import { LISTING_NOT_FOUND } from "@/lib/listing/listing-messages";
 
 /** One answer for a hidden and an unknown Listing. */
 export default function ListingNotFound() {

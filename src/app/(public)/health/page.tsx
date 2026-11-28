@@ -1,4 +1,4 @@
-import { getApi } from "@/lib/api";
+import { getApi } from "@/lib/http/api";
 
 export const dynamic = "force-dynamic";
 

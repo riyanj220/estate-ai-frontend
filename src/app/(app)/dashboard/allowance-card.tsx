@@ -1,10 +1,10 @@
 "use client";
 
-import { getApi } from "@/lib/api";
-import { withTimeout } from "@/lib/forms";
-import { formatResetDate, readAllowance, remainingText, type Allowance } from "@/lib/publication-allowance";
-import { failureMessage } from "@/lib/request-errors";
-import { ProfileLoadState, useProfileLoad, type ProfileFetch } from "@/lib/use-profile-load";
+import { getApi } from "@/lib/http/api";
+import { withTimeout } from "@/lib/forms/forms";
+import { formatResetDate, readAllowance, remainingText, type Allowance } from "@/lib/account/publication-allowance";
+import { failureMessage } from "@/lib/http/request-errors";
+import { ProfileLoadState, useProfileLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
 
 const HEADING_ID = "allowance-title";
 /** Re-reads on focus and visibility are coalesced to one per this long. */

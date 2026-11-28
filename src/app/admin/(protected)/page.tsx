@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { STATE_LABELS } from "@/lib/account";
-import { requireAdmin } from "@/lib/current-account";
+import { STATE_LABELS } from "@/lib/account/account";
+import { requireAdmin } from "@/lib/auth/current-account";
 import { Dashboard } from "./dashboard-client";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };

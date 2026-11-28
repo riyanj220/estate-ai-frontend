@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { EstimateFigure } from "@/components/estimate-figure";
-import { FloorPlanView } from "@/components/floor-plan-view";
-import { ListingFacts } from "@/components/listing-facts";
-import { RetryImage } from "@/components/retry-image";
-import { getApi } from "@/lib/api";
-import { readValue } from "@/lib/estimate";
-import { rateLimitMessage, withTimeout } from "@/lib/forms";
-import { isListingId, summaryOf, type ListingView } from "@/lib/listing-labels";
-import { readPreview } from "@/lib/listing-preview";
+import { EstimateFigure } from "@/components/listing/estimate-figure";
+import { FloorPlanView } from "@/components/listing/floor-plan-view";
+import { ListingFacts } from "@/components/listing/listing-facts";
+import { RetryImage } from "@/components/ui/retry-image";
+import { getApi } from "@/lib/http/api";
+import { readValue } from "@/lib/listing/estimate";
+import { rateLimitMessage, withTimeout } from "@/lib/forms/forms";
+import { isListingId, summaryOf, type ListingView } from "@/lib/listing/listing-labels";
+import { readPreview } from "@/lib/listing/listing-preview";
 import {
   ESTIMATE_NOT_AVAILABLE,
   ESTIMATE_TITLE,
@@ -19,11 +19,11 @@ import {
   PREVIEW_DETAILS_FAILED,
   PREVIEW_NO_IMAGES,
   signInPathFor,
-} from "@/lib/listing-messages";
-import { usePageshowRecheck } from "@/lib/use-pageshow-recheck";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
-import { useAmenityCatalogue, useLocationLists } from "@/lib/use-reference";
-import { useRegistry } from "@/lib/use-registry";
+} from "@/lib/listing/listing-messages";
+import { usePageshowRecheck } from "@/lib/auth/use-pageshow-recheck";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
+import { useAmenityCatalogue, useLocationLists } from "@/lib/reference/use-reference";
+import { useRegistry } from "@/lib/listing/use-registry";
 
 const HEADING_ID = "preview-title";
 type Preview = { found: true; listing: ListingView; estimate: string | null } | { found: false };

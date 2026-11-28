@@ -1,11 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { EstimateFigure } from "@/components/estimate-figure";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { readEstimate, type Estimate } from "@/lib/estimate";
-import { REJECTED_ERROR, UPLOAD_TIMEOUT_MS, withTimeout } from "@/lib/forms";
+import { EstimateFigure } from "@/components/listing/estimate-figure";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { readEstimate, type Estimate } from "@/lib/listing/estimate";
+import { REJECTED_ERROR, UPLOAD_TIMEOUT_MS, withTimeout } from "@/lib/forms/forms";
 import {
   ESTIMATE_BUTTON,
   ESTIMATE_FORBIDDEN,
@@ -17,8 +17,8 @@ import {
   ESTIMATE_UNAVAILABLE,
   ESTIMATE_WAIT,
   ESTIMATE_WORKING,
-} from "@/lib/listing-messages";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
+} from "@/lib/listing/listing-messages";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
 
 /**
  * "Get estimate" on the Draft form (Story 4.4). Asked for only by pressing the button, computed from the saved Draft, and read only: it

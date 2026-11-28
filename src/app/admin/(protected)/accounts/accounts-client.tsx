@@ -2,15 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
-import { Field } from "@/components/form-field";
-import { STATE_LABELS, typeLabel } from "@/lib/account";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { readErrorBody, withTimeout } from "@/lib/forms";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
-import { useFormFeedback } from "@/lib/use-form-feedback";
+import { Field } from "@/components/ui/form-field";
+import { STATE_LABELS, typeLabel } from "@/lib/account/account";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
 import { AccountAction } from "./account-action";
 import { Directory } from "./directory";
 import { LOOKUP_REASON, NOT_FOUND, SIGN_IN_PATH, checkReason, reasonMessage, type AccountStatus, type AdminAccount } from "./accounts-api";

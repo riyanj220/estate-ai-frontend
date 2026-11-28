@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { RetryImage } from "@/components/retry-image";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { UPLOAD_TIMEOUT_MS, withTimeout } from "@/lib/forms";
-import { acquireImageLock, releaseImageLock } from "@/lib/image-lock";
-import type { FloorPlan } from "@/lib/listing-labels";
+import { RetryImage } from "@/components/ui/retry-image";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { UPLOAD_TIMEOUT_MS, withTimeout } from "@/lib/forms/forms";
+import { acquireImageLock, releaseImageLock } from "@/lib/listing/image-lock";
+import type { FloorPlan } from "@/lib/listing/listing-labels";
 import {
   FLOOR_PLAN_ADDED,
   FLOOR_PLAN_HINT,
@@ -17,10 +17,10 @@ import {
   MAX_UPLOAD_BYTES,
   UPLOAD_CONFLICT_MESSAGES,
   UPLOAD_FILE_MESSAGES,
-} from "@/lib/listing-messages";
-import { thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
-import { uploadErrorMessage } from "@/lib/upload-errors";
+} from "@/lib/listing/listing-messages";
+import { thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
+import { uploadErrorMessage } from "@/lib/forms/upload-errors";
 import type { Latest } from "./draft-editor";
 
 /**

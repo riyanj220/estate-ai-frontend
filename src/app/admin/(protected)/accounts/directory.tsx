@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import type { components } from "@/api/schema";
-import { STATE_LABELS, typeLabel } from "@/lib/account";
-import { getApi } from "@/lib/api";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
+import { STATE_LABELS, typeLabel } from "@/lib/account/account";
+import { getApi } from "@/lib/http/api";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
 import { cursorOf, useAdminRead } from "../moderation-shared";
 
 type Page = components["schemas"]["DirectoryPage"];

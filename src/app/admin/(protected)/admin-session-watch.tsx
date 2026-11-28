@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { useSession } from "@/lib/session";
+import { useSession } from "@/lib/auth/session";
 
 /**
  * Watches the session provider (which re-checks on focus, tab visibility and every route change). When it reports a

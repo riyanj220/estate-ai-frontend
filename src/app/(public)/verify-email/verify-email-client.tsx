@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { getApi } from "@/lib/api";
-import { readErrorBody, withTimeout } from "@/lib/forms";
-import { scrubTokenFromHistory } from "@/lib/scrub-token";
+import { getApi } from "@/lib/http/api";
+import { readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { scrubTokenFromHistory } from "@/lib/auth/scrub-token";
 import { RequestLinkForm } from "./request-link-form";
 
 type State = "pending" | "success" | "link_expired" | "link_used" | "link_invalid" | "missing" | "retry";

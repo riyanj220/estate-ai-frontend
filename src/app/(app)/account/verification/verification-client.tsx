@@ -1,11 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Field } from "@/components/form-field";
-import { changeVerification, fetchVerification, type Draft, type FieldCodes, type Verification } from "@/lib/agency-verification";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/use-profile-load";
-import { useFormFeedback } from "@/lib/use-form-feedback";
+import { Field } from "@/components/ui/form-field";
+import { changeVerification, fetchVerification, type Draft, type FieldCodes, type Verification } from "@/lib/account/agency-verification";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { ProfileLoadState, useResourceLoad, type ProfileFetch } from "@/lib/account/use-profile-load";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
 
 const HEADING_ID = "verification-title";
 const SIGN_IN_PATH = `/sign-in?next=${encodeURIComponent("/account/verification")}`;

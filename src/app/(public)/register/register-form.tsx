@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckYourEmail } from "@/components/check-your-email";
-import { FormErrors } from "@/components/form-errors";
-import { Field, PasswordField } from "@/components/form-field";
-import { getApi } from "@/lib/api";
+import { CheckYourEmail } from "@/components/auth/check-your-email";
+import { FormErrors } from "@/components/ui/form-errors";
+import { Field, PasswordField } from "@/components/ui/form-field";
+import { getApi } from "@/lib/http/api";
 import {
   NETWORK_ERROR,
   REJECTED_ERROR,
@@ -12,8 +12,8 @@ import {
   rateLimitMessage,
   readErrorBody,
   withTimeout,
-} from "@/lib/forms";
-import { useFormFeedback } from "@/lib/use-form-feedback";
+} from "@/lib/forms/forms";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
 
 type FieldName = "full_name" | "email" | "password" | "phone";
 type Fields = Record<string, string[]>;

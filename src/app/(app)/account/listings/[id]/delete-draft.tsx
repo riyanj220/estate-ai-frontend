@@ -2,11 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { withTimeout } from "@/lib/forms";
-import { clearFlash, setFlash } from "@/lib/flash";
-import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/image-lock";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { withTimeout } from "@/lib/forms/forms";
+import { clearFlash, setFlash } from "@/lib/auth/flash";
+import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/listing/image-lock";
 import {
   DELETE_DRAFT_DONE,
   DELETE_DRAFT_FORBIDDEN,
@@ -18,9 +18,9 @@ import {
   DELETE_DRAFT_TITLE,
   DELETE_DRAFT_WAIT,
   LISTINGS_PATH,
-} from "@/lib/listing-messages";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
+} from "@/lib/listing/listing-messages";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
 
 /** The backend's own not-found answer: `{error: {code: "not_found"}}`. A proxy's or a router's 404 is something else. */
 function isNotFoundEnvelope(body: unknown): boolean {

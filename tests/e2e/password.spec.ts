@@ -576,7 +576,7 @@ test("change: editing a field clears the success message", async ({ page }) => {
 
 test("policy codes map to exact text for the new-password, reset and current-password maps", async () => {
   const { NEW_PASSWORD_MESSAGES, RESET_PASSWORD_MESSAGES, CURRENT_PASSWORD_MESSAGES, EMAIL_MESSAGES, mapFieldMessages } = await import(
-    "../../src/lib/password-messages"
+    "../../src/lib/forms/password-messages"
   );
   const policy: Record<string, string> = {
     required: "Enter a new password.",

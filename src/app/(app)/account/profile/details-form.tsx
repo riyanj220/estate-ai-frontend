@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ErrorSummary } from "@/components/error-summary";
-import { Field } from "@/components/form-field";
-import { getApi } from "@/lib/api";
-import { withCsrf } from "@/lib/csrf";
-import { REJECTED_ERROR, readErrorBody, withTimeout } from "@/lib/forms";
-import { markProfileSaving } from "@/lib/image-lock";
-import { SAVE_PAUSED, SAVE_WAIT } from "@/lib/listing-messages";
-import { mapKnownCodes } from "@/lib/password-messages";
-import { GENERAL_FIELD_MESSAGES, PROFILE_MESSAGES } from "@/lib/registration-messages";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
-import { useFormFeedback } from "@/lib/use-form-feedback";
+import { ErrorSummary } from "@/components/ui/error-summary";
+import { Field } from "@/components/ui/form-field";
+import { getApi } from "@/lib/http/api";
+import { withCsrf } from "@/lib/http/csrf";
+import { REJECTED_ERROR, readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { markProfileSaving } from "@/lib/listing/image-lock";
+import { SAVE_PAUSED, SAVE_WAIT } from "@/lib/listing/listing-messages";
+import { mapKnownCodes } from "@/lib/forms/password-messages";
+import { GENERAL_FIELD_MESSAGES, PROFILE_MESSAGES } from "@/lib/forms/registration-messages";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
 import type { Profile } from "./profile-client";
 
 type FieldName = "full_name" | "phone";

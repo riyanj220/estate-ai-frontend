@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/current-account";
+import { requireAdmin } from "@/lib/auth/current-account";
 
 /**
  * Every unknown path under /admin goes through the same guard: a non-administrator is redirected to the admin sign-in

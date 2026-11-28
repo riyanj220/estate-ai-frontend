@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { SENTENCE_CODES, codeOfSentence } from "../../src/lib/error-sentences";
+import { SENTENCE_CODES, codeOfSentence } from "../../src/lib/http/error-sentences";
 
-// The real API reports `error.fields` as static sentences (backend `FIELD_MESSAGES`). `src/lib/error-sentences.ts` is the reverse table and
+// The real API reports `error.fields` as static sentences (backend `FIELD_MESSAGES`). `src/lib/http/error-sentences.ts` is the reverse table and
 // `tests/e2e/field-sentences.json` the forward one the stub uses. When the sibling backend repository is present both must agree with it.
 const BACKEND = process.env.BACKEND_ERRORS_PY ?? "../estate-ai-backend/apps/kernel/errors.py";
 

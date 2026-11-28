@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { backendUrl } from "./src/lib/backend-url";
+import { backendUrl } from "./src/lib/http/backend-url";
 
 // The browser only talks to its own origin; Next.js proxies /api/* to Django.
 // BACKEND_URL is read when this config loads (build time for `next build`).

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { checkAdmin } from "@/lib/current-account";
-import { safeAdminNext } from "@/lib/next-target";
+import { checkAdmin } from "@/lib/auth/current-account";
+import { safeAdminNext } from "@/lib/auth/next-target";
 import { AdminSignInForm } from "./admin-sign-in-form";
 
 export const metadata: Metadata = { title: "Administrator sign in | EstateAI", robots: { index: false, follow: false } };

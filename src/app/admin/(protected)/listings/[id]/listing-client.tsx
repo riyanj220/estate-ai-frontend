@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { components } from "@/api/schema";
-import { Field } from "@/components/form-field";
-import { RetryImage } from "@/components/retry-image";
-import { getApi } from "@/lib/api";
-import { withTimeout } from "@/lib/forms";
-import { formatResetDate as formatDate } from "@/lib/publication-allowance";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
+import { Field } from "@/components/ui/form-field";
+import { RetryImage } from "@/components/ui/retry-image";
+import { getApi } from "@/lib/http/api";
+import { withTimeout } from "@/lib/forms/forms";
+import { formatResetDate as formatDate } from "@/lib/account/publication-allowance";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
 import { LOOKUP_REASON, checkReason, reasonMessage } from "../../accounts/accounts-api";
 import { ReasonedRead } from "../../reasoned-read";
 import { STATUS_LABELS, shown, useAdminWrite, useSessionGone, words } from "../../moderation-shared";

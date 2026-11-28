@@ -188,7 +188,7 @@ test("concurrent callers share one CSRF fetch", async ({ request }) => {
   // The helper is plain browser code: run it in Node with a window pointing at the stub backend.
   (globalThis as unknown as { window: unknown }).window = { location: { origin: STUB } };
   try {
-    const { getCsrfToken, clearCsrfToken } = await import("../../src/lib/csrf");
+    const { getCsrfToken, clearCsrfToken } = await import("../../src/lib/http/csrf");
     clearCsrfToken();
     const tokens = await Promise.all([getCsrfToken(), getCsrfToken(), getCsrfToken()]);
     expect(new Set(tokens).size).toBe(1);

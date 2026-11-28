@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { components } from "@/api/schema";
-import { getApi } from "@/lib/api";
-import { CsrfFetchError, withCsrf } from "@/lib/csrf";
-import { RetryImage } from "@/components/retry-image";
-import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/image-lock";
-import { REJECTED_ERROR, UPLOAD_TIMEOUT_MS, readErrorBody, withTimeout } from "@/lib/forms";
-import { readListing, type ListingView, type MediaItem } from "@/lib/listing-labels";
+import { getApi } from "@/lib/http/api";
+import { CsrfFetchError, withCsrf } from "@/lib/http/csrf";
+import { RetryImage } from "@/components/ui/retry-image";
+import { acquireImageLock, imageLockHeld, releaseImageLock } from "@/lib/listing/image-lock";
+import { REJECTED_ERROR, UPLOAD_TIMEOUT_MS, readErrorBody, withTimeout } from "@/lib/forms/forms";
+import { readListing, type ListingView, type MediaItem } from "@/lib/listing/listing-labels";
 import {
   IMAGES_ALREADY_GONE,
   IMAGES_CONFLICT,
@@ -28,11 +28,11 @@ import {
   ORDER_CHANGED,
   UPLOAD_CONFLICT_MESSAGES,
   UPLOAD_FILE_MESSAGES,
-} from "@/lib/listing-messages";
-import { failureMessage, thrownMessage } from "@/lib/request-errors";
-import { useSession } from "@/lib/session";
-import { uploadErrorMessage } from "@/lib/upload-errors";
-import { useFormFeedback } from "@/lib/use-form-feedback";
+} from "@/lib/listing/listing-messages";
+import { failureMessage, thrownMessage } from "@/lib/http/request-errors";
+import { useSession } from "@/lib/auth/session";
+import { uploadErrorMessage } from "@/lib/forms/upload-errors";
+import { useFormFeedback } from "@/lib/forms/use-form-feedback";
 import type { Latest } from "./draft-editor";
 
 type RowState = "waiting" | "uploading" | "done" | "failed" | "skipped" | "unknown";

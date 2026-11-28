@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ListingResults } from "@/components/listing-results";
-import { browseHref, canonicalQuery, valuesOf } from "@/lib/listing-filters";
-import { BROWSE_PATH, agencyPath, fetchAgency, fetchBrowse, fetchFilterSchema, fetchPlaces } from "@/lib/public-listings";
+import { ListingResults } from "@/components/listing/listing-results";
+import { browseHref, canonicalQuery, valuesOf } from "@/lib/search/listing-filters";
+import { BROWSE_PATH, agencyPath, fetchAgency, fetchBrowse, fetchFilterSchema, fetchPlaces } from "@/lib/listing/public-listings";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
